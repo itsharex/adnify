@@ -29,7 +29,7 @@
     - 定义 CompletionContext、CompletionResult、CompletionSuggestion 接口
     - 实现 debounce 机制和请求取消
     - _Requirements: 1.1, 1.4_
-  - [ ]* 1.2 编写 CompletionService 属性测试
+  - [ ] 1.2 编写 CompletionService 属性测试
     - **Property 3: Context includes required fields**
     - **Validates: Requirements 1.5**
   - [ ] 1.3 实现上下文收集逻辑
@@ -42,7 +42,7 @@
     - 实现 show/hide/accept 方法
     - 添加样式（半透明、斜体）
     - _Requirements: 1.1, 1.6_
-  - [ ]* 1.5 编写 Ghost Text 属性测试
+  - [ ] 1.5 编写 Ghost Text 属性测试
     - **Property 1: Tab acceptance inserts suggestion**
     - **Property 2: Escape dismisses suggestion**
     - **Validates: Requirements 1.2, 1.3**
@@ -66,7 +66,7 @@
     - 定义状态机（idle → input → generating → preview → applying）
     - 实现 start/submit/accept/reject/cancel 方法
     - _Requirements: 2.1, 2.5, 2.6_
-  - [ ]* 3.2 编写 InlineEditService 属性测试
+  - [ ] 3.2 编写 InlineEditService 属性测试
     - **Property 4: Cmd+K activates inline edit**
     - **Property 5: Selection included in context**
     - **Property 6: Accept applies changes**
@@ -87,7 +87,7 @@
     - 处理选中文本作为上下文
     - 实现流式响应显示
     - _Requirements: 2.1, 2.2, 2.7_
-  - [ ]* 3.6 编写内联编辑单元测试
+  - [ ] 3.6 编写内联编辑单元测试
     - 测试状态转换
     - 测试 Diff 生成
     - _Requirements: 2.1-2.7_
@@ -101,7 +101,7 @@
     - 添加 @folder、@symbol、@terminal、@git 解析
     - 实现 searchSymbols 方法
     - _Requirements: 5.1, 5.3, 5.4_
-  - [ ]* 5.2 编写 ContextService 属性测试
+  - [ ] 5.2 编写 ContextService 属性测试
     - **Property 12: @folder expansion**
     - **Validates: Requirements 5.3**
   - [ ] 5.3 创建符号索引
@@ -118,7 +118,7 @@
     - 支持点击移除
     - 显示上下文类型图标
     - _Requirements: 5.7_
-  - [ ]* 5.6 编写上下文 Pills 属性测试
+  - [ ] 5.6 编写上下文 Pills 属性测试
     - **Property 13: Context pills display**
     - **Validates: Requirements 5.7**
 
@@ -138,7 +138,7 @@
     - 集成 CheckpointService 创建检查点
     - 实现失败回滚逻辑
     - _Requirements: 3.4, 3.6, 3.7_
-  - [ ]* 7.3 编写 ComposerService 属性测试
+  - [ ] 7.3 编写 ComposerService 属性测试
     - **Property 8: Atomic apply all**
     - **Property 9: Checkpoint before modification**
     - **Validates: Requirements 3.4, 3.6, 3.7**
@@ -152,7 +152,7 @@
     - 在 Agent 模式下检测多文件更改
     - 自动切换到 Composer 视图
     - _Requirements: 3.1_
-  - [ ]* 7.6 编写 Composer 集成测试
+  - [ ] 7.6 编写 Composer 集成测试
     - 测试多文件更改流程
     - 测试回滚功能
     - _Requirements: 3.1-3.7_
@@ -175,7 +175,7 @@
     - 使用余弦相似度排序
     - 限制返回结果数量
     - _Requirements: 4.3, 4.4_
-  - [ ]* 9.4 编写 IndexService 属性测试
+  - [ ] 9.4 编写 IndexService 属性测试
     - **Property 10: Search result limit**
     - **Property 11: Incremental update**
     - **Validates: Requirements 4.4, 4.5**
@@ -205,7 +205,7 @@
     - 添加 getDetails 方法（返回文件快照和 Diff）
     - 添加 persist/load 方法
     - _Requirements: 7.1, 7.3, 7.6_
-  - [ ]* 11.2 编写 CheckpointService 属性测试
+  - [ ] 11.2 编写 CheckpointService 属性测试
     - **Property 14: Checkpoint creation on modification**
     - **Property 15: Restore matches checkpoint**
     - **Property 16: Restore preserves future checkpoints**
@@ -234,7 +234,7 @@
     - 实现 sendMessage 流式响应
     - 实现 healthCheck 方法
     - _Requirements: 8.1, 8.2_
-  - [ ]* 13.2 编写 OllamaProvider 属性测试
+  - [ ] 13.2 编写 OllamaProvider 属性测试
     - **Property 17: Model detection**
     - **Validates: Requirements 8.2**
   - [ ] 13.3 创建 LMStudioProvider
@@ -247,7 +247,7 @@
     - 实现自动检测逻辑
     - 处理连接失败错误
     - _Requirements: 8.3, 8.4_
-  - [ ]* 13.5 编写模型切换属性测试
+  - [ ] 13.5 编写模型切换属性测试
     - **Property 18: Conversation preservation on model switch**
     - **Validates: Requirements 8.5**
   - [ ] 13.6 更新 SettingsModal
@@ -266,7 +266,7 @@
     - 实现文件监听热加载
     - 实现 getRulesPrompt 方法
     - _Requirements: 9.1, 9.4_
-  - [ ]* 15.2 编写 RulesService 属性测试
+  - [ ] 15.2 编写 RulesService 属性测试
     - **Property 19: Rules inclusion in prompts**
     - **Property 20: Rules hot reload**
     - **Validates: Requirements 9.1, 9.4**
@@ -309,7 +309,7 @@
     - 检查当前模型是否支持视觉
     - 不支持时显示警告
     - _Requirements: 10.4, 10.5_
-  - [ ]* 17.6 编写图片处理属性测试
+  - [ ] 17.6 编写图片处理属性测试
     - **Property 21: Vision model requirement**
     - **Validates: Requirements 10.4, 10.5**
 
@@ -342,7 +342,7 @@
     - 在 ContextService 添加 @git 处理
     - 包含状态和最近提交
     - _Requirements: 11.4_
-  - [ ]* 19.6 编写 Git 上下文属性测试
+  - [ ] 19.6 编写 Git 上下文属性测试
     - **Property 22: @git context inclusion**
     - **Validates: Requirements 11.4**
   - [ ] 19.7 实现冲突解决辅助
@@ -375,7 +375,7 @@
     - 生成多个可能的修复
     - 按置信度排序
     - _Requirements: 15.5_
-  - [ ]* 21.6 编写错误诊断属性测试
+  - [ ] 21.6 编写错误诊断属性测试
     - **Property 23: Fix proposal includes diff**
     - **Property 24: Multiple fixes ranked**
     - **Validates: Requirements 15.4, 15.5**
