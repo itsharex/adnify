@@ -61,7 +61,7 @@ export function useAgent() {
 	}, [setPendingToolCall])
 
 	// 发送消息
-	const sendMessage = useCallback(async (userMessage: string) => {
+	const sendMessage = useCallback(async (userMessage: string | any[]) => {
 		if (!llmConfig.apiKey) {
 			addMessage({
 				role: 'assistant',
@@ -72,6 +72,11 @@ export function useAgent() {
 
 		abortRef.current = false
 		setIsStreaming(true)
+		
+		// 提取文本内容用于上下文处理
+		const textContent = typeof userMessage === 'string' 
+			? userMessage 
+			: userMessage.filter(c => c.type === 'text').map(c => c.text).join('')
 
 		// 创建用户消息检查点
 		if (workspacePath) {
@@ -83,26 +88,28 @@ export function useAgent() {
 			addCheckpoint(checkpoint)
 		}
 
-		// 处理 @file 引用，收集上下文
-		const { files: contextFiles, cleanedMessage, projectStructure } = await contextService.collectContext(
-			userMessage,
+		// 处理 @file 和 @codebase 引用，收集上下文
+		const { files: contextFiles, semanticResults, cleanedMessage, projectStructure } = await contextService.collectContext(
+			textContent,
 			{ includeActiveFile: true, includeOpenFiles: false, includeProjectStructure: true }
 		)
 
 		// 构建带上下文的消息
 		let messageWithContext = cleanedMessage
-		if (contextFiles.length > 0 || projectStructure) {
-			messageWithContext += '\n\n' + buildContextString(contextFiles, projectStructure)
+		if (contextFiles.length > 0 || projectStructure || semanticResults.length > 0) {
+			messageWithContext += '\n\n' + buildContextString(contextFiles, projectStructure, semanticResults)
 		}
 
 		// 添加用户消息（显示原始消息，但发送带上下文的消息）
-		addMessage({ role: 'user', content: userMessage })
+		addMessage({ role: 'user', content: userMessage as any })
 
-		// 构建对话历史
-		const conversationMessages = [
+		// 构建对话历史 - 将消息内容转换为字符串
+		const conversationMessages: LLMMessageForSend[] = [
 			...messages.map(m => ({
 				role: m.role,
-				content: m.content,
+				content: typeof m.content === 'string' 
+					? m.content 
+					: m.content.filter(c => c.type === 'text').map(c => (c as { text: string }).text).join(''),
 				toolCallId: m.toolCallId,
 				toolName: m.toolName,
 			})),
@@ -176,9 +183,10 @@ export function useAgent() {
                 const lastMsg = useStore.getState().messages.at(-1)
                 if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.toolCallId) {
                     // 如果流式传输不完整，追加缺失的内容
-                    if (!lastMsg.content.includes(finalContent)) {
+                    const lastMsgText = typeof lastMsg.content === 'string' ? lastMsg.content : ''
+                    if (!lastMsgText.includes(finalContent)) {
                         const state = useStore.getState()
-                        if (lastMsg.content.length === 0) {
+                        if (lastMsgText.length === 0) {
                             state.updateLastMessage(finalContent)
                         }
                     }
@@ -186,7 +194,8 @@ export function useAgent() {
             }
 
 			// 更新对话历史（用于下一轮 LLM 调用）
-			const assistantContent = useStore.getState().messages.at(-1)?.content || ''
+			const lastMsgContent = useStore.getState().messages.at(-1)?.content
+			const assistantContent = typeof lastMsgContent === 'string' ? lastMsgContent : ''
 			if (assistantContent) {
 				conversationMessages.push({
 					role: 'assistant' as const,

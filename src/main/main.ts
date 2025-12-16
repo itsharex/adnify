@@ -652,19 +652,59 @@ ipcMain.on('terminal:kill', (_, id?: string) => {
     }
 })
 
-ipcMain.handle('terminal:get-shells', () => {
-    if (process.platform === 'win32') {
-        return [
-            { label: 'PowerShell', path: 'powershell.exe' },
-            { label: 'Command Prompt', path: 'cmd.exe' },
-            { label: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe' },
-            { label: 'WSL', path: 'wsl.exe' }
-        ]
+ipcMain.handle('terminal:get-shells', async () => {
+    const { execSync } = require('child_process')
+    const shells: { label: string; path: string }[] = []
+    
+    // 通过系统命令检测可用的 shell
+    const findShell = (cmd: string): string[] => {
+        try {
+            const result = process.platform === 'win32'
+                ? execSync(`where ${cmd}`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] })
+                : execSync(`which ${cmd}`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] })
+            return result.trim().split(/\r?\n/).filter(Boolean)
+        } catch {
+            return []
+        }
     }
-    return [
-        { label: 'Bash', path: '/bin/bash' },
-        { label: 'Zsh', path: '/bin/zsh' }
-    ]
+    
+    if (process.platform === 'win32') {
+        // Windows shells - 这些是系统内置的，直接用命令名
+        shells.push({ label: 'PowerShell', path: 'powershell.exe' })
+        shells.push({ label: 'Command Prompt', path: 'cmd.exe' })
+        
+        // Git Bash - 需要找到真正的 Git bash，排除 System32 下的 WSL bash
+        const bashPaths = findShell('bash')
+        const gitBash = bashPaths.find(p => 
+            p.toLowerCase().includes('git') && fs.existsSync(p)
+        )
+        if (gitBash) {
+            shells.push({ label: 'Git Bash', path: gitBash })
+        }
+        
+        // WSL - 检查是否真正可用
+        const wslPaths = findShell('wsl')
+        if (wslPaths.length > 0) {
+            try {
+                execSync('wsl --list --quiet', { stdio: 'ignore', timeout: 2000 })
+                shells.push({ label: 'WSL', path: 'wsl.exe' })
+            } catch {
+                // WSL not properly configured
+            }
+        }
+    } else {
+        // Unix-like systems
+        const bash = findShell('bash')[0]
+        if (bash) shells.push({ label: 'Bash', path: bash })
+        
+        const zsh = findShell('zsh')[0]
+        if (zsh) shells.push({ label: 'Zsh', path: zsh })
+        
+        const fish = findShell('fish')[0]
+        if (fish) shells.push({ label: 'Fish', path: fish })
+    }
+    
+    return shells
 })
 
 // ==========================================

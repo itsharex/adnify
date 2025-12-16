@@ -213,10 +213,15 @@ export default function ChatPanel() {
     const regex = /@(?:file:)?([^\s@]+\.[a-zA-Z0-9]+)/g
     let match
     while ((match = regex.exec(input)) !== null) {
-      refs.push(match[1])
+      if (match[1] !== 'codebase') {
+        refs.push(match[1])
+      }
     }
     return refs
   }, [input])
+
+  // Codebase reference detection
+  const hasCodebaseRef = useMemo(() => /@codebase\b/i.test(input), [input])
 
   // Image handling
   const addImage = async (file: File) => {
@@ -311,7 +316,7 @@ export default function ChatPanel() {
       setMentionQuery(atMatch[1])
       if (inputContainerRef.current) {
         const rect = inputContainerRef.current.getBoundingClientRect()
-        setMentionPosition({ x: rect.left + 16, y: rect.top - 200 })
+        setMentionPosition({ x: rect.left + 16, y: rect.top })
       }
       setShowFileMention(true)
     } else {
@@ -411,7 +416,7 @@ export default function ChatPanel() {
 
   return (
     <div 
-        className={`w-[450px] flex flex-col relative z-10 border-l border-border bg-[#09090b] transition-colors ${isDragging ? 'bg-accent/5 ring-2 ring-inset ring-accent' : ''}`}
+        className={`w-full h-full flex flex-col relative z-10 bg-[#09090b] transition-colors ${isDragging ? 'bg-accent/5 ring-2 ring-inset ring-accent' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -553,9 +558,15 @@ export default function ChatPanel() {
                   </div>
               )}
 
-          {/* File Chips */}
-          {fileRefs.length > 0 && (
+          {/* Context Chips */}
+          {(fileRefs.length > 0 || hasCodebaseRef) && (
              <div className="flex flex-wrap gap-1.5 px-3 pt-3">
+                {hasCodebaseRef && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-500/10 text-purple-400 text-[10px] font-medium rounded-full border border-purple-500/20 animate-fade-in">
+                        <Sparkles className="w-3 h-3" />
+                        @codebase
+                    </span>
+                )}
                 {fileRefs.map((ref, i) => (
                     <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-accent/10 text-accent text-[10px] font-medium rounded-full border border-accent/20 animate-fade-in">
                         <FileText className="w-3 h-3" />

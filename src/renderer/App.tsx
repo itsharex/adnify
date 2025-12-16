@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useStore } from './store'
 import TitleBar from './components/TitleBar'
 import Sidebar from './components/Sidebar'
@@ -16,12 +16,19 @@ import ComposerPanel from './components/ComposerPanel'
 export default function App() {
   const { 
     showSettings, setLLMConfig, setLanguage, setAutoApprove, setShowSettings, 
-    setTerminalVisible, terminalVisible, setWorkspacePath, setFiles 
+    setTerminalVisible, terminalVisible, setWorkspacePath, setFiles,
+    activeSidePanel
   } = useStore()
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false)
   const [showQuickOpen, setShowQuickOpen] = useState(false)
   const [showComposer, setShowComposer] = useState(false)
+
+  // Layout State
+  const [sidebarWidth, setSidebarWidth] = useState(260)
+  const [chatWidth, setChatWidth] = useState(450)
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false)
+  const [isResizingChat, setIsResizingChat] = useState(false)
 
   useEffect(() => {
     // Load saved settings & restore workspace
@@ -49,6 +56,52 @@ export default function App() {
     }
     loadSettings()
   }, [setLLMConfig, setLanguage, setAutoApprove, setWorkspacePath, setFiles])
+
+  // Resize Logic
+  useEffect(() => {
+    if (!isResizingSidebar && !isResizingChat) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+        if (isResizingSidebar) {
+            const newWidth = e.clientX - 48 // 48 is ActivityBar width
+            if (newWidth > 150 && newWidth < 600) {
+                setSidebarWidth(newWidth)
+            }
+        }
+        if (isResizingChat) {
+            const newWidth = window.innerWidth - e.clientX
+            if (newWidth > 300 && newWidth < 800) {
+                setChatWidth(newWidth)
+            }
+        }
+    }
+
+    const handleMouseUp = () => {
+        setIsResizingSidebar(false)
+        setIsResizingChat(false)
+        document.body.style.cursor = 'default'
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    
+    // Add overlay to prevent iframe stealing mouse events (if any)
+    const overlay = document.createElement('div')
+    overlay.style.position = 'fixed'
+    overlay.style.top = '0'
+    overlay.style.left = '0'
+    overlay.style.right = '0'
+    overlay.style.bottom = '0'
+    overlay.style.zIndex = '9999'
+    overlay.style.cursor = isResizingSidebar || isResizingChat ? 'col-resize' : 'default'
+    document.body.appendChild(overlay)
+
+    return () => {
+        window.removeEventListener('mousemove', handleMouseMove)
+        window.removeEventListener('mouseup', handleMouseUp)
+        document.body.removeChild(overlay)
+    }
+  }, [isResizingSidebar, isResizingChat])
 
   // 全局快捷键
   const handleGlobalKeyDown = useCallback((e: KeyboardEvent) => {
@@ -106,7 +159,18 @@ export default function App() {
       {/* Main Workspace */}
       <div className="flex-1 flex overflow-hidden">
         <ActivityBar />
-        <Sidebar /> {/* Visibility controlled internally via activeSidePanel */}
+        
+        {/* Sidebar Container */}
+        {activeSidePanel && (
+            <div style={{ width: sidebarWidth }} className="flex-shrink-0 relative">
+                <Sidebar />
+                {/* Sidebar Resize Handle */}
+                <div 
+                    className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-accent/50 transition-colors z-50 translate-x-[2px]"
+                    onMouseDown={(e) => { e.preventDefault(); setIsResizingSidebar(true) }}
+                />
+            </div>
+        )}
         
         {/* Editor & Chat Area */}
         <div className="flex-1 flex min-w-0 bg-background relative">
@@ -119,7 +183,16 @@ export default function App() {
              <TerminalPanel />
           </div>
 
-          <ChatPanel />
+          {/* Chat Panel Container */}
+          <div style={{ width: chatWidth }} className="flex-shrink-0 relative border-l border-border-subtle">
+              {/* Chat Resize Handle */}
+              <div 
+                  className="absolute top-0 left-0 w-1 h-full cursor-col-resize hover:bg-accent/50 transition-colors z-50 -translate-x-[2px]"
+                  onMouseDown={(e) => { e.preventDefault(); setIsResizingChat(true) }}
+              />
+              <ChatPanel />
+          </div>
+
         </div>
       </div>
 

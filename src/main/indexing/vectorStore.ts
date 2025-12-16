@@ -7,7 +7,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { IndexedChunk, SearchResult } from './types'
 
-// Stub types
+// LanceDB 类型
 type LanceDBConnection = any
 type LanceDBTable = any
 type LanceDBSearchResult = any
@@ -31,23 +31,20 @@ export class VectorStoreService {
       fs.mkdirSync(this.indexPath, { recursive: true })
     }
 
-    // LanceDB disabled due to missing dependency
-    console.warn('[VectorStore] LanceDB dependency missing. Vector store disabled.')
-    
-    /* 
     try {
-        const lancedb = await import('@lancedb/lancedb')
-        this.db = await lancedb.connect(this.indexPath)
+      const lancedb = await import('@lancedb/lancedb')
+      this.db = await lancedb.connect(this.indexPath)
 
-        // 检查是否已有表
-        const tables = await this.db.tableNames()
-        if (tables.includes(this.tableName)) {
-            this.table = await this.db.openTable(this.tableName)
-        }
+      // 检查是否已有表
+      const tables = await this.db.tableNames()
+      if (tables.includes(this.tableName)) {
+        this.table = await this.db.openTable(this.tableName)
+      }
+      console.log('[VectorStore] Initialized at:', this.indexPath)
     } catch (e) {
-        console.warn('LanceDB not available, vector store disabled.')
+      console.error('[VectorStore] Failed to initialize LanceDB:', e)
+      this.db = null
     }
-    */
   }
 
   /**

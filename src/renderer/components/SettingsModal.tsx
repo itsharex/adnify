@@ -792,7 +792,7 @@ function SystemSettings({ language }: { language: Language }) {
             {embeddingProviders.map(p => (
               <button
                 key={p.id}
-                onClick={() => setEmbeddingConfig({ ...embeddingConfig, provider: p.id })}
+                onClick={() => setEmbeddingConfig({ ...embeddingConfig, provider: p.id as typeof embeddingConfig.provider })}
                 className={`px-3 py-2 rounded-lg border text-xs transition-all text-left ${
                   embeddingConfig.provider === p.id
                     ? 'border-accent bg-accent/10 text-accent'

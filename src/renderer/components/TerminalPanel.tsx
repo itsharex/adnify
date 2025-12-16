@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { Terminal as XTerminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -40,6 +40,8 @@ interface TerminalSession {
 export default function TerminalPanel() {
   const { terminalVisible, setTerminalVisible, workspacePath, setChatMode, setInputPrompt } = useStore()
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [height, setHeight] = useState(280)
+  const [isResizing, setIsResizing] = useState(false)
   
   // Multi-terminal state
   const [terminals, setTerminals] = useState<TerminalSession[]>([])
@@ -52,6 +54,41 @@ export default function TerminalPanel() {
   const addonRefs = useRef<Map<string, FitAddon>>(new Map())
   const containerRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const outputBuffers = useRef<Map<string, string[]>>(new Map())
+
+  // Resize handler
+  const startResizing = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsResizing(true)
+  }, [])
+
+  useEffect(() => {
+    if (!isResizing) return
+    
+    const handleMouseMove = (e: MouseEvent) => {
+        // Calculate new height based on mouse position relative to window bottom
+        // Assuming status bar is approx 24px
+        const newHeight = window.innerHeight - e.clientY - 24
+        if (newHeight > 100 && newHeight < window.innerHeight - 100) {
+            setHeight(newHeight)
+        }
+    }
+    
+    const stopResizing = () => {
+        setIsResizing(false)
+        // Trigger resize fit for terminal
+        if (activeId) {
+            const addon = addonRefs.current.get(activeId)
+            addon?.fit()
+        }
+    }
+    
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', stopResizing)
+    return () => {
+        window.removeEventListener('mousemove', handleMouseMove)
+        window.removeEventListener('mouseup', stopResizing)
+    }
+  }, [isResizing, activeId])
 
   // Load available shells from main process
   useEffect(() => {
@@ -97,19 +134,11 @@ export default function TerminalPanel() {
       setTimeout(handleResize, 100)
 
       return () => window.removeEventListener('resize', handleResize)
-  }, [terminalVisible, isCollapsed, activeId])
+  }, [terminalVisible, isCollapsed, activeId, height])
 
   // Data listener (Global)
   useEffect(() => {
       const unsubscribe = window.electronAPI.onTerminalData(({ id, data }: { id?: string, data: string }) => {
-          // Backward compatibility: if id is string inside data (unlikely) or passed separately
-          // The preload sends (data) or ({id, data}). We need to update preload to send object.
-          // Assuming we updated main.ts, we need to update preload.ts to pass object.
-          // Wait, main.ts sends { id, data }. Preload receives it.
-          // Let's assume preload passes it through or we fix preload.
-          
-          // If data is just string (old behavior), we might assume active terminal?
-          // Let's be safe.
           const targetId = id || activeId
           if (!targetId) return
 
@@ -186,8 +215,8 @@ export default function TerminalPanel() {
               window.electronAPI.resizeTerminal(id, cols, rows)
           }
           
-          // Wake up
-          window.electronAPI.writeTerminal(id, '\r')
+          // REMOVED: Extra newline which caused duplicate prompt
+          // window.electronAPI.writeTerminal(id, '\r')
       }, 50)
   }
 
@@ -202,7 +231,7 @@ export default function TerminalPanel() {
       outputBuffers.current.delete(id)
 
       // Notify backend
-      window.electronAPI.killTerminal(id) // Needs update
+      window.electronAPI.killTerminal(id)
 
       setTerminals(prev => {
           const newTerminals = prev.filter(t => t.id !== id)
@@ -233,67 +262,65 @@ export default function TerminalPanel() {
   return (
     <>
     <style>{XTERM_STYLE}</style>
-    <div className={`
-        bg-background-secondary border-t border-border-subtle flex flex-col transition-all duration-300 relative z-10
-        ${isCollapsed ? 'h-9' : 'h-64'}
-    `}>
+    <div 
+        className="
+            bg-background-secondary border-t border-border-subtle flex flex-col transition-none relative z-10
+        "
+        style={{ height: isCollapsed ? 36 : height }}
+    >
+      {/* Resize Handle */}
+      <div 
+        className="absolute top-0 left-0 right-0 h-1 cursor-row-resize z-50 hover:bg-accent/50 transition-colors"
+        onMouseDown={startResizing}
+      />
+
       {/* Header */}
       <div className="h-9 min-h-[36px] flex items-center justify-between border-b border-border-subtle bg-background-secondary select-none">
-         {/* Tabs */}
-         <div className="flex items-center flex-1 overflow-x-auto no-scrollbar">
+         {/* Tabs Section */}
+         <div className="flex items-center flex-1 min-w-0 overflow-hidden h-full">
+             {/* Toggle Icon (Fixed) */}
              <div 
-                className="flex items-center gap-2 px-3 cursor-pointer hover:text-text-primary text-text-muted transition-colors mr-2 border-r border-border-subtle"
+                className="flex-shrink-0 flex items-center justify-center px-3 cursor-pointer hover:text-text-primary text-text-muted transition-colors border-r border-border-subtle h-full"
                 onClick={() => setIsCollapsed(!isCollapsed)}
              >
                  <TerminalIcon className="w-3.5 h-3.5" />
              </div>
              
-             {terminals.map(term => (
-                 <div 
-                    key={term.id}
-                    onClick={() => setActiveId(term.id)}
-                    className={`
-                        flex items-center gap-2 px-3 py-1 text-xs cursor-pointer border-r border-border-subtle/50 min-w-[100px] max-w-[200px]
-                        ${activeId === term.id ? 'bg-[#18181b] text-text-primary border-t-2 border-t-accent' : 'text-text-muted hover:bg-surface-active border-t-2 border-t-transparent'}
-                    `}
-                 >
-                     <span className="truncate flex-1">{term.name}</span>
-                     <button 
-                        onClick={(e) => closeTerminal(term.id, e)}
-                        className="p-0.5 rounded hover:bg-surface-hover hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+             {/* Scrollable Tabs List */}
+             <div className="flex items-center overflow-x-auto no-scrollbar flex-1 h-full">
+                 {terminals.map(term => (
+                     <div 
+                        key={term.id}
+                        onClick={() => setActiveId(term.id)}
+                        className={`
+                            flex items-center gap-2 px-3 h-full text-xs cursor-pointer border-r border-border-subtle/50 min-w-[120px] max-w-[200px] flex-shrink-0 group
+                            ${activeId === term.id ? 'bg-[#18181b] text-text-primary border-t-2 border-t-accent' : 'text-text-muted hover:bg-surface-active border-t-2 border-t-transparent'}
+                        `}
                      >
-                         <X className="w-3 h-3" />
-                     </button>
-                 </div>
-             ))}
+                         <span className="truncate flex-1">{term.name}</span>
+                         <button 
+                            onClick={(e) => closeTerminal(term.id, e)}
+                            className="p-0.5 rounded hover:bg-surface-hover hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                         >
+                             <X className="w-3 h-3" />
+                         </button>
+                     </div>
+                 ))}
+             </div>
              
-             {/* Add Button */}
-             <div className="relative">
+             {/* Add Button (Fixed) */}
+             <div className="relative flex-shrink-0 h-full flex items-center px-1 border-l border-border-subtle">
                  <button 
                     onClick={() => setShowShellMenu(!showShellMenu)}
-                    className="p-1.5 mx-1 rounded hover:bg-surface-active text-text-muted hover:text-text-primary"
+                    className="p-1.5 rounded hover:bg-surface-active text-text-muted hover:text-text-primary"
                  >
                      <Plus className="w-3.5 h-3.5" />
                  </button>
-                 
-                 {showShellMenu && (
-                     <div className="absolute top-8 left-0 w-40 bg-surface border border-border-subtle rounded-lg shadow-xl py-1 z-50 flex flex-col">
-                         {availableShells.map(shell => (
-                             <button
-                                key={shell.label}
-                                onClick={() => createTerminal(shell.path, shell.label)}
-                                className="text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover"
-                             >
-                                 {shell.label}
-                             </button>
-                         ))}
-                     </div>
-                 )}
              </div>
          </div>
 
          {/* Actions */}
-         <div className="flex items-center gap-1 px-2">
+         <div className="flex items-center gap-1 px-2 flex-shrink-0">
              <button 
                 onClick={handleFixWithAI}
                 className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-surface-active text-text-muted hover:text-accent transition-colors mr-2"
@@ -326,6 +353,36 @@ export default function TerminalPanel() {
           ))}
       </div>
     </div>
+    
+    {/* Shell Menu - Outside main container to avoid overflow clipping */}
+    {showShellMenu && (
+        <>
+            <div 
+                className="fixed inset-0 z-[99]" 
+                onClick={() => setShowShellMenu(false)}
+            />
+            <div 
+                className="fixed bg-surface border border-border-subtle rounded-lg shadow-xl py-1 flex flex-col max-h-64 overflow-y-auto z-[100]"
+                style={{
+                    bottom: `${height + 8}px`,
+                    right: '466px',
+                    width: '192px',
+                }}
+            >
+                {availableShells.length > 0 ? availableShells.map(shell => (
+                    <button
+                        key={shell.label}
+                        onClick={() => createTerminal(shell.path, shell.label)}
+                        className="text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover"
+                    >
+                        {shell.label}
+                    </button>
+                )) : (
+                    <div className="px-3 py-2 text-xs text-text-muted italic">No shells found</div>
+                )}
+            </div>
+        </>
+    )}
     </>
   )
 }

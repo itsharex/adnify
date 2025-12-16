@@ -8,8 +8,10 @@ import { useStore } from '../store'
 export interface FileContext {
 	path: string
 	content: string
-	type: 'active' | 'open' | 'referenced' | 'related'
+	type: 'active' | 'open' | 'referenced' | 'related' | 'semantic'
 	relevance: number // 0-1
+	startLine?: number
+	endLine?: number
 }
 
 export interface ContextSelection {
@@ -30,22 +32,34 @@ const MAX_FILES = 10
 export function parseFileReferences(message: string): string[] {
 	const refs: string[] = []
 	
-	// 匹配 @file:path 或 @path 格式
+	// 匹配 @file:path 或 @path 格式（排除 @codebase）
 	const regex = /@(?:file:)?([^\s@]+\.[a-zA-Z0-9]+)/g
 	let match
 	
 	while ((match = regex.exec(message)) !== null) {
-		refs.push(match[1])
+		if (match[1] !== 'codebase') {
+			refs.push(match[1])
+		}
 	}
 	
 	return [...new Set(refs)] // 去重
 }
 
 /**
- * 移除消息中的 @file 引用，返回清理后的消息
+ * 检查消息是否包含 @codebase 引用
+ */
+export function hasCodebaseReference(message: string): boolean {
+	return /@codebase\b/i.test(message)
+}
+
+/**
+ * 移除消息中的 @file 和 @codebase 引用，返回清理后的消息
  */
 export function cleanFileReferences(message: string): string {
-	return message.replace(/@(?:file:)?[^\s@]+\.[a-zA-Z0-9]+/g, '').trim()
+	return message
+		.replace(/@codebase\b/gi, '')
+		.replace(/@(?:file:)?[^\s@]+\.[a-zA-Z0-9]+/g, '')
+		.trim()
 }
 
 /**
@@ -105,21 +119,66 @@ export async function formatProjectStructure(rootPath: string): Promise<string> 
 }
 
 /**
+ * 格式化语义搜索结果
+ */
+export function formatSemanticResult(result: FileContext): string {
+	const lang = getLanguageFromPath(result.path)
+	const lineInfo = result.startLine && result.endLine 
+		? ` (lines ${result.startLine}-${result.endLine})` 
+		: ''
+	const scoreInfo = result.relevance < 1 ? ` [relevance: ${(result.relevance * 100).toFixed(0)}%]` : ''
+	
+	return `**${result.path}**${lineInfo}${scoreInfo}:\n\`\`\`${lang}\n${result.content}\n\`\`\``
+}
+
+/**
  * 构建上下文字符串
  */
-export function buildContextString(files: FileContext[], projectStructure?: string): string {
+export function buildContextString(files: FileContext[], projectStructure?: string, semanticResults?: FileContext[]): string {
     let context = '---\n**Context:**\n\n'
     
     if (projectStructure) {
         context += projectStructure + '\n\n'
     }
     
+	// 语义搜索结果
+	if (semanticResults && semanticResults.length > 0) {
+		context += '**Relevant Code (from codebase search):**\n\n'
+		context += semanticResults.map(formatSemanticResult).join('\n\n')
+		context += '\n\n'
+	}
+	
+	// 文件引用
 	if (files.length > 0) {
+		context += '**Referenced Files:**\n\n'
         const sections = files.map(formatFileContext)
 	    context += sections.join('\n\n')
     }
     
     return context
+}
+
+/**
+ * 执行代码库语义搜索
+ */
+export async function searchCodebase(query: string, topK: number = 8): Promise<FileContext[]> {
+	const state = useStore.getState()
+	if (!state.workspacePath) return []
+	
+	try {
+		const results = await window.electronAPI.indexSearch(state.workspacePath, query, topK)
+		return results.map(r => ({
+			path: r.relativePath,
+			content: r.content,
+			type: 'semantic' as const,
+			relevance: r.score,
+			startLine: r.startLine,
+			endLine: r.endLine,
+		}))
+	} catch (e) {
+		console.error('[Context] Codebase search failed:', e)
+		return []
+	}
 }
 
 /**
@@ -135,6 +194,7 @@ export async function collectContext(
 	}
 ): Promise<{
 	files: FileContext[]
+	semanticResults: FileContext[]
     projectStructure?: string
 	cleanedMessage: string
 	totalChars: number
@@ -148,6 +208,7 @@ export async function collectContext(
 	
 	const state = useStore.getState()
 	const files: FileContext[] = []
+	let semanticResults: FileContext[] = []
 	let totalChars = 0
     let projectStructure = ''
 
@@ -159,9 +220,19 @@ export async function collectContext(
 	
 	// 1. 解析 @file 引用
 	const refs = parseFileReferences(message)
+	const useCodebase = hasCodebaseReference(message)
 	const cleanedMessage = cleanFileReferences(message)
 	
-	// 2. 加载引用的文件
+	// 2. 如果使用 @codebase，执行语义搜索
+	if (useCodebase && cleanedMessage.trim()) {
+		semanticResults = await searchCodebase(cleanedMessage, 8)
+		// 计算语义结果的字符数
+		for (const result of semanticResults) {
+			totalChars += result.content.length + 100 // 额外的格式化开销
+		}
+	}
+	
+	// 3. 加载引用的文件
 	for (const ref of refs) {
 		if (files.length >= MAX_FILES) break
 		
@@ -183,7 +254,7 @@ export async function collectContext(
 		}
 	}
 	
-	// 3. 添加当前活动文件
+	// 4. 添加当前活动文件
 	if (includeActiveFile && state.activeFilePath) {
 		const activeFile = state.openFiles.find(f => f.path === state.activeFilePath)
 		if (activeFile && !files.some(f => f.path === activeFile.path)) {
@@ -199,7 +270,7 @@ export async function collectContext(
 		}
 	}
 	
-	// 4. 添加其他打开的文件（可选）
+	// 5. 添加其他打开的文件（可选）
 	if (includeOpenFiles) {
 		for (const openFile of state.openFiles) {
 			if (files.length >= MAX_FILES) break
@@ -219,7 +290,7 @@ export async function collectContext(
 	// 按相关性排序
 	files.sort((a, b) => b.relevance - a.relevance)
 	
-	return { files, projectStructure, cleanedMessage, totalChars }
+	return { files, semanticResults, projectStructure, cleanedMessage, totalChars }
 }
 
 /**
@@ -228,8 +299,11 @@ export async function collectContext(
 export const contextService = {
 	parseFileReferences,
 	cleanFileReferences,
+	hasCodebaseReference,
 	formatFileContext,
+	formatSemanticResult,
     formatProjectStructure,
 	buildContextString,
+	searchCodebase,
 	collectContext,
 }

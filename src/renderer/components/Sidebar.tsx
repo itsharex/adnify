@@ -899,7 +899,7 @@ export default function Sidebar() {
   if (!activeSidePanel) return null
 
   return (
-    <div className="w-64 bg-background-secondary border-r border-border-subtle flex flex-col h-full animate-slide-in relative z-0">
+    <div className="w-full bg-background-secondary border-r border-border-subtle flex flex-col h-full animate-slide-in relative z-0">
       {activeSidePanel === 'explorer' && <ExplorerView />}
       {activeSidePanel === 'search' && <SearchView />}
       {activeSidePanel === 'git' && <GitView />}

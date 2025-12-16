@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
-import { FileText, Search } from 'lucide-react'
+import { FileText, Search, Database, Sparkles } from 'lucide-react'
 import { useStore } from '../store'
 
 interface FileMentionPopupProps {
@@ -20,6 +20,17 @@ interface FileOption {
 	isDirectory: boolean
 	relativePath: string
 }
+
+// 特殊上下文选项
+const SPECIAL_CONTEXTS = [
+	{
+		id: 'codebase',
+		name: '@codebase',
+		description: '语义搜索整个代码库',
+		icon: Database,
+		color: 'text-purple-400',
+	},
+]
 
 export default function FileMentionPopup({
 	position,
@@ -95,6 +106,13 @@ export default function FileMentionPopup({
 		return result
 	}
 
+	// 过滤特殊上下文
+	const filteredSpecialContexts = SPECIAL_CONTEXTS.filter(ctx => {
+		if (!searchQuery) return true
+		return ctx.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+			ctx.id.toLowerCase().includes(searchQuery.toLowerCase())
+	})
+
 	// 过滤文件
 	const filteredFiles = files.filter(file => {
 		if (!searchQuery) return true
@@ -103,7 +121,7 @@ export default function FileMentionPopup({
 			file.name.toLowerCase().includes(query) ||
 			file.relativePath.toLowerCase().includes(query)
 		)
-	}).slice(0, 10) // 最多显示 10 个
+	}).slice(0, 10 - filteredSpecialContexts.length) // 为特殊上下文留出空间
 
 	// 优先显示打开的文件
 	const sortedFiles = [...filteredFiles].sort((a, b) => {
@@ -114,6 +132,18 @@ export default function FileMentionPopup({
 		return a.relativePath.localeCompare(b.relativePath)
 	})
 
+	// 合并列表：特殊上下文 + 文件
+	const totalItems = filteredSpecialContexts.length + sortedFiles.length
+
+	// 获取当前选中项
+	const getSelectedItem = () => {
+		if (selectedIndex < filteredSpecialContexts.length) {
+			return { type: 'special', item: filteredSpecialContexts[selectedIndex] }
+		}
+		const fileIndex = selectedIndex - filteredSpecialContexts.length
+		return { type: 'file', item: sortedFiles[fileIndex] }
+	}
+
 	// 键盘导航 - 使用 capture 阶段来优先处理
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
@@ -121,7 +151,7 @@ export default function FileMentionPopup({
 				case 'ArrowDown':
 					e.preventDefault()
 					e.stopPropagation()
-					setSelectedIndex(i => Math.min(i + 1, sortedFiles.length - 1))
+					setSelectedIndex(i => Math.min(i + 1, totalItems - 1))
 					break
 				case 'ArrowUp':
 					e.preventDefault()
@@ -129,10 +159,14 @@ export default function FileMentionPopup({
 					setSelectedIndex(i => Math.max(i - 1, 0))
 					break
 				case 'Enter':
+				case 'Tab':
 					e.preventDefault()
 					e.stopPropagation()
-					if (sortedFiles[selectedIndex]) {
-						onSelect(sortedFiles[selectedIndex].relativePath)
+					const selected = getSelectedItem()
+					if (selected.type === 'special') {
+						onSelect(selected.item.id)
+					} else if (selected.item) {
+						onSelect((selected.item as FileOption).relativePath)
 					}
 					break
 				case 'Escape':
@@ -140,20 +174,13 @@ export default function FileMentionPopup({
 					e.stopPropagation()
 					onClose()
 					break
-				case 'Tab':
-					e.preventDefault()
-					e.stopPropagation()
-					if (sortedFiles[selectedIndex]) {
-						onSelect(sortedFiles[selectedIndex].relativePath)
-					}
-					break
 			}
 		}
 
 		// 使用 capture: true 来在冒泡阶段之前捕获事件
 		window.addEventListener('keydown', handleKeyDown, true)
 		return () => window.removeEventListener('keydown', handleKeyDown, true)
-	}, [sortedFiles, selectedIndex, onSelect, onClose])
+	}, [sortedFiles, filteredSpecialContexts, selectedIndex, totalItems, onSelect, onClose])
 
 	// 滚动到选中项
 	useEffect(() => {
@@ -175,10 +202,10 @@ export default function FileMentionPopup({
 			className="fixed z-50 bg-surface border border-border-subtle rounded-lg shadow-xl overflow-hidden animate-fade-in"
 			style={{
 				left: position.x,
-				bottom: `calc(100vh - ${position.y}px)`,
+				bottom: `calc(100vh - ${position.y}px + 8px)`,
 				minWidth: 300,
 				maxWidth: 400,
-				maxHeight: 300,
+				maxHeight: 320,
 			}}
 		>
 			{/* Header */}
@@ -189,39 +216,70 @@ export default function FileMentionPopup({
 				</span>
 			</div>
 
-			{/* File List */}
+			{/* List */}
 			<div ref={listRef} className="overflow-y-auto max-h-[240px]">
 				{loading ? (
 					<div className="flex items-center justify-center py-8">
 						<div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
 					</div>
-				) : sortedFiles.length === 0 ? (
+				) : totalItems === 0 ? (
 					<div className="py-8 text-center text-text-muted text-sm">
-						{searchQuery ? 'No files found' : 'No files in workspace'}
+						{searchQuery ? 'No results found' : 'No files in workspace'}
 					</div>
 				) : (
-					sortedFiles.map((file, index) => {
-						const isOpen = openFiles.some(f => f.path === file.path)
-						return (
-							<div
-								key={file.path}
-								onClick={() => onSelect(file.relativePath)}
-								className={`
-									flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors
-									${index === selectedIndex ? 'bg-accent/20 text-text-primary' : 'hover:bg-surface-hover text-text-secondary'}
-								`}
-							>
-								<FileText className={`w-4 h-4 flex-shrink-0 ${isOpen ? 'text-accent' : 'text-text-muted'}`} />
-								<div className="flex-1 min-w-0">
-									<div className="text-sm truncate">{file.name}</div>
-									<div className="text-[10px] text-text-muted truncate">{file.relativePath}</div>
+					<>
+						{/* Special Contexts */}
+						{filteredSpecialContexts.map((ctx, index) => {
+							const Icon = ctx.icon
+							return (
+								<div
+									key={ctx.id}
+									onClick={() => onSelect(ctx.id)}
+									className={`
+										flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors
+										${index === selectedIndex ? 'bg-accent/20 text-text-primary' : 'hover:bg-surface-hover text-text-secondary'}
+									`}
+								>
+									<Icon className={`w-4 h-4 flex-shrink-0 ${ctx.color}`} />
+									<div className="flex-1 min-w-0">
+										<div className="text-sm font-medium">{ctx.name}</div>
+										<div className="text-[10px] text-text-muted">{ctx.description}</div>
+									</div>
+									<Sparkles className="w-3 h-3 text-purple-400" />
 								</div>
-								{isOpen && (
-									<span className="text-[10px] text-accent px-1.5 py-0.5 bg-accent/10 rounded">open</span>
-								)}
-							</div>
-						)
-					})
+							)
+						})}
+						
+						{/* Separator */}
+						{filteredSpecialContexts.length > 0 && sortedFiles.length > 0 && (
+							<div className="border-t border-border-subtle my-1" />
+						)}
+						
+						{/* Files */}
+						{sortedFiles.map((file, index) => {
+							const actualIndex = index + filteredSpecialContexts.length
+							const isOpen = openFiles.some(f => f.path === file.path)
+							return (
+								<div
+									key={file.path}
+									onClick={() => onSelect(file.relativePath)}
+									className={`
+										flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors
+										${actualIndex === selectedIndex ? 'bg-accent/20 text-text-primary' : 'hover:bg-surface-hover text-text-secondary'}
+									`}
+								>
+									<FileText className={`w-4 h-4 flex-shrink-0 ${isOpen ? 'text-accent' : 'text-text-muted'}`} />
+									<div className="flex-1 min-w-0">
+										<div className="text-sm truncate">{file.name}</div>
+										<div className="text-[10px] text-text-muted truncate">{file.relativePath}</div>
+									</div>
+									{isOpen && (
+										<span className="text-[10px] text-accent px-1.5 py-0.5 bg-accent/10 rounded">open</span>
+									)}
+								</div>
+							)
+						})}
+					</>
 				)}
 			</div>
 
