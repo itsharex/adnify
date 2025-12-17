@@ -1,4 +1,4 @@
-import { Files, Search, GitBranch, Settings, Sparkles } from 'lucide-react'
+import { Files, Search, GitBranch, Settings, Sparkles, AlertCircle, ListTree } from 'lucide-react'
 import { useStore } from '../store'
 import { t } from '../i18n'
 
@@ -7,8 +7,10 @@ export default function ActivityBar() {
 
   const items = [
     { id: 'explorer', icon: Files, label: t('explorer', language) },
-    { id: 'search', icon: Search, label: t('search', language) }, // Placeholder for now
-    { id: 'git', icon: GitBranch, label: 'Git' }, // Placeholder for now
+    { id: 'search', icon: Search, label: t('search', language) },
+    { id: 'git', icon: GitBranch, label: 'Git' },
+    { id: 'problems', icon: AlertCircle, label: language === 'zh' ? '问题' : 'Problems' },
+    { id: 'outline', icon: ListTree, label: language === 'zh' ? '大纲' : 'Outline' },
   ] as const
 
   return (

@@ -136,7 +136,7 @@ export default function Editor() {
   // Tab 右键菜单状态
   const [tabContextMenu, setTabContextMenu] = useState<{ x: number; y: number; filePath: string } | null>(null)
 
-  const activeFile = openFiles.find(f => f.path === activeFilePath)
+  const activeFile = openFiles.find((f: { path: string }) => f.path === activeFilePath)
   const activeLanguage = activeFile ? getLanguage(activeFile.path) : 'plaintext'
   
   // 检测大文件
@@ -157,7 +157,7 @@ export default function Editor() {
           console.log('[Editor] LSP server started')
           // 通知 LSP 当前文件已打开
           const currentFile = useStore.getState().openFiles.find(
-            f => f.path === useStore.getState().activeFilePath
+            (f: { path: string }) => f.path === useStore.getState().activeFilePath
           )
           if (currentFile) {
             didOpenDocument(currentFile.path, currentFile.content)
@@ -608,9 +608,9 @@ export default function Editor() {
               ? monaco.MarkerSeverity.Error
               : monaco.MarkerSeverity.Warning,
             message: `[${err.code}] ${err.message}`,
-            startLineNumber: err.startLine,
+            startLineNumber: err.startLine ?? 1,
             startColumn: 1,
-            endLineNumber: err.endLine,
+            endLineNumber: err.endLine ?? 1,
             endColumn: 1000,
           }))
           monaco.editor.setModelMarkers(model, 'lint', markers)
@@ -646,6 +646,23 @@ export default function Editor() {
     }
   }, [])
 
+  // 监听跳转到行事件（从 Problems 面板或 Outline 视图触发）
+  useEffect(() => {
+    const handleGotoLine = (e: CustomEvent<{ line: number; column: number }>) => {
+      if (editorRef.current) {
+        const { line, column } = e.detail
+        editorRef.current.revealLineInCenter(line)
+        editorRef.current.setPosition({ lineNumber: line, column })
+        editorRef.current.focus()
+      }
+    }
+
+    window.addEventListener('editor:goto-line', handleGotoLine as EventListener)
+    return () => {
+      window.removeEventListener('editor:goto-line', handleGotoLine as EventListener)
+    }
+  }, [])
+
   const handleSave = useCallback(async () => {
     if (activeFile) {
       try {
@@ -673,7 +690,7 @@ export default function Editor() {
 
   // 保存指定文件
   const saveFile = useCallback(async (filePath: string) => {
-    const file = openFiles.find(f => f.path === filePath)
+    const file = openFiles.find((f: { path: string }) => f.path === filePath)
     if (file) {
       try {
         const success = await window.electronAPI.writeFile(file.path, file.content)
@@ -703,14 +720,17 @@ export default function Editor() {
 
   // 关闭文件（带保存提示）
   const handleCloseFile = useCallback(async (filePath: string) => {
-    const file = openFiles.find(f => f.path === filePath)
+    const file = openFiles.find((f: { path: string; isDirty?: boolean }) => f.path === filePath)
     if (file?.isDirty) {
       const fileName = getFileName(filePath)
-      const result = window.confirm(
-        language === 'zh' 
-          ? `"${fileName}" 有未保存的更改。是否保存？`
-          : `"${fileName}" has unsaved changes. Do you want to save?`
-      )
+      const { globalConfirm } = await import('./ConfirmDialog')
+      const result = await globalConfirm({
+        title: language === 'zh' ? '未保存的更改' : 'Unsaved Changes',
+        message: t('confirmUnsavedChanges', language, { name: fileName }),
+        confirmText: language === 'zh' ? '保存' : 'Save',
+        cancelText: language === 'zh' ? '不保存' : "Don't Save",
+        variant: 'warning',
+      })
       if (result) {
         await saveFile(filePath)
       }
@@ -736,7 +756,7 @@ export default function Editor() {
 
   // 关闭右侧文件
   const closeFilesToRight = useCallback(async (filePath: string) => {
-    const index = openFiles.findIndex(f => f.path === filePath)
+    const index = openFiles.findIndex((f: { path: string }) => f.path === filePath)
     if (index >= 0) {
       for (let i = openFiles.length - 1; i > index; i--) {
         await handleCloseFile(openFiles[i].path)
@@ -790,7 +810,7 @@ export default function Editor() {
       {/* Tabs */}
       <div className="h-10 flex items-center bg-background-secondary border-b border-border-subtle overflow-hidden select-none">
         <div className="flex items-center flex-1 overflow-x-auto no-scrollbar h-full">
-          {openFiles.map((file) => {
+          {openFiles.map((file: { path: string; isDirty?: boolean }) => {
             const fileName = getFileName(file.path)
             const isActive = file.path === activeFilePath
             return (
@@ -1167,7 +1187,7 @@ export default function Editor() {
           onCloseAll={closeAllFiles}
           onCloseToRight={closeFilesToRight}
           onSave={saveFile}
-          isDirty={openFiles.find(f => f.path === tabContextMenu.filePath)?.isDirty || false}
+          isDirty={openFiles.find((f: { path: string; isDirty?: boolean }) => f.path === tabContextMenu.filePath)?.isDirty || false}
           language={language}
         />
       )}

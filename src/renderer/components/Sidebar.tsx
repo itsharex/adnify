@@ -3,15 +3,17 @@ import {
   FolderOpen, File, ChevronRight, ChevronDown,
   Plus, RefreshCw, FolderPlus, GitBranch,
   MoreHorizontal, Trash2,
-  FileText, ArrowRight, Edit2, FilePlus, Loader2, Check
+  FileText, ArrowRight, Edit2, FilePlus, Loader2, Check,
+  AlertCircle, AlertTriangle, Info, Code, Hash, Braces, Box
 } from 'lucide-react'
 import { useStore } from '../store'
-import { FileItem } from '../types/electron'
+import { FileItem, LspDiagnostic, LspDocumentSymbol } from '../types/electron'
 import { t } from '../i18n'
 import { getFileName, getDirPath, joinPath } from '../utils/pathUtils'
 import { gitService, GitStatus, GitCommit } from '../agent/gitService'
 import { getEditorConfig } from '../config/editorConfig'
 import { toast } from './Toast'
+import { onDiagnostics, getDocumentSymbols } from '../services/lspService'
 
 const getFileIcon = (name: string) => {
   const ext = name.split('.').pop()?.toLowerCase()
@@ -376,11 +378,11 @@ function ExplorerView() {
              <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar py-1">
                 {workspacePath ? (
                 files
-                    .sort((a, b) => {
+                    .sort((a: FileItem, b: FileItem) => {
                     if (a.isDirectory === b.isDirectory) return a.name.localeCompare(b.name)
                     return a.isDirectory ? -1 : 1
                     })
-                    .map((item) => (
+                    .map((item: FileItem) => (
                     <FileTreeItem key={item.path} item={item} onRefresh={refreshFiles} />
                     ))
                 ) : (
@@ -1249,6 +1251,358 @@ function GitView() {
     )
 }
 
+// 问题面板 - 显示所有诊断错误
+function ProblemsView() {
+    const { openFile, setActiveFile, language } = useStore()
+    const [diagnostics, setDiagnostics] = useState<Map<string, LspDiagnostic[]>>(new Map())
+    const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
+    const [filter, setFilter] = useState<'all' | 'errors' | 'warnings'>('all')
+
+    // 监听 LSP 诊断
+    useEffect(() => {
+        const unsubscribe = onDiagnostics((uri, diags) => {
+            setDiagnostics(prev => {
+                const next = new Map(prev)
+                if (diags.length === 0) {
+                    next.delete(uri)
+                } else {
+                    next.set(uri, diags)
+                }
+                return next
+            })
+        })
+        return unsubscribe
+    }, [])
+
+    const toggleFile = (uri: string) => {
+        setExpandedFiles(prev => {
+            const next = new Set(prev)
+            if (next.has(uri)) next.delete(uri)
+            else next.add(uri)
+            return next
+        })
+    }
+
+    const handleDiagnosticClick = async (uri: string, diag: LspDiagnostic) => {
+        // 从 URI 提取文件路径 - 处理 Windows 和 Unix 路径
+        let filePath = uri
+        if (uri.startsWith('file:///')) {
+            // Windows: file:///C:/path -> C:/path
+            // Unix: file:///path -> /path
+            filePath = uri.slice(8)
+            // 处理 Windows 盘符 (file:///c%3A/path -> C:/path)
+            filePath = decodeURIComponent(filePath)
+            // 如果是 Windows 路径，确保使用正确的分隔符
+            if (/^[a-zA-Z]:/.test(filePath)) {
+                filePath = filePath.replace(/\//g, '\\')
+            }
+        }
+        
+        const content = await window.electronAPI.readFile(filePath)
+        if (content !== null) {
+            openFile(filePath, content)
+            setActiveFile(filePath)
+            
+            // 发送跳转到行的事件（编辑器会监听）
+            window.dispatchEvent(new CustomEvent('editor:goto-line', {
+                detail: { 
+                    line: diag.range.start.line + 1,
+                    column: diag.range.start.character + 1
+                }
+            }))
+        }
+    }
+
+    // 统计
+    const stats = useMemo(() => {
+        let errors = 0, warnings = 0, infos = 0
+        diagnostics.forEach(diags => {
+            diags.forEach(d => {
+                if (d.severity === 1) errors++
+                else if (d.severity === 2) warnings++
+                else infos++
+            })
+        })
+        return { errors, warnings, infos, total: errors + warnings + infos }
+    }, [diagnostics])
+
+    // 过滤后的诊断
+    const filteredDiagnostics = useMemo(() => {
+        const result = new Map<string, LspDiagnostic[]>()
+        diagnostics.forEach((diags, uri) => {
+            const filtered = diags.filter(d => {
+                if (filter === 'errors') return d.severity === 1
+                if (filter === 'warnings') return d.severity === 2
+                return true
+            })
+            if (filtered.length > 0) result.set(uri, filtered)
+        })
+        return result
+    }, [diagnostics, filter])
+
+    const getSeverityIcon = (severity: number | undefined) => {
+        if (severity === 1) return <AlertCircle className="w-3.5 h-3.5 text-status-error" />
+        if (severity === 2) return <AlertTriangle className="w-3.5 h-3.5 text-status-warning" />
+        return <Info className="w-3.5 h-3.5 text-blue-400" />
+    }
+
+    return (
+        <div className="flex flex-col h-full bg-background-secondary">
+            <div className="h-10 px-3 flex items-center justify-between border-b border-border-subtle bg-background-secondary sticky top-0 z-10">
+                <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
+                    {language === 'zh' ? '问题' : 'Problems'}
+                </span>
+                <div className="flex items-center gap-2 text-[10px]">
+                    {stats.errors > 0 && (
+                        <span className="flex items-center gap-1 text-status-error">
+                            <AlertCircle className="w-3 h-3" /> {stats.errors}
+                        </span>
+                    )}
+                    {stats.warnings > 0 && (
+                        <span className="flex items-center gap-1 text-status-warning">
+                            <AlertTriangle className="w-3 h-3" /> {stats.warnings}
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            {/* 过滤器 */}
+            <div className="px-3 py-2 border-b border-border-subtle flex gap-1">
+                {(['all', 'errors', 'warnings'] as const).map(f => (
+                    <button
+                        key={f}
+                        onClick={() => setFilter(f)}
+                        className={`px-2 py-1 text-[10px] rounded transition-colors ${
+                            filter === f 
+                                ? 'bg-accent/20 text-accent' 
+                                : 'text-text-muted hover:bg-surface-hover'
+                        }`}
+                    >
+                        {f === 'all' ? (language === 'zh' ? '全部' : 'All') : 
+                         f === 'errors' ? (language === 'zh' ? '错误' : 'Errors') : 
+                         (language === 'zh' ? '警告' : 'Warnings')}
+                    </button>
+                ))}
+            </div>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+                {filteredDiagnostics.size === 0 ? (
+                    <div className="p-6 text-center text-xs text-text-muted">
+                        {language === 'zh' ? '没有发现问题' : 'No problems detected'}
+                    </div>
+                ) : (
+                    Array.from(filteredDiagnostics.entries()).map(([uri, diags]) => {
+                        const fileName = uri.split(/[\\/]/).pop() || uri
+                        const isExpanded = expandedFiles.has(uri)
+                        
+                        return (
+                            <div key={uri} className="border-b border-border-subtle/50">
+                                <div
+                                    onClick={() => toggleFile(uri)}
+                                    className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-surface-hover"
+                                >
+                                    <ChevronRight className={`w-3 h-3 text-text-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                                    <FileText className="w-3.5 h-3.5 text-text-muted" />
+                                    <span className="text-xs text-text-secondary flex-1 truncate">{fileName}</span>
+                                    <span className="text-[10px] text-text-muted bg-surface-active px-1.5 rounded">{diags.length}</span>
+                                </div>
+                                
+                                {isExpanded && (
+                                    <div className="pb-1">
+                                        {diags.map((diag, idx) => (
+                                            <div
+                                                key={idx}
+                                                onClick={() => handleDiagnosticClick(uri, diag)}
+                                                className="flex items-start gap-2 px-3 py-1.5 pl-8 cursor-pointer hover:bg-surface-hover group"
+                                            >
+                                                {getSeverityIcon(diag.severity)}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs text-text-primary truncate">{diag.message}</p>
+                                                    <p className="text-[10px] text-text-muted">
+                                                        {language === 'zh' ? '行' : 'Line'} {diag.range.start.line + 1}
+                                                        {diag.source && ` • ${diag.source}`}
+                                                        {diag.code && ` (${diag.code})`}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })
+                )}
+            </div>
+        </div>
+    )
+}
+
+// 大纲视图 - 显示当前文件的符号结构
+function OutlineView() {
+    const { activeFilePath, language, openFile, setActiveFile } = useStore()
+    const [symbols, setSymbols] = useState<LspDocumentSymbol[]>([])
+    const [expandedSymbols, setExpandedSymbols] = useState<Set<string>>(new Set())
+    const [isLoading, setIsLoading] = useState(false)
+    const [filter, setFilter] = useState('')
+
+    // 加载符号
+    useEffect(() => {
+        if (!activeFilePath) {
+            setSymbols([])
+            return
+        }
+
+        const loadSymbols = async () => {
+            setIsLoading(true)
+            try {
+                const result = await getDocumentSymbols(activeFilePath)
+                setSymbols(result || [])
+                // 默认展开第一层
+                const firstLevel = new Set(result?.map((s: LspDocumentSymbol) => s.name) || [])
+                setExpandedSymbols(firstLevel)
+            } catch (e) {
+                console.error('Failed to load symbols:', e)
+                setSymbols([])
+            } finally {
+                setIsLoading(false)
+            }
+        }
+
+        loadSymbols()
+    }, [activeFilePath])
+
+    const toggleSymbol = (name: string, e: React.MouseEvent) => {
+        e.stopPropagation()
+        setExpandedSymbols(prev => {
+            const next = new Set(prev)
+            if (next.has(name)) next.delete(name)
+            else next.add(name)
+            return next
+        })
+    }
+
+    // 点击符号跳转到对应行
+    const handleSymbolClick = useCallback((symbol: LspDocumentSymbol) => {
+        if (!activeFilePath) return
+        
+        // 发送跳转到行的事件
+        window.dispatchEvent(new CustomEvent('editor:goto-line', {
+            detail: { 
+                line: symbol.range.start.line + 1,
+                column: symbol.range.start.character + 1
+            }
+        }))
+    }, [activeFilePath])
+
+    const getSymbolIcon = (kind: number | undefined) => {
+        // LSP SymbolKind
+        switch (kind) {
+            case 5: // Class
+            case 10: // Enum
+                return <Box className="w-3.5 h-3.5 text-yellow-400" />
+            case 6: // Method
+            case 12: // Function
+                return <Code className="w-3.5 h-3.5 text-purple-400" />
+            case 8: // Field
+            case 13: // Variable
+            case 14: // Constant
+                return <Hash className="w-3.5 h-3.5 text-blue-400" />
+            case 11: // Interface
+                return <Braces className="w-3.5 h-3.5 text-green-400" />
+            default:
+                return <Code className="w-3.5 h-3.5 text-text-muted" />
+        }
+    }
+
+    const renderSymbol = (symbol: LspDocumentSymbol, depth = 0) => {
+        const hasChildren = symbol.children && symbol.children.length > 0
+        const isExpanded = expandedSymbols.has(symbol.name)
+        const matchesFilter = !filter || symbol.name.toLowerCase().includes(filter.toLowerCase())
+
+        if (!matchesFilter && !hasChildren) return null
+
+        return (
+            <div key={`${symbol.name}-${symbol.range.start.line}`}>
+                <div
+                    onClick={() => handleSymbolClick(symbol)}
+                    className="flex items-center gap-1.5 px-2 py-1 cursor-pointer hover:bg-surface-hover group transition-colors"
+                    style={{ paddingLeft: `${depth * 12 + 8}px` }}
+                >
+                    {hasChildren ? (
+                        <button 
+                            onClick={(e) => toggleSymbol(symbol.name, e)}
+                            className="p-0.5 hover:bg-surface-active rounded"
+                        >
+                            <ChevronRight className={`w-3 h-3 text-text-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                        </button>
+                    ) : (
+                        <span className="w-4" />
+                    )}
+                    {getSymbolIcon(symbol.kind)}
+                    <span className="text-xs text-text-primary truncate flex-1">{symbol.name}</span>
+                    <span className="text-[10px] text-text-muted opacity-0 group-hover:opacity-100 tabular-nums">
+                        {symbol.range.start.line + 1}
+                    </span>
+                </div>
+                
+                {hasChildren && isExpanded && (
+                    <div>
+                        {symbol.children!.map(child => renderSymbol(child, depth + 1))}
+                    </div>
+                )}
+            </div>
+        )
+    }
+
+    const fileName = activeFilePath ? getFileName(activeFilePath) : ''
+
+    return (
+        <div className="flex flex-col h-full bg-background-secondary">
+            <div className="h-10 px-3 flex items-center justify-between border-b border-border-subtle bg-background-secondary sticky top-0 z-10">
+                <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
+                    {language === 'zh' ? '大纲' : 'Outline'}
+                </span>
+                {isLoading && <Loader2 className="w-3.5 h-3.5 text-accent animate-spin" />}
+            </div>
+
+            {/* 搜索过滤 */}
+            <div className="px-3 py-2 border-b border-border-subtle">
+                <input
+                    type="text"
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    placeholder={language === 'zh' ? '过滤符号...' : 'Filter symbols...'}
+                    className="w-full bg-surface/50 border border-transparent rounded px-2 py-1 text-xs text-text-primary focus:border-accent focus:outline-none"
+                />
+            </div>
+
+            {/* 当前文件 */}
+            {activeFilePath && (
+                <div className="px-3 py-1.5 border-b border-border-subtle bg-surface/30">
+                    <div className="flex items-center gap-2 text-xs text-text-secondary">
+                        <FileText className="w-3.5 h-3.5" />
+                        <span className="truncate">{fileName}</span>
+                    </div>
+                </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar py-1">
+                {!activeFilePath ? (
+                    <div className="p-6 text-center text-xs text-text-muted">
+                        {language === 'zh' ? '没有打开的文件' : 'No file open'}
+                    </div>
+                ) : symbols.length === 0 && !isLoading ? (
+                    <div className="p-6 text-center text-xs text-text-muted">
+                        {language === 'zh' ? '没有找到符号' : 'No symbols found'}
+                    </div>
+                ) : (
+                    symbols.map(symbol => renderSymbol(symbol))
+                )}
+            </div>
+        </div>
+    )
+}
+
 export default function Sidebar() {
   const { activeSidePanel } = useStore()
 
@@ -1259,6 +1613,8 @@ export default function Sidebar() {
       {activeSidePanel === 'explorer' && <ExplorerView />}
       {activeSidePanel === 'search' && <SearchView />}
       {activeSidePanel === 'git' && <GitView />}
+      {activeSidePanel === 'problems' && <ProblemsView />}
+      {activeSidePanel === 'outline' && <OutlineView />}
     </div>
   )
 }

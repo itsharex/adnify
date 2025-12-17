@@ -134,11 +134,18 @@ export async function safeOpenFile(
     
     // 4. 大文件确认
     if (confirmLargeFile && content.length > FILE_CONFIG.confirmThreshold) {
-      const confirmMsg = language === 'zh'
-        ? `此文件较大 (${(content.length / 1024 / 1024).toFixed(1)} MB)，打开可能影响性能。是否继续？`
-        : `This file is large (${(content.length / 1024 / 1024).toFixed(1)} MB) and may affect performance. Continue?`
+      const { globalConfirm } = await import('../components/ConfirmDialog')
+      const { t } = await import('../i18n')
+      const size = (content.length / 1024 / 1024).toFixed(1)
       
-      if (!window.confirm(confirmMsg)) {
+      const confirmed = await globalConfirm({
+        title: language === 'zh' ? '大文件警告' : 'Large File Warning',
+        message: t('confirmLargeFile', language, { size }),
+        confirmText: language === 'zh' ? '继续' : 'Continue',
+        variant: 'warning',
+      })
+      
+      if (!confirmed) {
         return { success: false, error: 'Cancelled by user', isLargeFile: true }
       }
     }

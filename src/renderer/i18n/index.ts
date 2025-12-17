@@ -50,7 +50,7 @@ export const translations = {
 		'closeTerminal': 'Close',
 
 		// Tools
-		'toolResult': 'Tool result for',
+		'toolResultFor': 'Tool result for',
 
 		// Diff viewer
 		'acceptChanges': 'Accept Changes',
@@ -238,6 +238,24 @@ export const translations = {
 		'ctxToggleComment': 'Toggle Line Comment',
 		'ctxDeleteLine': 'Delete Line',
 		'ctxSelectNext': 'Select Next Occurrence',
+
+		// ToolCallCard
+		'toolArguments': 'Arguments',
+		'toolResult': 'Result',
+		'toolError': 'Error',
+		'toolStreaming': 'Streaming',
+		'toolWaitingApproval': 'Waiting for approval',
+		'toolApprove': 'Approve',
+		'toolReject': 'Reject',
+		'toolCopyResult': 'Copy result',
+		'toolTruncated': '... (truncated)',
+		'confirmLargeFile': 'This file is large ({size} MB) and may affect performance. Continue?',
+
+		// Confirm Dialogs
+		'confirmChangeDataDir': 'Changing the data directory will move your current configuration to the new location and may require a restart. Continue?',
+		'confirmClearIndex': 'Are you sure you want to clear the index?',
+		'confirmUnsavedChanges': '"{name}" has unsaved changes. Save?',
+		'confirmRestoreCheckpoint': 'This will restore all files to their state before this message and delete all messages after it. Continue?',
 	},
 	zh: {
 		// Title bar
@@ -288,7 +306,7 @@ export const translations = {
 		'closeTerminal': '关闭',
 
 		// Tools
-		'toolResult': '工具结果：',
+		'toolResultFor': '工具结果：',
 
 		// Diff viewer
 		'acceptChanges': '接受更改',
@@ -476,6 +494,24 @@ export const translations = {
 		'ctxToggleComment': '切换行注释',
 		'ctxDeleteLine': '删除行',
 		'ctxSelectNext': '选择下一个匹配项',
+
+		// ToolCallCard
+		'toolArguments': 'Arguments',
+		'toolResult': 'Result',
+		'toolError': 'Error',
+		'toolStreaming': 'Streaming',
+		'toolWaitingApproval': '等待确认',
+		'toolApprove': 'Approve',
+		'toolReject': 'Reject',
+		'toolCopyResult': '复制结果',
+		'toolTruncated': '... (已截断)',
+		'confirmLargeFile': '此文件较大（{size} MB），可能影响性能。是否继续？',
+
+		// Confirm Dialogs
+		'confirmChangeDataDir': '更改配置目录将把当前配置移动到新位置，并可能需要重启应用。确定继续吗？',
+		'confirmClearIndex': '确定要清空索引吗？',
+		'confirmUnsavedChanges': '"{name}" 有未保存的更改。是否保存？',
+		'confirmRestoreCheckpoint': '这将把所有文件恢复到此消息之前的状态，并删除之后的所有消息。确定继续吗？',
 	}
 } as const
 

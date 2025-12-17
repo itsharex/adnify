@@ -353,9 +353,13 @@ export default function ChatPanel() {
     }
 
     // 确认对话框
-    const confirmed = window.confirm(
-      'This will restore all files to their state before this message and delete all messages after it. Continue?'
-    )
+    const { globalConfirm } = await import('../ConfirmDialog')
+    const confirmed = await globalConfirm({
+      title: language === 'zh' ? '恢复检查点' : 'Restore Checkpoint',
+      message: t('confirmRestoreCheckpoint', language),
+      confirmText: language === 'zh' ? '恢复' : 'Restore',
+      variant: 'warning',
+    })
     if (!confirmed) return
 
     const result = await restoreToCheckpoint(checkpoint.id)
@@ -366,7 +370,7 @@ export default function ChatPanel() {
     } else if (result.errors.length > 0) {
       toast.error(`Restore failed: ${result.errors[0]}`)
     }
-  }, [getCheckpointForMessage, restoreToCheckpoint, setActiveDiff, toast])
+  }, [getCheckpointForMessage, restoreToCheckpoint, setActiveDiff, toast, language])
 
   // 渲染消息
   const renderMessage = useCallback((msg: ChatMessageType) => {

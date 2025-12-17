@@ -14,6 +14,7 @@ import StatusBar from './components/StatusBar'
 import ComposerPanel from './components/ComposerPanel'
 import OnboardingWizard from './components/OnboardingWizard'
 import { ToastProvider, useToast, setGlobalToast } from './components/Toast'
+import { GlobalConfirmDialog } from './components/ConfirmDialog'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { initEditorConfig } from './config/editorConfig'
 import { themeManager } from './config/themeConfig'
@@ -313,6 +314,9 @@ function AppContent() {
       {showOnboarding && isInitialized && (
         <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
       )}
+      
+      {/* 全局确认对话框 */}
+      <GlobalConfirmDialog />
     </div>
   )
 }

@@ -3,7 +3,7 @@
  */
 import { StateCreator } from 'zustand'
 
-export type SidePanel = 'explorer' | 'search' | 'git' | 'extensions' | null
+export type SidePanel = 'explorer' | 'search' | 'git' | 'problems' | 'outline' | 'extensions' | null
 
 export interface DiffView {
   original: string

@@ -71,7 +71,7 @@ export interface DiffView {
 }
 
 // 侧边栏面板
-export type SidePanel = 'explorer' | 'search' | 'git' | 'extensions' | null
+export type SidePanel = 'explorer' | 'search' | 'git' | 'problems' | 'outline' | 'extensions' | null
 
 // 上下文项类型
 export interface FileContext {
