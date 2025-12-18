@@ -12,6 +12,7 @@ import {
 import { useStore } from '@/renderer/store'
 import { useAgent } from '@/renderer/hooks/useAgent'
 import { t } from '@/renderer/i18n'
+import { keybindingService } from '@/renderer/services/keybindingService'
 
 interface Command {
   id: string
@@ -256,26 +257,21 @@ export default function CommandPalette({ onClose, onShowKeyboardShortcuts }: Com
 
   // 键盘导航
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault()
-        setSelectedIndex(prev => Math.min(prev + 1, flatCommands.length - 1))
-        break
-      case 'ArrowUp':
-        e.preventDefault()
-        setSelectedIndex(prev => Math.max(prev - 1, 0))
-        break
-      case 'Enter':
-        e.preventDefault()
-        if (flatCommands[selectedIndex]) {
-          flatCommands[selectedIndex].action()
-          onClose()
-        }
-        break
-      case 'Escape':
-        e.preventDefault()
+    if (keybindingService.matches(e, 'list.focusDown')) {
+      e.preventDefault()
+      setSelectedIndex(prev => Math.min(prev + 1, flatCommands.length - 1))
+    } else if (keybindingService.matches(e, 'list.focusUp')) {
+      e.preventDefault()
+      setSelectedIndex(prev => Math.max(prev - 1, 0))
+    } else if (keybindingService.matches(e, 'list.select')) {
+      e.preventDefault()
+      if (flatCommands[selectedIndex]) {
+        flatCommands[selectedIndex].action()
         onClose()
-        break
+      }
+    } else if (keybindingService.matches(e, 'list.cancel')) {
+      e.preventDefault()
+      onClose()
     }
   }, [flatCommands, selectedIndex, onClose])
 

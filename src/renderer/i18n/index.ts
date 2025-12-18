@@ -96,6 +96,10 @@ export const translations = {
 		'searchPlaceholder': 'Search',
 		'replacePlaceholder': 'Replace',
 		'excludePlaceholder': 'e.g. *.test.ts, node_modules',
+		'searchInOpenFiles': 'Search in Open Files',
+		'replaceInSelection': 'Replace in Selection',
+		'openFilesOnly': 'Open Files Only',
+		'inSelection': 'In Selection',
 
 		// File Management
 		'newFile': 'New File',
@@ -218,6 +222,13 @@ export const translations = {
 		// CommandPalette
 		'typeCommandOrSearch': 'Type a command or search...',
 		'noCommandsFound': 'No commands found',
+
+		// QuickOpen
+		'searchFilesPlaceholder': 'Search files by name...',
+		'loadingFiles': 'Loading files...',
+		'noFilesFound': 'No files found',
+		'filesCount': '{count} files',
+		'open': 'open',
 
 		// Search Results
 		'searchResultsCount': '{results} results in {files} files',
@@ -352,6 +363,10 @@ export const translations = {
 		'searchPlaceholder': '搜索',
 		'replacePlaceholder': '替换',
 		'excludePlaceholder': '例如 *.test.ts, node_modules',
+		'searchInOpenFiles': '仅搜索打开的文件',
+		'replaceInSelection': '在选区中替换',
+		'openFilesOnly': '仅打开文件',
+		'inSelection': '仅选区',
 
 		// File Management
 		'newFile': '新建文件',
@@ -474,6 +489,13 @@ export const translations = {
 		// CommandPalette
 		'typeCommandOrSearch': '输入命令或搜索...',
 		'noCommandsFound': '未找到命令',
+
+		// QuickOpen
+		'searchFilesPlaceholder': '按名称搜索文件...',
+		'loadingFiles': '加载文件中...',
+		'noFilesFound': '未找到文件',
+		'filesCount': '{count} 个文件',
+		'open': '打开',
 
 		// Search Results
 		'searchResultsCount': '在 {files} 个文件中找到 {results} 个结果',

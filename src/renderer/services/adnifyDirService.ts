@@ -66,6 +66,12 @@ export interface WorkspaceStateData {
   expandedFolders: string[]
   scrollPositions: Record<string, number>
   cursorPositions: Record<string, { line: number; column: number }>
+  layout?: {
+    sidebarWidth: number
+    chatWidth: number
+    terminalVisible: boolean
+    terminalLayout: 'tabs' | 'split'
+  }
 }
 
 /** 项目设置 */
@@ -116,28 +122,28 @@ const DEFAULT_PROJECT_SETTINGS: ProjectSettingsData = {
 class AdnifyDirService {
   private workspacePath: string | null = null
   private initialized = false
-  
+
   // 内存缓存
   private cache: {
     sessions: SessionsData | null
     workspaceState: WorkspaceStateData | null
     settings: ProjectSettingsData | null
   } = {
-    sessions: null,
-    workspaceState: null,
-    settings: null,
-  }
-  
+      sessions: null,
+      workspaceState: null,
+      settings: null,
+    }
+
   // 脏标记（标记哪些数据需要保存）
   private dirty: {
     sessions: boolean
     workspaceState: boolean
     settings: boolean
   } = {
-    sessions: false,
-    workspaceState: false,
-    settings: false,
-  }
+      sessions: false,
+      workspaceState: false,
+      settings: false,
+    }
 
   // ============ 初始化和重置 ============
 
@@ -150,11 +156,11 @@ class AdnifyDirService {
     }
 
     this.workspacePath = workspacePath
-    
+
     try {
       const adnifyPath = this.getDirPath()
       const exists = await window.electronAPI.fileExists(adnifyPath)
-      
+
       if (!exists) {
         const created = await window.electronAPI.ensureDir(adnifyPath)
         if (!created) {
@@ -200,17 +206,17 @@ class AdnifyDirService {
     if (!this.initialized) return
 
     const promises: Promise<void>[] = []
-    
+
     if (this.dirty.sessions && this.cache.sessions) {
       promises.push(this.writeJsonFile(ADNIFY_FILES.SESSIONS, this.cache.sessions))
       this.dirty.sessions = false
     }
-    
+
     if (this.dirty.workspaceState && this.cache.workspaceState) {
       promises.push(this.writeJsonFile(ADNIFY_FILES.WORKSPACE_STATE, this.cache.workspaceState))
       this.dirty.workspaceState = false
     }
-    
+
     if (this.dirty.settings && this.cache.settings) {
       promises.push(this.writeJsonFile(ADNIFY_FILES.SETTINGS, this.cache.settings))
       this.dirty.settings = false
@@ -247,7 +253,7 @@ class AdnifyDirService {
     if (this.cache.sessions) {
       return this.cache.sessions
     }
-    
+
     if (!this.isInitialized()) {
       return {}
     }
@@ -260,7 +266,7 @@ class AdnifyDirService {
   async saveSessions(data: SessionsData): Promise<void> {
     this.cache.sessions = data
     this.dirty.sessions = true
-    
+
     // 立即写入（会话数据重要）
     if (this.isInitialized()) {
       await this.writeJsonFile(ADNIFY_FILES.SESSIONS, data)
@@ -280,7 +286,7 @@ class AdnifyDirService {
     if (this.cache.workspaceState) {
       return this.cache.workspaceState
     }
-    
+
     if (!this.isInitialized()) {
       return { ...DEFAULT_WORKSPACE_STATE }
     }
@@ -301,7 +307,7 @@ class AdnifyDirService {
     if (this.cache.settings) {
       return this.cache.settings
     }
-    
+
     if (!this.isInitialized()) {
       return { ...DEFAULT_PROJECT_SETTINGS }
     }
@@ -314,7 +320,7 @@ class AdnifyDirService {
   async saveSettings(data: ProjectSettingsData): Promise<void> {
     this.cache.settings = data
     this.dirty.settings = true
-    
+
     // 立即写入
     if (this.isInitialized()) {
       await this.writeJsonFile(ADNIFY_FILES.SETTINGS, data)
@@ -347,7 +353,7 @@ class AdnifyDirService {
 
   async fileExists(file: AdnifyFile | string): Promise<boolean> {
     if (!this.isInitialized()) return false
-    
+
     try {
       return await window.electronAPI.fileExists(this.getFilePath(file))
     } catch {
@@ -378,7 +384,7 @@ class AdnifyDirService {
     this.cache.sessions = sessions || {}
     this.cache.workspaceState = workspaceState || { ...DEFAULT_WORKSPACE_STATE }
     this.cache.settings = settings ? { ...DEFAULT_PROJECT_SETTINGS, ...settings } : { ...DEFAULT_PROJECT_SETTINGS }
-    
+
     console.log('[AdnifyDir] Loaded all data from disk')
   }
 

@@ -3,7 +3,7 @@ import { Terminal as XTerminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
-import { X, Plus, Trash2, ChevronUp, ChevronDown, Terminal as TerminalIcon, Sparkles } from 'lucide-react'
+import { X, Plus, Trash2, ChevronUp, ChevronDown, Terminal as TerminalIcon, Sparkles, Play, SplitSquareHorizontal, LayoutTemplate } from 'lucide-react'
 import { useStore } from '../store'
 import { getEditorConfig } from '../config/editorConfig'
 import { themes } from './ThemeManager'
@@ -40,17 +40,24 @@ interface TerminalSession {
 }
 
 export default function TerminalPanel() {
-    const { terminalVisible, setTerminalVisible, workspacePath, setChatMode, setInputPrompt, currentTheme } = useStore()
+    const { terminalVisible, setTerminalVisible, workspacePath, setChatMode, setInputPrompt, currentTheme, terminalLayout, setTerminalLayout } = useStore()
     const [isCollapsed, setIsCollapsed] = useState(false)
     const [height, setHeight] = useState(280)
     const [isResizing, setIsResizing] = useState(false)
 
+    // Derived state for compatibility
+    const isSplitView = terminalLayout === 'split'
+    const setIsSplitView = (value: boolean) => setTerminalLayout(value ? 'split' : 'tabs')
 
     // Multi-terminal state
     const [terminals, setTerminals] = useState<TerminalSession[]>([])
     const [activeId, setActiveId] = useState<string | null>(null)
     const [availableShells, setAvailableShells] = useState<{ label: string, path: string }[]>([])
     const [showShellMenu, setShowShellMenu] = useState(false)
+
+    // Run Task state
+    const [scripts, setScripts] = useState<Record<string, string>>({})
+    const [showScriptMenu, setShowScriptMenu] = useState(false)
 
     // Refs for managing instances
     const terminalRefs = useRef<Map<string, XTerminal>>(new Map())
@@ -107,6 +114,25 @@ export default function TerminalPanel() {
         loadShells()
     }, [])
 
+    // Load scripts from package.json
+    useEffect(() => {
+        const loadScripts = async () => {
+            if (!workspacePath) return
+            try {
+                const content = await window.electronAPI.readFile(`${workspacePath}/package.json`)
+                if (content) {
+                    const pkg = JSON.parse(content)
+                    if (pkg.scripts) {
+                        setScripts(pkg.scripts)
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load package.json scripts:', e)
+            }
+        }
+        loadScripts()
+    }, [workspacePath])
+
     // Create initial terminal if none exist and visible
     // 等待 shells 加载完成后再创建
     useEffect(() => {
@@ -120,16 +146,33 @@ export default function TerminalPanel() {
         if (!terminalVisible || isCollapsed || !activeId) return
 
         const handleResize = () => {
-            const addon = addonRefs.current.get(activeId)
-            if (addon) {
-                try {
-                    addon.fit()
-                    // Sync size to backend
-                    const dims = addon.proposeDimensions()
-                    if (dims && dims.cols > 0 && dims.rows > 0) {
-                        window.electronAPI.resizeTerminal(activeId, dims.cols, dims.rows)
+            // In split view, we need to fit all visible terminals
+            if (isSplitView) {
+                terminals.forEach(t => {
+                    const addon = addonRefs.current.get(t.id)
+                    if (addon) {
+                        try {
+                            addon.fit()
+                            // Sync size to backend
+                            const dims = addon.proposeDimensions()
+                            if (dims && dims.cols > 0 && dims.rows > 0) {
+                                window.electronAPI.resizeTerminal(t.id, dims.cols, dims.rows)
+                            }
+                        } catch (e) { console.error(e) }
                     }
-                } catch (e) { console.error(e) }
+                })
+            } else {
+                const addon = addonRefs.current.get(activeId)
+                if (addon) {
+                    try {
+                        addon.fit()
+                        // Sync size to backend
+                        const dims = addon.proposeDimensions()
+                        if (dims && dims.cols > 0 && dims.rows > 0) {
+                            window.electronAPI.resizeTerminal(activeId, dims.cols, dims.rows)
+                        }
+                    } catch (e) { console.error(e) }
+                }
             }
         }
 
@@ -138,7 +181,7 @@ export default function TerminalPanel() {
         setTimeout(handleResize, 100)
 
         return () => window.removeEventListener('resize', handleResize)
-    }, [terminalVisible, isCollapsed, activeId, height])
+    }, [terminalVisible, isCollapsed, activeId, height, isSplitView, terminals.length])
 
     // Data listener (Global)
     useEffect(() => {
@@ -257,8 +300,65 @@ export default function TerminalPanel() {
                 window.electronAPI.resizeTerminal(id, dims.cols, dims.rows)
             }
 
-            // REMOVED: Extra newline which caused duplicate prompt
-            // window.electronAPI.writeTerminal(id, '\r')
+            // Register File Link Provider
+            term.registerLinkProvider({
+                provideLinks(bufferLineNumber: number, callback: (links: any[]) => void) {
+                    const line = term.buffer.active.getLine(bufferLineNumber - 1)
+                    if (!line) {
+                        callback([])
+                        return
+                    }
+                    const text = line.translateToString(true)
+                    const links: any[] = []
+
+                    // Regex for file paths: path/to/file.ext:line:col
+                    const regex = /(?:^|\s|")((?:[a-zA-Z]:[\\/]|[.\/])[\w\-.\\/ ]+\.[a-zA-Z0-9]+)(?::(\d+))?(?::(\d+))?/g
+
+                    let match
+                    while ((match = regex.exec(text)) !== null) {
+                        const [fullMatch, filePath, lineNum, colNum] = match
+                        const startIndex = match.index + fullMatch.indexOf(filePath)
+                        const length = fullMatch.length - fullMatch.indexOf(filePath)
+
+                        links.push({
+                            range: {
+                                start: { x: startIndex + 1, y: bufferLineNumber },
+                                end: { x: startIndex + length + 1, y: bufferLineNumber }
+                            },
+                            text: fullMatch,
+                            activate: async (_e: MouseEvent, _text: string) => {
+                                const cleanPath = filePath.trim()
+                                const fullPath = cleanPath.startsWith('.') && workspacePath
+                                    ? `${workspacePath}/${cleanPath}`.replace(/\\/g, '/')
+                                    : cleanPath
+
+                                try {
+                                    const content = await window.electronAPI.readFile(fullPath)
+                                    if (content !== null) {
+                                        const { openFile } = useStore.getState()
+                                        openFile(fullPath, content)
+
+                                        if (lineNum) {
+                                            setTimeout(() => {
+                                                window.dispatchEvent(new CustomEvent('editor:goto-line', {
+                                                    detail: {
+                                                        line: parseInt(lineNum),
+                                                        column: colNum ? parseInt(colNum) : 1
+                                                    }
+                                                }))
+                                            }, 100)
+                                        }
+                                    }
+                                } catch (err) {
+                                    console.error('Failed to open file link:', err)
+                                }
+                            }
+                        })
+                    }
+                    callback(links)
+                }
+            })
+
         }, 50)
     }
 
@@ -281,6 +381,10 @@ export default function TerminalPanel() {
                 setActiveId(newTerminals[newTerminals.length - 1].id)
             } else if (newTerminals.length === 0) {
                 setActiveId(null)
+            }
+            // Auto-exit split view if only 1 terminal remains
+            if (newTerminals.length <= 1) {
+                setIsSplitView(false)
             }
             return newTerminals
         })
@@ -309,6 +413,31 @@ export default function TerminalPanel() {
 
         setChatMode('chat')
         setInputPrompt(`I'm getting this error in the terminal. Please analyze it and fix the code:\n\n\`\`\`\n${content}\n\`\`\``)
+    }
+
+    const runScript = async (scriptName: string) => {
+        setShowScriptMenu(false)
+
+        // Ensure terminal is visible
+        if (!terminalVisible) {
+            setTerminalVisible(true)
+        }
+
+        // Use active terminal or create new one
+        let targetId = activeId
+        if (!targetId && terminals.length === 0) {
+            await createTerminal()
+            await new Promise(r => setTimeout(r, 500))
+        }
+
+        const lastId = Array.from(terminalRefs.current.keys()).pop()
+        if (lastId) {
+            const term = terminalRefs.current.get(lastId)
+            if (term) {
+                term.focus()
+                window.electronAPI.writeTerminal(lastId, `npm run ${scriptName}\r`)
+            }
+        }
     }
 
     if (!terminalVisible) return null
@@ -375,6 +504,44 @@ export default function TerminalPanel() {
 
                     {/* Actions */}
                     <div className="flex items-center gap-1 px-2 flex-shrink-0">
+                        {/* Run Task Menu */}
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowScriptMenu(!showScriptMenu)}
+                                className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-surface-active text-text-muted hover:text-accent transition-colors mr-2"
+                                title="Run Task"
+                            >
+                                <Play className="w-3.5 h-3.5" />
+                                <span className="text-xs font-medium">Run</span>
+                            </button>
+
+                            {showScriptMenu && (
+                                <>
+                                    <div
+                                        className="fixed inset-0 z-[99]"
+                                        onClick={() => setShowScriptMenu(false)}
+                                    />
+                                    <div
+                                        className="absolute top-full right-0 mt-1 bg-surface border border-border-subtle rounded-lg shadow-xl py-1 flex flex-col max-h-64 overflow-y-auto z-[100] min-w-[160px]"
+                                        style={{ right: '100px' }}
+                                    >
+                                        {Object.keys(scripts).length > 0 ? Object.entries(scripts).map(([name, cmd]) => (
+                                            <button
+                                                key={name}
+                                                onClick={() => runScript(name)}
+                                                className="text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover flex flex-col gap-0.5 border-b border-border-subtle/50 last:border-0"
+                                            >
+                                                <span className="font-medium">{name}</span>
+                                                <span className="text-[10px] text-text-muted truncate max-w-[200px] opacity-70">{cmd}</span>
+                                            </button>
+                                        )) : (
+                                            <div className="px-3 py-2 text-xs text-text-muted italic">No scripts found</div>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
                         <button
                             onClick={handleFixWithAI}
                             className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-surface-active text-text-muted hover:text-accent transition-colors mr-2"
@@ -382,6 +549,24 @@ export default function TerminalPanel() {
                         >
                             <Sparkles className="w-3.5 h-3.5" />
                             <span className="text-xs font-medium">Fix</span>
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                createTerminal()
+                                setIsSplitView(true)
+                            }}
+                            className="p-2 hover:bg-surface-active rounded transition-colors text-text-muted"
+                            title="Split Terminal"
+                        >
+                            <SplitSquareHorizontal className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                            onClick={() => setIsSplitView(!isSplitView)}
+                            className={`p-2 hover:bg-surface-active rounded transition-colors ${isSplitView ? 'text-accent' : 'text-text-muted'}`}
+                            title="Toggle Split View"
+                        >
+                            <LayoutTemplate className="w-3.5 h-3.5" />
                         </button>
 
                         <button onClick={() => activeId && terminalRefs.current.get(activeId)?.clear()} className="p-2 hover:bg-surface-active rounded transition-colors text-text-muted" title="Clear">
@@ -398,13 +583,30 @@ export default function TerminalPanel() {
 
                 {/* Terminals Container */}
                 <div className={`flex-1 p-0 min-h-0 relative bg-surface ${isCollapsed ? 'hidden' : 'block'}`}>
-                    {terminals.map(term => (
-                        <div
-                            key={term.id}
-                            ref={el => { if (el) containerRefs.current.set(term.id, el) }}
-                            className={`h-full w-full pl-2 pt-1 ${activeId === term.id ? 'block' : 'hidden'}`}
-                        />
-                    ))}
+                    <div className={`h-full w-full ${isSplitView ? 'grid grid-cols-2 gap-1' : ''}`}>
+                        {terminals.map(term => (
+                            <div
+                                key={term.id}
+                                ref={el => { if (el) containerRefs.current.set(term.id, el) }}
+                                className={`h-full w-full pl-2 pt-1 relative group/term
+                                    ${isSplitView ? 'border border-border-subtle' : (activeId === term.id ? 'block' : 'hidden')}
+                                    ${isSplitView && activeId === term.id ? 'ring-1 ring-accent' : ''}
+                                `}
+                                onClick={() => setActiveId(term.id)}
+                            >
+                                {isSplitView && (
+                                    <div className="absolute top-0 right-0 p-1 z-10 opacity-0 group-hover/term:opacity-100 transition-opacity">
+                                        <button
+                                            onClick={(e) => closeTerminal(term.id, e)}
+                                            className="p-1 rounded bg-background/80 hover:bg-red-500 hover:text-white text-text-muted"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
 

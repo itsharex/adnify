@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, useCallback, createContext, useContext, Re
 import { AlertTriangle, X } from 'lucide-react'
 import { useStore } from '../store'
 import { t } from '../i18n'
+import { keybindingService } from '../services/keybindingService'
 
 interface ConfirmDialogProps {
   isOpen: boolean
@@ -34,7 +35,7 @@ export default function ConfirmDialog({
   // 按 Escape 关闭
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (keybindingService.matches(e, 'list.cancel') && isOpen) {
         onCancel()
       }
     }

@@ -23,6 +23,7 @@ import { ThemeManager } from './components/ThemeManager'
 import { adnifyDir } from './services/adnifyDirService'
 import { checkpointService } from './agent/checkpointService'
 import { useAgentStore } from './agent/core/AgentStore'
+import { keybindingService } from './services/keybindingService'
 
   // 暴露 store 给插件系统
   ; (window as any).__ADNIFY_STORE__ = { getState: () => useStore.getState() }
@@ -41,7 +42,8 @@ function AppContent() {
   const {
     showSettings, setLLMConfig, setLanguage, setAutoApprove, setPromptTemplateId, setShowSettings,
     setTerminalVisible, terminalVisible, setWorkspacePath, setFiles,
-    activeSidePanel, showComposer, setShowComposer
+    activeSidePanel, showComposer, setShowComposer,
+    sidebarWidth, setSidebarWidth, chatWidth, setChatWidth
   } = useStore()
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false)
@@ -52,8 +54,7 @@ function AppContent() {
   const [isInitialized, setIsInitialized] = useState(false)
 
   // Layout State
-  const [sidebarWidth, setSidebarWidth] = useState(260)
-  const [chatWidth, setChatWidth] = useState(450)
+  // sidebarWidth and chatWidth are now in store
   const [isResizingSidebar, setIsResizingSidebar] = useState(false)
   const [isResizingChat, setIsResizingChat] = useState(false)
 
@@ -64,7 +65,7 @@ function AppContent() {
   }, [])
 
   // 移除初始 HTML loader
-  const removeInitialLoader = useCallback(() => {
+  const removeInitialLoader = useCallback((status?: string) => {
     const loader = document.getElementById('initial-loader')
     if (loader) {
       loader.classList.add('fade-out')
@@ -211,32 +212,32 @@ function AppContent() {
       window.removeEventListener('mouseup', handleMouseUp)
       document.body.removeChild(overlay)
     }
-  }, [isResizingSidebar, isResizingChat])
+  }, [isResizingSidebar, isResizingChat, setSidebarWidth, setChatWidth])
 
   // 全局快捷键
   const handleGlobalKeyDown = useCallback((e: KeyboardEvent) => {
     // Ctrl+Shift+P: 命令面板
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
+    if (keybindingService.matches(e, 'workbench.action.showCommands')) {
       e.preventDefault()
       setShowCommandPalette(true)
     }
     // Ctrl+P: 快速打开文件
-    else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'p') {
+    else if (keybindingService.matches(e, 'workbench.action.quickOpen')) {
       e.preventDefault()
       setShowQuickOpen(true)
     }
     // Ctrl+,: 设置
-    else if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+    else if (keybindingService.matches(e, 'workbench.action.openSettings')) {
       e.preventDefault()
       setShowSettings(true)
     }
     // Ctrl+`: 终端
-    else if ((e.ctrlKey || e.metaKey) && e.key === '`') {
+    else if (keybindingService.matches(e, 'view.toggleTerminal')) {
       e.preventDefault()
       setTerminalVisible(!terminalVisible)
     }
     // ?: 快捷键帮助
-    else if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    else if (keybindingService.matches(e, 'workbench.action.showShortcuts')) {
       const target = e.target as HTMLElement
       if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
         e.preventDefault()
@@ -244,12 +245,12 @@ function AppContent() {
       }
     }
     // Ctrl+Shift+I: Composer (多文件编辑)
-    else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'I') {
+    else if (keybindingService.matches(e, 'workbench.action.toggleComposer')) {
       e.preventDefault()
       setShowComposer(true)
     }
     // Escape: 关闭面板
-    else if (e.key === 'Escape') {
+    else if (keybindingService.matches(e, 'workbench.action.closePanel')) {
       if (showCommandPalette) setShowCommandPalette(false)
       if (showKeyboardShortcuts) setShowKeyboardShortcuts(false)
       if (showQuickOpen) setShowQuickOpen(false)

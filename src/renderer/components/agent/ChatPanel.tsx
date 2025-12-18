@@ -44,6 +44,7 @@ import { ChatInput, PendingImage } from '@/renderer/components/chat'
 import FileMentionPopup from '@/renderer/components/FileMentionPopup'
 import ChatMessageUI from './ChatMessage'
 import AgentStatusBar from './AgentStatusBar'
+import { keybindingService } from '@/renderer/services/keybindingService'
 
 export default function ChatPanel() {
   const {
@@ -376,7 +377,7 @@ export default function ChatPanel() {
   // 键盘处理
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (showFileMention) {
-      if (e.key === 'Escape') {
+      if (keybindingService.matches(e, 'list.cancel')) {
         e.preventDefault()
         setShowFileMention(false)
         setMentionQuery('')
@@ -387,7 +388,7 @@ export default function ChatPanel() {
       }
     }
 
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (keybindingService.matches(e, 'chat.send')) {
       e.preventDefault()
       handleSubmit()
     }

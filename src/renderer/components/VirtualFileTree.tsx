@@ -22,6 +22,7 @@ import { getDirPath, joinPath } from '../utils/pathUtils'
 import { toast } from './Toast'
 import { ContextMenu, ContextMenuItem } from './ContextMenu'
 import { directoryCacheService } from '../services/directoryCacheService'
+import { keybindingService } from '../services/keybindingService'
 
 // 每个节点的高度（像素）
 const ITEM_HEIGHT = 28
@@ -73,11 +74,11 @@ export function VirtualFileTree({
   const containerRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [containerHeight, setContainerHeight] = useState(0)
-  
+
   // 子目录缓存
   const [childrenCache, setChildrenCache] = useState<Map<string, FileItem[]>>(new Map())
   const [loadingDirs, setLoadingDirs] = useState<Set<string>>(new Set())
-  
+
   const {
     expandedFolders,
     toggleFolder,
@@ -126,7 +127,7 @@ export function VirtualFileTree({
     try {
       const children = await directoryCacheService.getDirectory(path)
       setChildrenCache((prev) => new Map(prev).set(path, children))
-      
+
       // 预加载下一层
       const subDirs = children.filter((c) => c.isDirectory).slice(0, 3)
       if (subDirs.length > 0) {
@@ -272,7 +273,7 @@ export function VirtualFileTree({
       setRenamingPath(null)
       return
     }
-    
+
     const node = flattenedNodes.find((n) => n.item.path === renamingPath)
     if (!node || renameValue === node.item.name) {
       setRenamingPath(null)
@@ -400,9 +401,9 @@ export function VirtualFileTree({
               }
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+              if (keybindingService.matches(e, 'list.select') && e.currentTarget.value.trim()) {
                 onCreateSubmit(creatingIn.path, e.currentTarget.value.trim(), creatingIn.type)
-              } else if (e.key === 'Escape') {
+              } else if (keybindingService.matches(e, 'list.cancel')) {
                 onCancelCreate()
               }
             }}
@@ -467,8 +468,8 @@ export function VirtualFileTree({
             onChange={(e) => setRenameValue(e.target.value)}
             onBlur={handleRenameSubmit}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') handleRenameSubmit()
-              if (e.key === 'Escape') setRenamingPath(null)
+              if (keybindingService.matches(e, 'list.select')) handleRenameSubmit()
+              if (keybindingService.matches(e, 'list.cancel')) setRenamingPath(null)
             }}
             onClick={(e) => e.stopPropagation()}
             className="flex-1 bg-surface-active border-none rounded px-1 py-0 text-[13px] h-5 focus:outline-none focus:ring-1 focus:ring-accent min-w-0 text-text-primary"

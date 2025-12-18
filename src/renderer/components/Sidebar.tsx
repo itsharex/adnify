@@ -19,6 +19,7 @@ import { adnifyDir } from '../services/adnifyDirService'
 import { ContextMenu, ContextMenuItem } from './ContextMenu'
 import { directoryCacheService } from '../services/directoryCacheService'
 import { VirtualFileTree } from './VirtualFileTree'
+import { keybindingService } from '../services/keybindingService'
 
 // 超过此数量的文件时启用虚拟滚动
 const VIRTUAL_SCROLL_THRESHOLD = 100
@@ -133,7 +134,7 @@ function FileTreeItem({
                 try {
                     const items = await directoryCacheService.getDirectory(item.path)
                     setChildren(items)
-                    
+
                     // 预加载下一层子目录（提升展开速度）
                     const subDirs = items.filter(i => i.isDirectory).slice(0, 5)
                     if (subDirs.length > 0) {
@@ -339,7 +340,7 @@ function FileTreeItem({
                     <div className="absolute left-0 top-0 bottom-0 border-l border-border-subtle/30"
                         style={{ left: `${(depth + 1) * 12}px` }}
                     />
-                    
+
                     {/* 内联创建输入框 */}
                     {isCreatingHere && (
                         <InlineCreateInput
@@ -349,7 +350,7 @@ function FileTreeItem({
                             onCancel={onCancelCreate}
                         />
                     )}
-                    
+
                     {children
                         .sort((a, b) => {
                             if (a.isDirectory === b.isDirectory) return a.name.localeCompare(b.name)
@@ -430,19 +431,19 @@ function ExplorerView() {
             if (event.path.startsWith(workspacePath)) {
                 // 收集变化事件
                 pendingChanges.push({ path: event.path, event: event.event })
-                
+
                 // 防抖处理
                 if (debounceTimer) clearTimeout(debounceTimer)
                 debounceTimer = setTimeout(() => {
                     // 智能失效缓存
                     pendingChanges.forEach(change => {
-                        const eventType = change.event === 'create' ? 'create' 
-                            : change.event === 'delete' ? 'delete' 
-                            : 'update'
+                        const eventType = change.event === 'create' ? 'create'
+                            : change.event === 'delete' ? 'delete'
+                                : 'update'
                         directoryCacheService.handleFileChange(change.path, eventType)
                     })
                     pendingChanges = []
-                    
+
                     // 刷新根目录
                     refreshFiles()
                 }, getEditorConfig().performance.fileChangeDebounceMs)
@@ -460,22 +461,22 @@ function ExplorerView() {
         if (path) {
             // 保存当前工作区数据
             await adnifyDir.flush()
-            
+
             // 重置服务（切换项目）
             const { checkpointService } = await import('../agent/checkpointService')
             checkpointService.reset()
             adnifyDir.reset()
             directoryCacheService.clear() // 清空目录缓存
-            
+
             setWorkspacePath(path)
-            
+
             // 初始化 .adnify 目录（统一管理项目数据，会自动加载缓存）
             await adnifyDir.initialize(path)
-            
+
             // 使用缓存服务加载根目录
             const items = await directoryCacheService.getDirectory(path, true)
             setFiles(items)
-            
+
             // 初始化检查点服务
             await checkpointService.init()
         }
@@ -495,7 +496,7 @@ function ExplorerView() {
     const handleCreateSubmit = useCallback(async (parentPath: string, name: string, type: 'file' | 'folder') => {
         const fullPath = joinPath(parentPath, name)
         let success = false
-        
+
         if (type === 'file') {
             success = await window.electronAPI.writeFile(fullPath, '')
         } else {
@@ -556,7 +557,7 @@ function ExplorerView() {
                 </div>
             </div>
 
-            <div 
+            <div
                 className="flex-1 overflow-hidden flex flex-col"
                 onContextMenu={handleRootContextMenu}
             >
@@ -661,6 +662,10 @@ function SearchView() {
     const [isSearching, setIsSearching] = useState(false)
     const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set())
 
+    // Advanced Search Options
+    const [searchInOpenFiles, setSearchInOpenFiles] = useState(false)
+    const [replaceInSelection, setReplaceInSelection] = useState(false)
+
     // 搜索历史
     const [searchHistory, setSearchHistory] = useState<string[]>(() => {
         try {
@@ -672,7 +677,7 @@ function SearchView() {
     })
     const [showHistory, setShowHistory] = useState(false)
 
-    const { workspacePath, openFile, setActiveFile, language } = useStore()
+    const { workspacePath, openFile, setActiveFile, language, openFiles } = useStore()
 
     // 保存搜索历史
     const addToHistory = useCallback((searchQuery: string) => {
@@ -704,7 +709,46 @@ function SearchView() {
         setShowHistory(false)
 
         try {
-            if (workspacePath) {
+            if (searchInOpenFiles) {
+                // Frontend search in open files
+                const results: { path: string; line: number; text: string }[] = []
+                const flags = (isCaseSensitive ? '' : 'i') + 'g'
+
+                openFiles.forEach(file => {
+                    const lines = file.content.split('\n')
+                    lines.forEach((lineContent, lineIndex) => {
+                        let match = false
+                        if (isRegex) {
+                            try {
+                                const regex = new RegExp(query, flags)
+                                match = regex.test(lineContent)
+                            } catch (e) {
+                                // Invalid regex
+                            }
+                        } else {
+                            if (isWholeWord) {
+                                const regex = new RegExp(`\\b${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, flags)
+                                match = regex.test(lineContent)
+                            } else {
+                                if (isCaseSensitive) {
+                                    match = lineContent.includes(query)
+                                } else {
+                                    match = lineContent.toLowerCase().includes(query.toLowerCase())
+                                }
+                            }
+                        }
+
+                        if (match) {
+                            results.push({
+                                path: file.path,
+                                line: lineIndex + 1,
+                                text: lineContent.trim()
+                            })
+                        }
+                    })
+                })
+                setSearchResults(results)
+            } else if (workspacePath) {
                 const results = await window.electronAPI.searchFiles(query, workspacePath, {
                     isRegex,
                     isCaseSensitive,
@@ -739,7 +783,23 @@ function SearchView() {
 
     // 替换单个文件中的匹配
     const handleReplaceInFile = async () => {
-        if (!replaceQuery || searchResults.length === 0) return
+        if (!replaceQuery) return
+
+        if (replaceInSelection) {
+            // Dispatch event to Editor for replacement in selection
+            window.dispatchEvent(new CustomEvent('editor:replace-selection', {
+                detail: {
+                    query,
+                    replaceQuery,
+                    isRegex,
+                    isCaseSensitive,
+                    isWholeWord
+                }
+            }))
+            return
+        }
+
+        if (searchResults.length === 0) return
 
         // 获取当前选中的文件（第一个结果的文件）
         const firstResult = searchResults[0]
@@ -773,7 +833,15 @@ function SearchView() {
 
     // 替换所有文件中的匹配
     const handleReplaceAll = async () => {
-        if (!replaceQuery || searchResults.length === 0) return
+        if (!replaceQuery) return
+
+        if (replaceInSelection) {
+            // Same as single replace for selection mode (it replaces all in selection)
+            handleReplaceInFile()
+            return
+        }
+
+        if (searchResults.length === 0) return
 
         const filePaths = [...new Set(searchResults.map(r => r.path))]
 
@@ -878,6 +946,17 @@ function SearchView() {
                                 <span className="text-[10px] font-bold px-1">.*</span>
                             </button>
                         </div>
+
+                        {/* Advanced Toggles Row 2 */}
+                        <div className="absolute right-1 top-8 flex gap-0.5">
+                            <button
+                                onClick={() => setSearchInOpenFiles(!searchInOpenFiles)}
+                                title={t('searchInOpenFiles', language)}
+                                className={`p-0.5 rounded transition-colors ${searchInOpenFiles ? 'bg-accent/20 text-accent' : 'text-text-muted hover:bg-surface-active'}`}
+                            >
+                                <FileText className="w-3 h-3" />
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -900,12 +979,19 @@ function SearchView() {
                             <Edit2 className="w-3 h-3 text-text-muted" />
                         </button>
                         <button
-                            onClick={handleReplaceAll}
+                            onClick={() => handleReplaceAll()}
                             disabled={!replaceQuery || searchResults.length === 0}
                             className="p-1.5 hover:bg-surface-active rounded transition-colors disabled:opacity-30"
                             title={t('replaceAll', language)}
                         >
                             <span className="text-[10px] font-bold text-text-muted">All</span>
+                        </button>
+                        <button
+                            onClick={() => setReplaceInSelection(!replaceInSelection)}
+                            className={`p-1.5 hover:bg-surface-active rounded transition-colors ${replaceInSelection ? 'bg-accent/20 text-accent' : 'text-text-muted'}`}
+                            title={t('replaceInSelection', language)}
+                        >
+                            <Box className="w-3 h-3" />
                         </button>
                     </div>
                 )}
@@ -1308,7 +1394,7 @@ function GitView() {
                             placeholder="Message (Ctrl+Enter to commit)"
                             className="w-full bg-black/20 border border-white/5 rounded-md p-2 text-xs text-text-primary focus:border-accent/50 focus:bg-black/40 focus:outline-none resize-none min-h-[60px] block placeholder:text-text-muted/50"
                             onKeyDown={(e) => {
-                                if (e.ctrlKey && e.key === 'Enter') handleCommit()
+                                if (keybindingService.matches(e, 'git.commit')) handleCommit()
                             }}
                         />
                     </div>
@@ -1663,7 +1749,7 @@ function ProblemsView() {
 
 // 大纲视图 - 显示当前文件的符号结构
 function OutlineView() {
-    const { activeFilePath, language, openFile, setActiveFile } = useStore()
+    const { activeFilePath, language } = useStore()
     const [symbols, setSymbols] = useState<LspDocumentSymbol[]>([])
     const [expandedSymbols, setExpandedSymbols] = useState<Set<string>>(new Set())
     const [isLoading, setIsLoading] = useState(false)

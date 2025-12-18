@@ -174,7 +174,7 @@ class LspManager {
   private documentVersions: Map<string, number> = new Map()
   private diagnosticsCache: Map<string, any[]> = new Map()
   private startingServers: Set<string> = new Set()
-  private currentWorkspacePath: string | null = null
+
 
   constructor() {
     for (const config of LSP_SERVERS) {
@@ -310,7 +310,7 @@ class LspManager {
     try {
       await this.initializeServer(config.name, workspacePath)
       instance.initialized = true
-      this.currentWorkspacePath = workspacePath
+
       console.log(`[LSP ${config.name}] Initialized`)
       return true
     } catch (error: any) {

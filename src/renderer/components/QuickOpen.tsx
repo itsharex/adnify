@@ -7,6 +7,9 @@ import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { Search, FileText, X } from 'lucide-react'
 import { useStore } from '../store'
 import { getFileName } from '../utils/pathUtils'
+import { keybindingService } from '../services/keybindingService'
+
+import { t } from '../i18n'
 
 interface QuickOpenProps {
   onClose: () => void
@@ -79,13 +82,13 @@ const HighlightedText = memo(function HighlightedText({
   for (const matchIdx of matches) {
     if (matchIdx > lastIdx) {
       parts.push(
-        <span key={`text-${lastIdx}`} className="text-editor-text-muted">
+        <span key={`text-${lastIdx}`} className="text-text-muted">
           {text.slice(lastIdx, matchIdx)}
         </span>
       )
     }
     parts.push(
-      <span key={`match-${matchIdx}`} className="text-editor-accent font-medium">
+      <span key={`match-${matchIdx}`} className="text-accent font-medium">
         {text[matchIdx]}
       </span>
     )
@@ -126,16 +129,16 @@ const FileMatchItem = memo(function FileMatchItem({
       onClick={onSelect}
       className={`
         flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors
-        ${isSelected ? 'bg-editor-accent/20' : 'hover:bg-editor-hover'}
+        ${isSelected ? 'bg-accent/20 text-text-primary' : 'hover:bg-surface-hover text-text-secondary'}
       `}
     >
-      <FileText className="w-4 h-4 text-editor-text-muted flex-shrink-0" />
+      <FileText className={`w-4 h-4 flex-shrink-0 ${isSelected ? 'text-accent' : 'text-text-muted'}`} />
       <div className="flex-1 min-w-0">
         <div className="text-sm truncate">
           <HighlightedText text={fileName} matches={fileNameMatches} />
         </div>
         {dirPath && (
-          <div className="text-xs text-editor-text-muted truncate">
+          <div className="text-xs text-text-muted truncate opacity-70">
             {dirPath}
           </div>
         )}
@@ -145,7 +148,7 @@ const FileMatchItem = memo(function FileMatchItem({
 })
 
 export default function QuickOpen({ onClose }: QuickOpenProps) {
-  const { workspacePath, openFile } = useStore()
+  const { workspacePath, openFile, language } = useStore()
   const [query, setQuery] = useState('')
   const [allFiles, setAllFiles] = useState<string[]>([])
   const [matches, setMatches] = useState<FileMatch[]>([])
@@ -243,25 +246,20 @@ export default function QuickOpen({ onClose }: QuickOpenProps) {
 
   // 键盘导航
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault()
-        setSelectedIndex(prev => Math.min(prev + 1, matches.length - 1))
-        break
-      case 'ArrowUp':
-        e.preventDefault()
-        setSelectedIndex(prev => Math.max(prev - 1, 0))
-        break
-      case 'Enter':
-        e.preventDefault()
-        if (matches[selectedIndex]) {
-          handleOpenFile(matches[selectedIndex].path)
-        }
-        break
-      case 'Escape':
-        e.preventDefault()
-        onClose()
-        break
+    if (keybindingService.matches(e, 'list.focusDown')) {
+      e.preventDefault()
+      setSelectedIndex(prev => Math.min(prev + 1, matches.length - 1))
+    } else if (keybindingService.matches(e, 'list.focusUp')) {
+      e.preventDefault()
+      setSelectedIndex(prev => Math.max(prev - 1, 0))
+    } else if (keybindingService.matches(e, 'list.select')) {
+      e.preventDefault()
+      if (matches[selectedIndex]) {
+        handleOpenFile(matches[selectedIndex].path)
+      }
+    } else if (keybindingService.matches(e, 'list.cancel')) {
+      e.preventDefault()
+      onClose()
     }
   }, [matches, selectedIndex, handleOpenFile, onClose])
 
@@ -280,45 +278,50 @@ export default function QuickOpen({ onClose }: QuickOpenProps) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-start justify-center pt-[15vh] z-50"
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-start justify-center pt-[15vh] z-50 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-editor-sidebar border border-editor-border rounded-xl shadow-2xl w-[500px] max-h-[60vh] overflow-hidden"
+        className="
+            w-[600px] max-h-[60vh] flex flex-col
+            bg-background/90 backdrop-blur-xl 
+            border border-border/50 rounded-xl shadow-2xl shadow-black/50
+            overflow-hidden animate-slide-up
+        "
         onClick={e => e.stopPropagation()}
       >
         {/* Search Input */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-editor-border">
-          <Search className="w-5 h-5 text-editor-text-muted" />
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-border/40">
+          <Search className="w-5 h-5 text-accent" />
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search files by name..."
-            className="flex-1 bg-transparent text-editor-text placeholder-editor-text-muted focus:outline-none"
+            placeholder={t('searchFilesPlaceholder', language)}
+            className="flex-1 bg-transparent text-lg text-text-primary placeholder-text-muted focus:outline-none"
           />
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="p-1 rounded hover:bg-editor-hover transition-colors"
+              className="p-1 rounded-full hover:bg-surface-hover transition-colors"
             >
-              <X className="w-4 h-4 text-editor-text-muted" />
+              <X className="w-4 h-4 text-text-muted" />
             </button>
           )}
         </div>
 
         {/* File List */}
-        <div ref={listRef} className="overflow-y-auto max-h-[calc(60vh-60px)]">
+        <div ref={listRef} className="flex-1 overflow-y-auto py-2 custom-scrollbar">
           {isLoading ? (
-            <div className="px-4 py-8 text-center text-editor-text-muted">
-              <div className="w-6 h-6 border-2 border-editor-accent border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-              Loading files...
+            <div className="px-4 py-12 text-center text-text-muted flex flex-col items-center gap-3">
+              <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+              <p>{t('loadingFiles', language)}</p>
             </div>
           ) : matches.length === 0 ? (
-            <div className="px-4 py-8 text-center text-editor-text-muted">
-              {query ? 'No files found' : 'No files in workspace'}
+            <div className="px-4 py-12 text-center text-text-muted">
+              {query ? t('noFilesFound', language) : t('noFilesInWorkspace', language)}
             </div>
           ) : (
             matches.map((file, idx) => (
@@ -334,13 +337,11 @@ export default function QuickOpen({ onClose }: QuickOpenProps) {
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-2 border-t border-editor-border bg-editor-bg/50 flex items-center justify-between text-xs text-editor-text-muted">
-          <span>{matches.length} files</span>
-          <div className="flex items-center gap-2">
-            <kbd className="px-1.5 py-0.5 bg-editor-bg border border-editor-border rounded">↑↓</kbd>
-            <span>navigate</span>
-            <kbd className="px-1.5 py-0.5 bg-editor-bg border border-editor-border rounded">Enter</kbd>
-            <span>open</span>
+        <div className="px-5 py-2 bg-surface/30 border-t border-border/30 text-[10px] text-text-muted flex justify-between items-center">
+          <span>{t('filesCount', language, { count: String(matches.length) })}</span>
+          <div className="flex items-center gap-3">
+            <span><kbd className="font-mono bg-surface/50 px-1 rounded">↑↓</kbd> {t('navigate', language)}</span>
+            <span><kbd className="font-mono bg-surface/50 px-1 rounded">Enter</kbd> {t('open', language)}</span>
           </div>
         </div>
       </div>

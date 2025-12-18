@@ -12,18 +12,24 @@ import { adnifyDir, WorkspaceStateData } from './adnifyDirService'
  * 保存工作区状态
  */
 export async function saveWorkspaceState(): Promise<void> {
-  const { openFiles, activeFilePath, expandedFolders } = useStore.getState()
-  
+  const { openFiles, activeFilePath, expandedFolders, sidebarWidth, chatWidth, terminalVisible, terminalLayout } = useStore.getState()
+
   if (!adnifyDir.isInitialized()) return
-  
+
   const state: WorkspaceStateData = {
     openFiles: openFiles.map((f: { path: string }) => f.path),
     activeFile: activeFilePath,
     expandedFolders: Array.from(expandedFolders),
     scrollPositions: {},
     cursorPositions: {},
+    layout: {
+      sidebarWidth,
+      chatWidth,
+      terminalVisible,
+      terminalLayout
+    }
   }
-  
+
   await adnifyDir.saveWorkspaceState(state)
   console.log('[WorkspaceState] Saved:', state.openFiles.length, 'files')
 }
@@ -32,23 +38,23 @@ export async function saveWorkspaceState(): Promise<void> {
  * 恢复工作区状态
  */
 export async function restoreWorkspaceState(): Promise<void> {
-  const { openFile, setActiveFile, toggleFolder } = useStore.getState()
-  
+  const { openFile, setActiveFile, toggleFolder, setSidebarWidth, setChatWidth, setTerminalVisible, setTerminalLayout } = useStore.getState()
+
   if (!adnifyDir.isInitialized()) return
-  
+
   const state = await adnifyDir.getWorkspaceState()
-  if (!state.openFiles.length) {
+  if (!state.openFiles.length && !state.layout) {
     console.log('[WorkspaceState] No saved state')
     return
   }
-  
+
   console.log('[WorkspaceState] Restoring:', state.openFiles.length, 'files')
-  
+
   // 恢复展开的文件夹
   for (const folder of state.expandedFolders) {
     toggleFolder(folder)
   }
-  
+
   // 恢复打开的文件
   for (const filePath of state.openFiles) {
     try {
@@ -60,12 +66,20 @@ export async function restoreWorkspaceState(): Promise<void> {
       console.warn('[WorkspaceState] Failed to restore file:', filePath)
     }
   }
-  
+
   // 恢复活动文件
   if (state.activeFile) {
     setActiveFile(state.activeFile)
   }
-  
+
+  // 恢复布局
+  if (state.layout) {
+    setSidebarWidth(state.layout.sidebarWidth)
+    setChatWidth(state.layout.chatWidth)
+    setTerminalVisible(state.layout.terminalVisible)
+    setTerminalLayout(state.layout.terminalLayout)
+  }
+
   console.log('[WorkspaceState] Restored successfully')
 }
 
@@ -94,19 +108,23 @@ export function initWorkspaceStateSync(): () => void {
       if (
         state.openFiles !== prevState.openFiles ||
         state.activeFilePath !== prevState.activeFilePath ||
-        state.expandedFolders !== prevState.expandedFolders
+        state.expandedFolders !== prevState.expandedFolders ||
+        state.sidebarWidth !== prevState.sidebarWidth ||
+        state.chatWidth !== prevState.chatWidth ||
+        state.terminalVisible !== prevState.terminalVisible ||
+        state.terminalLayout !== prevState.terminalLayout
       ) {
         scheduleStateSave()
       }
     }
   )
-  
+
   // 窗口关闭前保存所有数据
   const handleBeforeUnload = async () => {
     await adnifyDir.flush()
   }
   window.addEventListener('beforeunload', handleBeforeUnload)
-  
+
   return () => {
     unsubscribe()
     window.removeEventListener('beforeunload', handleBeforeUnload)

@@ -28,6 +28,7 @@ import { registerLspProviders } from '../services/lspProviders'
 import { getFileInfo, getLargeFileEditorOptions, getLargeFileWarning } from '../services/largeFileService'
 import { pathLinkService } from '../services/pathLinkService'
 import { getEditorConfig } from '../config/editorConfig'
+import { keybindingService } from '../services/keybindingService'
 // 导入 Monaco worker 配置
 import { monaco } from '../monacoWorker'
 // 导入编辑器配置
@@ -452,7 +453,7 @@ export default function Editor() {
     const providerDispose = monaco.languages.registerInlineCompletionsProvider(
       ['typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'html', 'css', 'json', 'python', 'java', 'go', 'rust'],
       {
-        provideInlineCompletions: async (model, position, context, token) => {
+        provideInlineCompletions: async (model, position, _context, token) => {
           if (!getEditorConfig().ai?.completionEnabled) return { items: [] }
 
           // Debounce: wait 300ms
@@ -486,7 +487,7 @@ export default function Editor() {
             return { items: [] }
           }
         },
-        freeInlineCompletions(completions) { }
+        freeInlineCompletions(_completions) { }
       }
     )
 
@@ -589,6 +590,60 @@ export default function Editor() {
     window.addEventListener('editor:goto-line', handleGotoLine as EventListener)
     return () => {
       window.removeEventListener('editor:goto-line', handleGotoLine as EventListener)
+    }
+  }, [])
+
+  // 监听选区替换事件
+  useEffect(() => {
+    const handleReplaceSelection = (e: CustomEvent<{
+      query: string
+      replaceQuery: string
+      isRegex: boolean
+      isCaseSensitive: boolean
+      isWholeWord: boolean
+    }>) => {
+      if (!editorRef.current) return
+      const editor = editorRef.current
+      const model = editor.getModel()
+      const selection = editor.getSelection()
+
+      if (!model || !selection || selection.isEmpty()) return
+
+      const { query, replaceQuery, isRegex, isCaseSensitive, isWholeWord } = e.detail
+      const selectedText = model.getValueInRange(selection)
+      let newText = selectedText
+
+      try {
+        if (isRegex) {
+          const flags = isCaseSensitive ? 'g' : 'gi'
+          const regex = new RegExp(query, flags)
+          newText = selectedText.replace(regex, replaceQuery)
+        } else {
+          const flags = isCaseSensitive ? 'g' : 'gi'
+          const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          const regex = isWholeWord
+            ? new RegExp(`\\b${escapedQuery}\\b`, flags)
+            : new RegExp(escapedQuery, flags)
+          newText = selectedText.replace(regex, replaceQuery)
+        }
+
+        if (newText !== selectedText) {
+          editor.pushUndoStop()
+          editor.executeEdits('replace-selection', [{
+            range: selection,
+            text: newText,
+            forceMoveMarkers: true
+          }])
+          editor.pushUndoStop()
+        }
+      } catch (error) {
+        console.error('Replace in selection failed:', error)
+      }
+    }
+
+    window.addEventListener('editor:replace-selection', handleReplaceSelection as EventListener)
+    return () => {
+      window.removeEventListener('editor:replace-selection', handleReplaceSelection as EventListener)
     }
   }, [])
 
@@ -695,7 +750,7 @@ export default function Editor() {
 
   // Keyboard shortcut for save
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+    if (keybindingService.matches(e, 'editor.save')) {
       e.preventDefault()
       handleSave()
     }
@@ -1153,7 +1208,7 @@ function TabContextMenu({
       }
     }
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (keybindingService.matches(e, 'editor.cancel')) onClose()
     }
     document.addEventListener('mousedown', handleClickOutside)
     document.addEventListener('keydown', handleEscape)

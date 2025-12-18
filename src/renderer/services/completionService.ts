@@ -102,7 +102,7 @@ function getDefaultOptions(): CompletionOptions {
 }
 
 // Stop sequences for completion
-const STOP_SEQUENCES = ['\n\n', '```', '// ', '/* ', '"""', "'''"]
+
 
 // ============ LRU Cache ============
 
@@ -283,7 +283,7 @@ class CompletionService {
   private cache: CompletionCache
   private currentCandidates: CompletionSuggestion[] = []
   private currentCandidateIndex = 0
-  private lastContext: CompletionContext | null = null
+
 
   constructor() {
     this.options = getDefaultOptions()
@@ -530,7 +530,7 @@ class CompletionService {
         console.log('[Completion] Cache hit')
         this.currentCandidates = cached.suggestions
         this.currentCandidateIndex = 0
-        this.lastContext = context
+
         this.onCompletionCallback?.(cached)
         return
       }
@@ -541,7 +541,7 @@ class CompletionService {
         console.log('[Completion] Prefix cache hit')
         this.currentCandidates = prefixCached.suggestions
         this.currentCandidateIndex = 0
-        this.lastContext = context
+
         this.onCompletionCallback?.(prefixCached)
         return
       }
@@ -559,7 +559,7 @@ class CompletionService {
       // Store candidates for Tab cycling
       this.currentCandidates = result.suggestions
       this.currentCandidateIndex = 0
-      this.lastContext = context
+
 
       // Cache the result
       if (this.options.cacheEnabled && result.suggestions.length > 0) {

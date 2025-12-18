@@ -16,6 +16,7 @@ import { themes } from './ThemeManager'
 import { toast } from './Toast'
 import { getPromptTemplates, PromptTemplate } from '../agent/promptTemplates'
 import { completionService } from '../services/completionService'
+import KeybindingPanel from './KeybindingPanel'
 
 type SettingsTab = 'provider' | 'editor' | 'agent' | 'keybindings' | 'system'
 
@@ -236,7 +237,7 @@ export default function SettingsModal() {
             )}
 
             {activeTab === 'keybindings' && (
-              <KeybindingsSettings language={localLanguage} />
+              <KeybindingPanel />
             )}
 
             {activeTab === 'system' && (
@@ -947,42 +948,7 @@ function AgentSettings({ autoApprove, setAutoApprove, aiInstructions, setAiInstr
   )
 }
 
-// 快捷键设置组件
-function KeybindingsSettings({ language }: { language: Language }) {
-  const shortcuts = [
-    { keys: 'Ctrl+S', action: language === 'zh' ? '保存文件' : 'Save File' },
-    { keys: 'Ctrl+P', action: language === 'zh' ? '快速打开' : 'Quick Open' },
-    { keys: 'Ctrl+Shift+P', action: language === 'zh' ? '命令面板' : 'Command Palette' },
-    { keys: 'Ctrl+`', action: language === 'zh' ? '切换终端' : 'Toggle Terminal' },
-    { keys: 'Ctrl+,', action: language === 'zh' ? '打开设置' : 'Open Settings' },
-    { keys: 'Ctrl+B', action: language === 'zh' ? '切换侧边栏' : 'Toggle Sidebar' },
-    { keys: 'Ctrl+/', action: language === 'zh' ? '切换注释' : 'Toggle Comment' },
-    { keys: 'Ctrl+D', action: language === 'zh' ? '选择下一个匹配' : 'Select Next Match' },
-    { keys: 'Ctrl+F', action: language === 'zh' ? '查找' : 'Find' },
-    { keys: 'Ctrl+H', action: language === 'zh' ? '替换' : 'Replace' },
-    { keys: 'Ctrl+G', action: language === 'zh' ? '跳转到行' : 'Go to Line' },
-    { keys: 'F12', action: language === 'zh' ? '跳转到定义' : 'Go to Definition' },
-    { keys: 'Shift+F12', action: language === 'zh' ? '查找引用' : 'Find References' },
-    { keys: 'Ctrl+Enter', action: language === 'zh' ? '发送消息' : 'Send Message' },
-    { keys: 'Escape', action: language === 'zh' ? '停止生成' : 'Stop Generation' },
-  ]
 
-  return (
-    <div className="space-y-4">
-      <p className="text-xs text-text-muted">
-        {language === 'zh' ? '快捷键暂不支持自定义，以下是默认快捷键列表' : 'Keybindings are not customizable yet. Here are the defaults:'}
-      </p>
-      <div className="space-y-1">
-        {shortcuts.map((s, i) => (
-          <div key={i} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-surface-hover text-text-primary">
-            <span className="text-sm text-text-muted">{s.action}</span>
-            <kbd className="px-2 py-1 text-xs font-mono bg-surface border border-border-subtle rounded">{s.keys}</kbd>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 // 系统设置组件
 function SystemSettings({ language }: { language: Language }) {
