@@ -3,5 +3,5 @@
  */
 
 export { securityManager, OperationType, PermissionLevel, checkWorkspacePermission } from './securityModule'
-export { registerSecureTerminalHandlers } from './secureTerminal'
+export { registerSecureTerminalHandlers, updateWhitelist, getWhitelist } from './secureTerminal'
 export { registerSecureFileHandlers, cleanupSecureFileWatcher } from './secureFile'

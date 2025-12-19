@@ -742,10 +742,27 @@ export async function executeTool(
         if (result.error) output += `\\nError: ${result.error}`
         if (!result.output && !result.errorOutput && !result.error) output += '(No output)'
 
+        // 智能错误处理：让 Agent 能够继续对话并了解失败原因
+        const commandSuccess = result.success && (result.exitCode === 0)
+
+        // 如果命令失败，在输出中添加解释性信息，帮助 AI 理解问题
+        if (!commandSuccess) {
+          if (result.error && result.error.includes('不在白名单中')) {
+            output += `\n\n⚠️ **Security Restriction**: ${result.error}`
+            output += `\n💡 **Solution**: Add "${baseCommand}" to the whitelist in Settings > Security > Shell Command Whitelist.`
+          } else if (result.error && result.error.includes('未设置工作区')) {
+            output += `\n\n⚠️ **Workspace Required**: ${result.error}`
+            output += `\n💡 **Solution**: Open a workspace folder first (File > Open Folder).`
+          } else if (result.exitCode !== 0) {
+            output += `\n\n⚠️ **Command Failed**: Exit code ${result.exitCode}`
+            output += `\n💡 **Analysis**: The command executed but returned an error. Check the output above for details.`
+          }
+        }
+
         return {
-          success: result.success && (result.exitCode === 0),
+          success: true, // 始终返回成功，让 Agent 继续对话
           result: output,
-          error: result.error || (result.exitCode !== 0 ? `Command failed with exit code ${result.exitCode}` : undefined),
+          error: commandSuccess ? undefined : `Command completed with errors (exit code: ${result.exitCode}). See output above for details.`,
         }
       }
 

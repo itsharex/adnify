@@ -20,18 +20,37 @@ interface CommandWhitelist {
   git: Set<string>
 }
 
-// 白名单配置
-const WHITELIST: CommandWhitelist = {
+// 白名单配置（从配置中动态加载）
+let WHITELIST: CommandWhitelist = {
   shell: new Set([
     'npm', 'yarn', 'pnpm', 'node', 'npx',
     'git', // 允许 git 调用，但会在 git ipc 中进一步限制
     'pwd', 'ls', 'cat', 'echo', 'mkdir', 'touch', 'rm', 'mv', 'cd',
+    'python', 'python3', 'java', 'go', 'rust', 'cargo', 'make', 'gcc', 'clang',
   ]),
   git: new Set([
     'status', 'log', 'diff', 'add', 'commit', 'push', 'pull',
     'branch', 'checkout', 'merge', 'rebase', 'clone',
     'remote', 'fetch', 'show', 'rev-parse', 'init', 'status',
   ]),
+}
+
+// 更新白名单配置
+export function updateWhitelist(shellCommands: string[], gitCommands: string[]) {
+  WHITELIST.shell = new Set(shellCommands.map(cmd => cmd.toLowerCase()))
+  WHITELIST.git = new Set(gitCommands.map(cmd => cmd.toLowerCase()))
+  console.log('[Security] Whitelist updated:', {
+    shell: Array.from(WHITELIST.shell),
+    git: Array.from(WHITELIST.git)
+  })
+}
+
+// 获取当前白名单
+export function getWhitelist() {
+  return {
+    shell: Array.from(WHITELIST.shell),
+    git: Array.from(WHITELIST.git)
+  }
 }
 
 // 危险命令模式列表
@@ -61,14 +80,14 @@ class SecureCommandParser {
    */
   static validateCommand(baseCommand: string, type: 'shell' | 'git'): SecurityCheckResult {
     if (type === 'git') {
-      const allowed = WHITELIST.git.has(baseCommand)
+      const allowed = WHITELIST.git.has(baseCommand.toLowerCase())
       return {
         safe: allowed,
         reason: allowed ? undefined : `Git子命令"${baseCommand}"不在白名单中`,
       }
     }
 
-    const allowed = WHITELIST.shell.has(baseCommand)
+    const allowed = WHITELIST.shell.has(baseCommand.toLowerCase())
     return {
       safe: allowed,
       reason: allowed ? undefined : `Shell命令"${baseCommand}"不在白名单中`,
@@ -164,19 +183,22 @@ export function registerSecureTerminalHandlers(
       return { success: false, error: '主窗口未就绪' }
     }
 
-    if (!workspace) {
-      return { success: false, error: '未设置工作区' }
-    }
-
-    // 1. 校验工作区边界（如果指定了 cwd）
-    const targetPath = cwd || workspace.roots[0]
-    if (!securityManager.validateWorkspacePath(targetPath, workspace.roots)) {
-      securityManager.logOperation(OperationType.SHELL_EXECUTE, command, false, {
-        reason: '路径在工作区外',
-        targetPath,
-        workspace: workspace.roots,
-      })
-      return { success: false, error: '不允许在工作区外执行命令' }
+    // 1. 工作区检查（支持无工作区模式）
+    let targetPath: string
+    if (workspace) {
+      targetPath = cwd || workspace.roots[0]
+      if (!securityManager.validateWorkspacePath(targetPath, workspace.roots)) {
+        securityManager.logOperation(OperationType.SHELL_EXECUTE, command, false, {
+          reason: '路径在工作区外',
+          targetPath,
+          workspace: workspace.roots,
+        })
+        return { success: false, error: '不允许在工作区外执行命令' }
+      }
+    } else {
+      // 无工作区模式：使用 cwd 或当前进程工作目录
+      targetPath = cwd || process.cwd()
+      console.log(`[Security] No workspace set, using: ${targetPath}`)
     }
 
     // 2. 检测危险模式
@@ -264,11 +286,12 @@ export function registerSecureTerminalHandlers(
   }> => {
     const workspace = getWorkspace()
 
+    // 1. 工作区检查（Git 命令需要工作区）
     if (!workspace) {
-      return { success: false, error: '未设置工作区' }
+      return { success: false, error: 'Git 命令需要设置工作区' }
     }
 
-    // 1. 验证工作区边界
+    // 2. 验证工作区边界
     if (!securityManager.validateWorkspacePath(cwd, workspace.roots)) {
       securityManager.logOperation(OperationType.GIT_EXEC, args.join(' '), false, {
         reason: '路径在工作区外',

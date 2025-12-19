@@ -260,7 +260,6 @@ class AgentServiceClass {
       })
 
       // 执行所有工具调用（只读工具并行，写入工具串行）
-      let hasSuccessfulTool = false
       let userRejected = false
 
       console.log(`[Agent] Executing ${result.toolCalls.length} tool calls`)
@@ -294,7 +293,6 @@ class AgentServiceClass {
             contentPreview: toolResult.content.slice(0, 200),
           })
 
-          if (toolResult.success) hasSuccessfulTool = true
           if (toolResult.rejected) userRejected = true
         }
       }
@@ -318,11 +316,22 @@ class AgentServiceClass {
           contentPreview: toolResult.content.slice(0, 200),
         })
 
-        if (toolResult.success) hasSuccessfulTool = true
         if (toolResult.rejected) userRejected = true
       }
 
       console.log(`[Agent] After tool execution, message count: ${llmMessages.length}`)
+
+      // 检测白名单错误并添加帮助提示
+      // 通过检查最近添加的消息来判断是否有白名单错误
+      const recentMessages = store.getMessages()
+      const hasWhitelistError = recentMessages.some(msg =>
+        msg.role === 'tool' &&
+        (msg.content.includes('whitelist') || msg.content.includes('白名单'))
+      )
+
+      if (hasWhitelistError) {
+        store.appendToAssistant(this.currentAssistantId!, '\n\n💡 **Tip**: You can add commands to the whitelist in Settings > Security > Shell Command Whitelist.')
+      }
 
       // 如果用户拒绝了工具调用，停止循环
       if (userRejected) {
@@ -330,13 +339,8 @@ class AgentServiceClass {
         break
       }
 
-      // 如果所有工具都失败了，停止循环
-      if (!hasSuccessfulTool) {
-        console.log('[Agent] All tools failed, stopping')
-        break
-      }
-
-      // 有成功的工具调用，继续下一轮让 LLM 决定是否还需要更多操作
+      // 继续循环让 LLM 了解结果并决定下一步
+      console.log('[Agent] Tool execution completed, continuing to next loop')
       shouldContinue = true
       store.setStreamPhase('streaming')
     }

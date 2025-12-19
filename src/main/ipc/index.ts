@@ -19,6 +19,8 @@ import {
   registerSecureTerminalHandlers,
   registerSecureFileHandlers,
   cleanupSecureFileWatcher,
+  updateWhitelist,
+  getWhitelist,
 } from '../security'
 
 export interface IPCContext {
@@ -46,8 +48,12 @@ export function registerAllHandlers(context: IPCContext) {
     return mainStore.get('lastWorkspaceSession') as { roots: string[] } | null
   })
 
-  // 设置
-  registerSettingsHandlers(mainStore, bootstrapStore, setMainStore)
+  // 设置（传入安全模块引用）
+  registerSettingsHandlers(mainStore, bootstrapStore, setMainStore, {
+    securityManager,
+    updateWhitelist,
+    getWhitelist
+  })
 
   // 终端（安全版）
   registerSecureTerminalHandlers(getMainWindow, () => {

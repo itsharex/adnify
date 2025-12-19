@@ -9,7 +9,7 @@ import * as fs from 'fs'
 import Store from 'electron-store'
 import { registerAllHandlers, cleanupAllHandlers, updateLLMServiceWindow } from './ipc'
 import { lspManager } from './lspManager'
-import { securityManager } from './security'
+import { securityManager, updateWhitelist } from './security'
 
 // ==========================================
 // Store 初始化
@@ -134,10 +134,17 @@ app.whenReady().then(() => {
     enablePermissionConfirm: true,
     enableAuditLog: true,
     strictWorkspaceMode: true,
-    allowedShellCommands: ['npm', 'yarn', 'pnpm', 'node', 'npx', 'git'],
-  })
+    allowedShellCommands: ['npm', 'yarn', 'pnpm', 'node', 'npx', 'git', 'python', 'python3', 'java', 'go', 'rust', 'cargo', 'make', 'gcc', 'clang', 'pwd', 'ls', 'cat', 'echo', 'mkdir', 'touch', 'rm', 'mv', 'cd'],
+    allowedGitSubcommands: ['status', 'log', 'diff', 'add', 'commit', 'push', 'pull', 'branch', 'checkout', 'merge', 'rebase', 'clone', 'remote', 'fetch', 'show', 'rev-parse', 'init'],
+  }) as any
 
-  securityManager.updateConfig(securityConfig as any)
+  securityManager.updateConfig(securityConfig)
+
+  // 初始化白名单
+  const shellCommands = securityConfig.allowedShellCommands || ['npm', 'yarn', 'pnpm', 'node', 'npx', 'git']
+  const gitCommands = securityConfig.allowedGitSubcommands || ['status', 'log', 'diff', 'add', 'commit', 'push', 'pull', 'branch', 'checkout', 'merge', 'rebase', 'clone', 'remote', 'fetch', 'show', 'rev-parse', 'init']
+  updateWhitelist(shellCommands, gitCommands)
+
   console.log('[Security] ✅ 安全模块已初始化')
 
   // 注册所有 IPC handlers

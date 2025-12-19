@@ -160,6 +160,8 @@ export interface ElectronAPI {
   getDataPath: () => Promise<string>
   setDataPath: (path: string) => Promise<boolean>
   onSettingsChanged: (callback: (event: { key: string; value: unknown }) => void) => () => void
+  getWhitelist: () => Promise<{ shell: string[]; git: string[] }>
+  resetWhitelist: () => Promise<{ shell: string[]; git: string[] }>
 
   // LLM
   sendMessage: (params: LLMSendMessageParams) => Promise<void>
@@ -288,6 +290,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('settings:changed', handler)
     return () => ipcRenderer.removeListener('settings:changed', handler)
   },
+  getWhitelist: () => ipcRenderer.invoke('settings:getWhitelist'),
+  resetWhitelist: () => ipcRenderer.invoke('settings:resetWhitelist'),
 
   sendMessage: (params: LLMSendMessageParams) => ipcRenderer.invoke('llm:sendMessage', params),
   abortMessage: () => ipcRenderer.send('llm:abort'),

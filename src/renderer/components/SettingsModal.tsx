@@ -18,7 +18,7 @@ import { getPromptTemplates, PromptTemplate } from '../agent/promptTemplates'
 import { completionService } from '../services/completionService'
 import KeybindingPanel from './KeybindingPanel'
 
-type SettingsTab = 'provider' | 'editor' | 'agent' | 'keybindings' | 'system'
+type SettingsTab = 'provider' | 'editor' | 'agent' | 'keybindings' | 'security' | 'system'
 
 const LANGUAGES: { id: Language; name: string }[] = [
   { id: 'en', name: 'English' },
@@ -150,6 +150,7 @@ export default function SettingsModal() {
     { id: 'editor' as const, label: localLanguage === 'zh' ? '编辑器' : 'Editor', icon: Code },
     { id: 'agent' as const, label: localLanguage === 'zh' ? 'Agent' : 'Agent', icon: Settings2 },
     { id: 'keybindings' as const, label: localLanguage === 'zh' ? '快捷键' : 'Keybindings', icon: Keyboard },
+    { id: 'security' as const, label: localLanguage === 'zh' ? '安全' : 'Security', icon: AlertTriangle },
     { id: 'system' as const, label: localLanguage === 'zh' ? '系统' : 'System', icon: HardDrive },
   ]
 
@@ -238,6 +239,10 @@ export default function SettingsModal() {
 
             {activeTab === 'keybindings' && (
               <KeybindingPanel />
+            )}
+
+            {activeTab === 'security' && (
+              <SecuritySettings language={localLanguage} />
             )}
 
             {activeTab === 'system' && (
@@ -1388,6 +1393,226 @@ function SystemSettings({ language }: { language: Language }) {
         >
           {language === 'zh' ? '重新运行引导' : 'Run Setup Wizard'}
         </button>
+      </div>
+    </div>
+  )
+}
+
+
+// 安全设置组件
+interface SecuritySettingsProps {
+  language: Language
+}
+
+function SecuritySettings({ language }: SecuritySettingsProps) {
+  const [shellCommands, setShellCommands] = useState<string[]>([])
+  const [gitCommands, setGitCommands] = useState<string[]>([])
+  const [newShellCommand, setNewShellCommand] = useState('')
+  const [newGitCommand, setNewGitCommand] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    loadWhitelist()
+  }, [])
+
+  const loadWhitelist = async () => {
+    setLoading(true)
+    const whitelist = await window.electronAPI.getWhitelist()
+    setShellCommands(whitelist.shell)
+    setGitCommands(whitelist.git)
+    setLoading(false)
+  }
+
+  const addShellCommand = () => {
+    if (newShellCommand.trim() && !shellCommands.includes(newShellCommand.trim())) {
+      setShellCommands([...shellCommands, newShellCommand.trim()])
+      setNewShellCommand('')
+    }
+  }
+
+  const addGitCommand = () => {
+    if (newGitCommand.trim() && !gitCommands.includes(newGitCommand.trim())) {
+      setGitCommands([...gitCommands, newGitCommand.trim()])
+      setNewGitCommand('')
+    }
+  }
+
+  const removeShellCommand = (cmd: string) => {
+    setShellCommands(shellCommands.filter(c => c !== cmd))
+  }
+
+  const removeGitCommand = (cmd: string) => {
+    setGitCommands(gitCommands.filter(c => c !== cmd))
+  }
+
+  const resetWhitelist = async () => {
+    const result = await window.electronAPI.resetWhitelist()
+    setShellCommands(result.shell)
+    setGitCommands(result.git)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const saveWhitelist = async () => {
+    // 获取当前的安全设置
+    const currentSettings = await window.electronAPI.getSetting('securitySettings') as any || {}
+
+    // 更新白名单
+    const newSettings = {
+      ...currentSettings,
+      allowedShellCommands: shellCommands,
+      allowedGitSubcommands: gitCommands
+    }
+
+    await window.electronAPI.setSetting('securitySettings', newSettings)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-6 text-text-primary">
+        <div className="text-center py-8 text-text-muted">
+          {language === 'zh' ? '加载中...' : 'Loading...'}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6 text-text-primary">
+      {/* Shell 命令白名单 */}
+      <div>
+        <h3 className="text-sm font-medium mb-3">
+          {language === 'zh' ? 'Shell 命令白名单' : 'Shell Command Whitelist'}
+        </h3>
+        <p className="text-xs text-text-muted mb-3">
+          {language === 'zh'
+            ? '允许 Agent 执行的 Shell 命令。添加命令时只需输入基本命令名（如 python, java）。'
+            : 'Shell commands allowed for Agent execution. Enter only the base command name (e.g., python, java).'}
+        </p>
+
+        {/* 添加新命令 */}
+        <div className="flex gap-2 mb-3">
+          <input
+            type="text"
+            value={newShellCommand}
+            onChange={(e) => setNewShellCommand(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addShellCommand()}
+            placeholder={language === 'zh' ? '输入命令名，按回车添加' : 'Enter command name, press Enter'}
+            className="flex-1 bg-surface border border-border-subtle rounded-lg px-4 py-2 text-sm text-text-primary focus:outline-none focus:border-accent"
+          />
+          <button
+            onClick={addShellCommand}
+            disabled={!newShellCommand.trim()}
+            className="px-3 py-2 bg-surface hover:bg-surface-hover border border-border-subtle rounded-lg disabled:opacity-50"
+          >
+            <Plus className="w-4 h-4 text-accent" />
+          </button>
+        </div>
+
+        {/* 命令列表 */}
+        <div className="max-h-40 overflow-y-auto custom-scrollbar space-y-1 border border-border-subtle rounded-lg p-2 bg-surface/30">
+          {shellCommands.map((cmd) => (
+            <div key={cmd} className="flex items-center justify-between px-3 py-2 bg-surface/50 rounded-lg border border-border-subtle/50">
+              <span className="font-mono text-sm text-text-secondary">{cmd}</span>
+              <button
+                onClick={() => removeShellCommand(cmd)}
+                className="p-1 hover:text-red-400 text-text-muted transition-colors"
+              >
+                <Trash className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+          {shellCommands.length === 0 && (
+            <div className="text-xs text-text-muted text-center py-4">
+              {language === 'zh' ? '暂无命令' : 'No commands'}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Git 子命令白名单 */}
+      <div className="pt-4 border-t border-border-subtle">
+        <h3 className="text-sm font-medium mb-3">
+          {language === 'zh' ? 'Git 子命令白名单' : 'Git Subcommand Whitelist'}
+        </h3>
+        <p className="text-xs text-text-muted mb-3">
+          {language === 'zh'
+            ? '允许 Agent 执行的 Git 子命令。添加命令时只需输入子命令名（如 status, commit）。'
+            : 'Git subcommands allowed for Agent execution. Enter only the subcommand name (e.g., status, commit).'}
+        </p>
+
+        {/* 添加新命令 */}
+        <div className="flex gap-2 mb-3">
+          <input
+            type="text"
+            value={newGitCommand}
+            onChange={(e) => setNewGitCommand(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addGitCommand()}
+            placeholder={language === 'zh' ? '输入子命令名，按回车添加' : 'Enter subcommand name, press Enter'}
+            className="flex-1 bg-surface border border-border-subtle rounded-lg px-4 py-2 text-sm text-text-primary focus:outline-none focus:border-accent"
+          />
+          <button
+            onClick={addGitCommand}
+            disabled={!newGitCommand.trim()}
+            className="px-3 py-2 bg-surface hover:bg-surface-hover border border-border-subtle rounded-lg disabled:opacity-50"
+          >
+            <Plus className="w-4 h-4 text-accent" />
+          </button>
+        </div>
+
+        {/* 命令列表 */}
+        <div className="max-h-40 overflow-y-auto custom-scrollbar space-y-1 border border-border-subtle rounded-lg p-2 bg-surface/30">
+          {gitCommands.map((cmd) => (
+            <div key={cmd} className="flex items-center justify-between px-3 py-2 bg-surface/50 rounded-lg border border-border-subtle/50">
+              <span className="font-mono text-sm text-text-secondary">{cmd}</span>
+              <button
+                onClick={() => removeGitCommand(cmd)}
+                className="p-1 hover:text-red-400 text-text-muted transition-colors"
+              >
+                <Trash className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+          {gitCommands.length === 0 && (
+            <div className="text-xs text-text-muted text-center py-4">
+              {language === 'zh' ? '暂无命令' : 'No commands'}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 操作按钮 */}
+      <div className="pt-4 border-t border-border-subtle flex gap-3">
+        <button
+          onClick={resetWhitelist}
+          className="px-4 py-2 bg-surface hover:bg-surface-hover border border-border-subtle rounded-lg text-sm text-text-primary transition-colors"
+        >
+          {language === 'zh' ? '重置为默认值' : 'Reset to Defaults'}
+        </button>
+        <button
+          onClick={saveWhitelist}
+          className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-medium transition-all shadow-glow ${saved ? 'bg-status-success text-white' : 'bg-accent hover:bg-accent-hover text-white'}`}
+        >
+          {saved ? <><Check className="w-4 h-4" />{language === 'zh' ? '已保存' : 'Saved'}</> : (language === 'zh' ? '保存设置' : 'Save Settings')}
+        </button>
+      </div>
+
+      {/* 安全提示 */}
+      <div className="pt-4 border-t border-border-subtle">
+        <div className="flex items-start gap-3 p-3 bg-warning/10 border border-warning/20 rounded-lg">
+          <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+          <div className="text-xs text-warning">
+            <p className="font-medium mb-1">{language === 'zh' ? '安全提示' : 'Security Notice'}</p>
+            <p>
+              {language === 'zh'
+                ? '添加命令到白名单后，Agent 将可以无需确认直接执行这些命令。请谨慎添加具有破坏性的命令（如 rm, format, del 等）。'
+                : 'After adding commands to the whitelist, Agent can execute them without confirmation. Be cautious when adding destructive commands (e.g., rm, format, del).'}
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   )
