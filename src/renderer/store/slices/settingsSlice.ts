@@ -35,6 +35,15 @@ export interface SecuritySettings {
   showSecurityWarnings?: boolean
 }
 
+// Agent 执行配置
+export interface AgentConfig {
+  maxToolLoops: number          // 最大工具调用循环次数
+  maxHistoryMessages: number    // 历史消息最大数量
+  maxToolResultChars: number    // 工具结果最大字符数
+  maxFileContentChars: number   // 单个文件内容最大字符数
+  maxTotalContextChars: number  // 总上下文最大字符数
+}
+
 export interface SettingsSlice {
   llmConfig: LLMConfig
   language: 'en' | 'zh'
@@ -42,6 +51,7 @@ export interface SettingsSlice {
   promptTemplateId: string
   providerConfigs: Record<string, ProviderModelConfig>
   securitySettings: SecuritySettings
+  agentConfig: AgentConfig
   onboardingCompleted: boolean
   hasExistingConfig: boolean
 
@@ -53,6 +63,7 @@ export interface SettingsSlice {
   addCustomModel: (providerId: string, model: string) => void
   removeCustomModel: (providerId: string, model: string) => void
   setSecuritySettings: (settings: Partial<SecuritySettings>) => void
+  setAgentConfig: (config: Partial<AgentConfig>) => void
   setOnboardingCompleted: (completed: boolean) => void
   setHasExistingConfig: (hasConfig: boolean) => void
   loadSettings: (isEmptyWindow?: boolean) => Promise<void>
@@ -92,6 +103,15 @@ const defaultSecuritySettings: SecuritySettings = {
   showSecurityWarnings: true,
 }
 
+// 默认 Agent 配置
+const defaultAgentConfig: AgentConfig = {
+  maxToolLoops: 25,
+  maxHistoryMessages: 50,
+  maxToolResultChars: 10000,
+  maxFileContentChars: 15000,
+  maxTotalContextChars: 50000,
+}
+
 export const createSettingsSlice: StateCreator<SettingsSlice, [], [], SettingsSlice> = (set, get) => ({
   llmConfig: defaultLLMConfig,
   language: 'en',
@@ -99,6 +119,7 @@ export const createSettingsSlice: StateCreator<SettingsSlice, [], [], SettingsSl
   promptTemplateId: 'default',
   providerConfigs: defaultProviderConfigs,
   securitySettings: defaultSecuritySettings,
+  agentConfig: defaultAgentConfig,
   onboardingCompleted: true, // 默认 true，加载后更新
   hasExistingConfig: true,
 
@@ -156,6 +177,11 @@ export const createSettingsSlice: StateCreator<SettingsSlice, [], [], SettingsSl
   setSecuritySettings: (settings) =>
     set((state) => ({
       securitySettings: { ...state.securitySettings, ...settings },
+    })),
+
+  setAgentConfig: (config) =>
+    set((state) => ({
+      agentConfig: { ...state.agentConfig, ...config },
     })),
 
   setOnboardingCompleted: (completed) => set({ onboardingCompleted: completed }),

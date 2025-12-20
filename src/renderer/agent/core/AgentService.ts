@@ -35,19 +35,26 @@ const READ_TOOLS = [
   'read_url',
 ]
 
-// ===== 配置常量 =====
+// ===== 配置 =====
 
-const CONFIG = {
-  maxToolLoops: 25,           // 最大工具调用循环次数
-  maxHistoryMessages: 50,     // 历史消息最大数量
-  maxToolResultChars: 10000,  // 工具结果最大字符数
-  maxFileContentChars: 15000, // 单个文件内容最大字符数
-  maxTotalContextChars: 50000, // 总上下文最大字符数
-  // 重试配置
-  maxRetries: 2,              // 最大重试次数
-  retryDelayMs: 1000,         // 重试延迟（毫秒）
-  retryBackoffMultiplier: 2,  // 重试延迟倍数
-} as const
+// 从 store 获取动态配置
+const getConfig = () => {
+  const agentConfig = useStore.getState().agentConfig || {}
+  return {
+    maxToolLoops: agentConfig.maxToolLoops ?? 25,
+    maxHistoryMessages: agentConfig.maxHistoryMessages ?? 50,
+    maxToolResultChars: agentConfig.maxToolResultChars ?? 10000,
+    maxFileContentChars: agentConfig.maxFileContentChars ?? 15000,
+    maxTotalContextChars: agentConfig.maxTotalContextChars ?? 50000,
+    // 重试配置（保持硬编码，不太需要用户调整）
+    maxRetries: 2,
+    retryDelayMs: 1000,
+    retryBackoffMultiplier: 2,
+  }
+}
+
+// 保留旧的 CONFIG 引用以兼容现有代码
+const CONFIG = getConfig()
 
 // 可重试的错误代码
 const RETRYABLE_ERROR_CODES = new Set([
@@ -919,6 +926,72 @@ class AgentServiceClass {
         } catch (e) {
           console.error('[Agent] Web search failed:', e)
           parts.push('\n[Web search failed]\n')
+        }
+      } else if (item.type === 'Git' && workspacePath) {
+        // @git context - Get git status and recent changes
+        try {
+          parts.push('\n[Getting Git info...]\n')
+          const gitStatus = await executeTool('run_command', {
+            command: 'git status --short && git log --oneline -5',
+            cwd: workspacePath,
+            timeout: 10
+          }, workspacePath)
+
+          if (gitStatus.success) {
+            const gitBlock = `\n### Git Status:\n\`\`\`\n${gitStatus.result}\n\`\`\`\n`
+            parts.push(gitBlock)
+            totalChars += gitBlock.length
+          } else {
+            parts.push('\n[Git info not available]\n')
+          }
+        } catch (e) {
+          console.error('[Agent] Git context failed:', e)
+          parts.push('\n[Git info failed]\n')
+        }
+      } else if (item.type === 'Terminal') {
+        // @terminal context - Get recent terminal output
+        try {
+          parts.push('\n[Getting Terminal output...]\n')
+          const terminalOutput = await executeTool('get_terminal_output', {
+            terminal_id: 'default',
+            lines: 50
+          }, workspacePath || undefined)
+
+          if (terminalOutput.success && terminalOutput.result) {
+            const terminalBlock = `\n### Recent Terminal Output:\n\`\`\`\n${terminalOutput.result}\n\`\`\`\n`
+            parts.push(terminalBlock)
+            totalChars += terminalBlock.length
+          } else {
+            parts.push('\n[No terminal output available]\n')
+          }
+        } catch (e) {
+          console.error('[Agent] Terminal context failed:', e)
+          parts.push('\n[Terminal output failed]\n')
+        }
+      } else if (item.type === 'Symbols' && workspacePath) {
+        // @symbols context - Get symbols from current/recent files
+        try {
+          parts.push('\n[Getting Document Symbols...]\n')
+          const currentFile = useStore.getState().activeFilePath
+
+          if (currentFile) {
+            const symbols = await executeTool('get_document_symbols', {
+              path: currentFile
+            }, workspacePath)
+
+            if (symbols.success && symbols.result) {
+              const symbolsBlock = `\n### Symbols in ${currentFile}:\n\`\`\`\n${symbols.result}\n\`\`\`\n`
+              parts.push(symbolsBlock)
+              totalChars += symbolsBlock.length
+            } else {
+              parts.push('\n[No symbols found]\n')
+            }
+          } else {
+            parts.push('\n[No active file for symbols]\n')
+          }
+        } catch (e) {
+          console.error('[Agent] Symbols context failed:', e)
+          parts.push('\n[Symbols retrieval failed]\n')
         }
       }
     }
