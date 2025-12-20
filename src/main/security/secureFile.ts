@@ -81,7 +81,10 @@ export function registerSecureFileHandlers(
   ; (global as any).mainWindow = getMainWindowFn()
   if (store) {
     const storeNew = new Store({ name: 'main' })
-    storeNew.set('lastWorkspacePath', store.get('lastWorkspacePath'))
+    const lastPath = store.get('lastWorkspacePath')
+    if (lastPath !== undefined) {
+      storeNew.set('lastWorkspacePath', lastPath)
+    }
   }
 
   // ========== 文件操作处理器 ==========

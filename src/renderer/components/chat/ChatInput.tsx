@@ -33,6 +33,7 @@ interface ChatInputProps {
   hasApiKey: boolean
   hasPendingToolCall: boolean
   chatMode: ChatMode
+  setChatMode: (mode: ChatMode) => void
   onSubmit: () => void
   onAbort: () => void
   onInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
@@ -50,6 +51,7 @@ export default function ChatInput({
   hasApiKey,
   hasPendingToolCall,
   chatMode,
+  setChatMode,
   onSubmit,
   onAbort,
   onInputChange,
@@ -243,13 +245,28 @@ export default function ChatInput({
       </div>
 
       <div className="mt-1.5 flex items-center justify-between px-2">
-        <div className="flex items-center gap-2 text-[10px] text-text-muted">
-          {chatMode === 'agent' && (
-            <span className="flex items-center gap-1 text-accent font-medium bg-accent/5 px-1.5 py-0.5 rounded-full">
-              <Sparkles className="w-2.5 h-2.5" />
-              {t('agentMode', language)}
-            </span>
-          )}
+        <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5 border border-white/5">
+          <button
+            onClick={() => setChatMode('chat')}
+            className={`h-6 px-2.5 gap-1.5 text-[10px] font-bold transition-all duration-200 rounded-md flex items-center
+              ${chatMode === 'chat'
+                ? 'bg-surface text-text-primary shadow-sm'
+                : 'text-text-muted hover:text-text-secondary hover:bg-white/5'
+              }`}
+          >
+            CHAT
+          </button>
+          <button
+            onClick={() => setChatMode('agent')}
+            className={`h-6 px-2.5 gap-1.5 text-[10px] font-bold transition-all duration-200 rounded-md flex items-center
+              ${chatMode === 'agent'
+                ? 'bg-accent/10 text-accent shadow-sm shadow-accent/5'
+                : 'text-text-muted hover:text-text-secondary hover:bg-white/5'
+              }`}
+          >
+            <Sparkles className="w-2.5 h-2.5" />
+            AGENT
+          </button>
         </div>
         <span className="text-[10px] text-text-muted opacity-40 font-mono">
           {t('returnToSend', language)}

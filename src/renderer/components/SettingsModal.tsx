@@ -7,7 +7,8 @@ import React, { useState, useEffect } from 'react'
 import {
   Cpu, Check, Eye, EyeOff,
   AlertTriangle, Settings2, Code, Keyboard, Plus, Trash, HardDrive,
-  Monitor, Shield, Terminal, Sparkles, Layout, Type, Database
+  Monitor, Shield, Terminal, Sparkles, Layout, Type, Database,
+  Search, Copy, ChevronRight
 } from 'lucide-react'
 import { useStore, LLMConfig, AutoApproveSettings } from '../store'
 import { t, Language } from '../i18n'
@@ -161,11 +162,11 @@ export default function SettingsModal() {
 
   return (
     <Modal isOpen={true} onClose={() => setShowSettings(false)} title="" size="4xl">
-      <div className="flex h-[750px] -m-6 bg-background rounded-xl overflow-hidden border border-white/5 shadow-2xl">
+      <div className="flex h-[750px] -m-6 bg-background rounded-xl overflow-hidden border border-border-subtle shadow-2xl">
         {/* Sidebar */}
-        <div className="w-64 bg-surface/50 backdrop-blur-md border-r border-white/5 flex flex-col">
+        <div className="w-64 bg-surface/50 backdrop-blur-md border-r border-border-subtle flex flex-col">
           {/* Header */}
-          <div className="px-6 py-6 border-b border-white/5">
+          <div className="px-6 py-6 border-b border-border-subtle">
             <h2 className="text-xl font-bold text-text-primary tracking-tight">
               {localLanguage === 'zh' ? '设置' : 'Settings'}
             </h2>
@@ -182,7 +183,7 @@ export default function SettingsModal() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 group ${activeTab === tab.id
                   ? 'bg-accent/10 text-accent shadow-[0_0_20px_rgba(var(--accent),0.1)] border border-accent/20'
-                  : 'text-text-secondary hover:bg-white/5 hover:text-text-primary border border-transparent'
+                  : 'text-text-secondary hover:bg-surface/20 hover:text-text-primary border border-transparent'
                   }`}
               >
                 <tab.icon className={`w-4 h-4 transition-colors ${activeTab === tab.id ? 'text-accent' : 'text-text-muted group-hover:text-text-primary'}`} />
@@ -194,7 +195,7 @@ export default function SettingsModal() {
           </nav>
 
           {/* Footer: Language */}
-          <div className="p-4 border-t border-white/5 bg-surface/30">
+          <div className="p-4 border-t border-border-subtle bg-surface/30">
             <div className="flex items-center gap-2 mb-2 px-1">
               <Monitor className="w-3.5 h-3.5 text-text-muted" />
               <label className="text-xs text-text-muted font-medium">
@@ -206,6 +207,7 @@ export default function SettingsModal() {
               onChange={(value) => setLocalLanguage(value as Language)}
               options={LANGUAGES.map(lang => ({ value: lang.id, label: lang.name }))}
               className="w-full"
+              dropdownPosition="top"
             />
           </div>
         </div>
@@ -213,7 +215,7 @@ export default function SettingsModal() {
         {/* Content Area */}
         <div className="flex-1 flex flex-col bg-background/50 relative">
           {/* Content Header */}
-          <div className="px-8 py-6 border-b border-white/5 bg-surface/20 backdrop-blur-sm sticky top-0 z-10">
+          <div className="px-8 py-6 border-b border-border-subtle bg-surface/20 backdrop-blur-sm sticky top-0 z-10">
             <div className="flex items-center gap-3">
               {React.createElement(tabs.find(t => t.id === activeTab)?.icon || Settings2, {
                 className: "w-6 h-6 text-accent"
@@ -287,8 +289,8 @@ export default function SettingsModal() {
           </div>
 
           {/* Action Footer */}
-          <div className="px-8 py-5 border-t border-white/5 bg-surface/30 backdrop-blur-md flex items-center justify-end gap-3">
-            <Button variant="ghost" onClick={() => setShowSettings(false)} className="hover:bg-white/5">
+          <div className="px-8 py-5 border-t border-border-subtle bg-surface/30 backdrop-blur-md flex items-center justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowSettings(false)} className="hover:bg-surface/20">
               {t('cancel', localLanguage)}
             </Button>
             <Button
@@ -347,7 +349,7 @@ function ProviderSettings({
                 relative flex flex-col items-center justify-center p-4 rounded-xl border transition-all duration-200
                 ${localConfig.provider === p.id
                   ? 'border-accent bg-accent/10 text-accent shadow-[0_0_15px_rgba(var(--accent),0.15)]'
-                  : 'border-white/10 bg-surface/30 text-text-muted hover:bg-surface hover:border-white/20 hover:text-text-primary'
+                  : 'border-border-subtle bg-surface/30 text-text-muted hover:bg-surface hover:border-border hover:text-text-primary'
                 }
               `}
             >
@@ -361,7 +363,7 @@ function ProviderSettings({
       </section>
 
       {/* Configuration */}
-      <section className="space-y-6 p-6 bg-surface/30 rounded-xl border border-white/5">
+      <section className="space-y-6 p-6 bg-surface/30 rounded-xl border border-border-subtle">
         <h4 className="text-sm font-medium text-text-secondary uppercase tracking-wider text-xs mb-2">
           {language === 'zh' ? '配置' : 'Configuration'}
         </h4>
@@ -381,7 +383,7 @@ function ProviderSettings({
           </div>
 
           {/* Custom Model Management */}
-          <div className="mt-3 pt-3 border-t border-white/5">
+          <div className="mt-3 pt-3 border-t border-border-subtle">
             <div className="flex gap-2 items-center">
               <Input
                 value={newModelName}
@@ -404,7 +406,7 @@ function ProviderSettings({
             {providerConfigs[localConfig.provider]?.customModels?.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-3">
                 {providerConfigs[localConfig.provider]?.customModels.map((model: string) => (
-                  <div key={model} className="flex items-center gap-1.5 px-2.5 py-1 bg-surface rounded-full border border-white/10 text-xs text-text-secondary group hover:border-accent/30 transition-colors">
+                  <div key={model} className="flex items-center gap-1.5 px-2.5 py-1 bg-surface rounded-full border border-border-subtle text-xs text-text-secondary group hover:border-accent/30 transition-colors">
                     <span>{model}</span>
                     <button
                       onClick={() => removeCustomModel(localConfig.provider, model)}
@@ -459,7 +461,7 @@ function ProviderSettings({
               <span className="group-open:rotate-90 transition-transform">▶</span>
               {language === 'zh' ? '高级设置 (端点 & 超时)' : 'Advanced Settings (Endpoint & Timeout)'}
             </summary>
-            <div className="mt-4 space-y-4 pl-4 border-l border-white/5">
+            <div className="mt-4 space-y-4 pl-4 border-l border-border-subtle">
               <div>
                 <label className="text-xs text-text-secondary mb-1.5 block">{language === 'zh' ? '自定义端点' : 'Custom Endpoint'}</label>
                 <Input
@@ -543,13 +545,13 @@ function EditorSettings({ settings, setSettings, language }: EditorSettingsProps
                 onClick={() => handleThemeChange(themeId)}
                 className={`relative p-3 rounded-xl border text-left transition-all duration-200 group overflow-hidden ${currentTheme === themeId
                   ? 'border-accent bg-accent/10 shadow-md'
-                  : 'border-white/10 bg-surface/30 hover:border-white/20 hover:bg-surface/50'
+                  : 'border-border-subtle bg-surface/30 hover:border-border hover:bg-surface/50'
                   }`}
               >
                 <div className="flex gap-1.5 mb-3">
-                  <div className="w-5 h-5 rounded-full shadow-sm ring-1 ring-white/10" style={{ backgroundColor: `rgb(${themeVars['--background']})` }} />
-                  <div className="w-5 h-5 rounded-full shadow-sm ring-1 ring-white/10" style={{ backgroundColor: `rgb(${themeVars['--accent']})` }} />
-                  <div className="w-5 h-5 rounded-full shadow-sm ring-1 ring-white/10" style={{ backgroundColor: `rgb(${themeVars['--text-primary']})` }} />
+                  <div className="w-5 h-5 rounded-full shadow-sm ring-1 ring-border-subtle" style={{ backgroundColor: `rgb(${themeVars['--background']})` }} />
+                  <div className="w-5 h-5 rounded-full shadow-sm ring-1 ring-border-subtle" style={{ backgroundColor: `rgb(${themeVars['--accent']})` }} />
+                  <div className="w-5 h-5 rounded-full shadow-sm ring-1 ring-border-subtle" style={{ backgroundColor: `rgb(${themeVars['--text-primary']})` }} />
                 </div>
                 <span className="text-xs font-medium capitalize block truncate">{themeId.replace('-', ' ')}</span>
                 {currentTheme === themeId && (
@@ -622,7 +624,7 @@ function EditorSettings({ settings, setSettings, language }: EditorSettingsProps
       </section>
 
       {/* Features Switches */}
-      <section className="space-y-4 p-5 bg-surface/30 rounded-xl border border-white/5">
+      <section className="space-y-4 p-5 bg-surface/30 rounded-xl border border-border-subtle">
         <h4 className="text-sm font-medium text-text-secondary uppercase tracking-wider text-xs mb-2">
           {language === 'zh' ? '功能特性' : 'Features'}
         </h4>
@@ -643,7 +645,7 @@ function EditorSettings({ settings, setSettings, language }: EditorSettingsProps
             onChange={(e) => setSettings({ ...settings, formatOnSave: e.target.checked })}
           />
         </div>
-        <div className="pt-4 border-t border-white/5">
+        <div className="pt-4 border-t border-border-subtle">
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-text-primary">{language === 'zh' ? '自动保存' : 'Auto Save'}</label>
             <Select
@@ -776,7 +778,7 @@ function AgentSettings({
 
   return (
     <div className="space-y-8 animate-fade-in">
-      <section className="space-y-4 p-5 bg-surface/30 rounded-xl border border-white/5">
+      <section className="space-y-4 p-5 bg-surface/30 rounded-xl border border-border-subtle">
         <h4 className="text-sm font-medium text-text-secondary uppercase tracking-wider text-xs mb-2">
           {language === 'zh' ? '自动化权限' : 'Automation Permissions'}
         </h4>
@@ -853,14 +855,14 @@ function AgentSettings({
           />
 
           {/* 模板描述和预览按钮 */}
-          <div className="bg-surface/30 p-4 rounded-lg border border-white/5 space-y-2">
+          <div className="bg-surface/30 p-4 rounded-lg border border-border-subtle space-y-2">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="font-medium text-text-primary">
                     {templates.find(t => t.id === promptTemplateId)?.name}
                   </span>
-                  <span className="text-xs text-text-muted px-2 py-0.5 bg-surface rounded border border-white/10">
+                  <span className="text-xs text-text-muted px-2 py-0.5 bg-surface rounded border border-border-subtle">
                     P{templates.find(t => t.id === promptTemplateId)?.priority}
                   </span>
                   {templates.find(t => t.id === promptTemplateId)?.tags?.map(tag => (
@@ -897,7 +899,7 @@ function AgentSettings({
                 {getPromptTemplateSummary().map(t => (
                   <div
                     key={t.id}
-                    className="flex items-center justify-between p-2 rounded hover:bg-white/5 transition-colors border border-transparent hover:border-white/10"
+                    className="flex items-center justify-between p-2 rounded hover:bg-surface/20 transition-colors border border-transparent hover:border-border-subtle"
                   >
                     <div className="flex items-center gap-3 flex-1">
                       <span className="font-medium text-sm text-text-primary w-24">{t.name}</span>
@@ -932,7 +934,7 @@ function AgentSettings({
           placeholder={language === 'zh'
             ? '在此输入全局系统指令，例如："总是使用中文回答"、"代码风格偏好..."'
             : 'Enter global system instructions here, e.g., "Always answer in English", "Code style preferences..."'}
-          className="w-full h-40 bg-surface/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-text-primary focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/50 resize-none transition-all placeholder:text-text-muted/50"
+          className="w-full h-40 bg-surface/50 border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-primary focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/50 resize-none transition-all placeholder:text-text-muted/50"
         />
         <p className="text-xs text-text-muted">
           {language === 'zh'
@@ -945,7 +947,7 @@ function AgentSettings({
         <h4 className="text-sm font-medium text-text-secondary uppercase tracking-wider text-xs mb-2">
           {language === 'zh' ? '高级配置' : 'Advanced Configuration'}
         </h4>
-        <div className="p-5 bg-surface/30 rounded-xl border border-white/5 space-y-4">
+        <div className="p-5 bg-surface/30 rounded-xl border border-border-subtle space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-text-primary block mb-2">
@@ -1041,58 +1043,185 @@ interface PromptPreviewModalProps {
 function PromptPreviewModal({ templateId, language, onClose }: PromptPreviewModalProps) {
   const template = getPromptTemplateById(templateId)
   const previewContent = template ? getPromptTemplatePreview(templateId) : ''
+  const [searchQuery, setSearchQuery] = useState('')
+  const [activeSection, setActiveSection] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  // 解析提示词章节
+  const sections = React.useMemo(() => {
+    if (!previewContent) return []
+    const lines = previewContent.split('\n')
+    const result: { id: string; title: string; startIndex: number }[] = []
+    lines.forEach((line, index) => {
+      if (line.startsWith('## ')) {
+        const title = line.replace('## ', '').trim()
+        result.push({ id: title.toLowerCase().replace(/\s+/g, '-'), title, startIndex: index })
+      }
+    })
+    return result
+  }, [previewContent])
+
+  useEffect(() => {
+    if (sections.length > 0 && !activeSection) {
+      setActiveSection(sections[0].id)
+    }
+  }, [sections, activeSection])
 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(previewContent)
+      setCopied(true)
       toast.success(language === 'zh' ? '已复制到剪贴板' : 'Copied to clipboard')
+      setTimeout(() => setCopied(false), 2000)
     } catch (error) {
       toast.error(language === 'zh' ? '复制失败' : 'Copy failed')
     }
   }
 
+  const highlightText = (text: string, query: string) => {
+    if (!query) return highlightVariables(text)
+    const parts = text.split(new RegExp(`(${query})`, 'gi'))
+    return (
+      <>
+        {parts.map((part, i) =>
+          part.toLowerCase() === query.toLowerCase() ? (
+            <mark key={i} className="bg-accent/30 text-accent-hover rounded-sm px-0.5">{part}</mark>
+          ) : (
+            highlightVariables(part)
+          )
+        )}
+      </>
+    )
+  }
+
+  const highlightVariables = (text: string) => {
+    // 匹配 {{variable}} 或 [Variable]
+    const parts = text.split(/(\{\{[^}]+\}\}|\[[^\]]+\])/g)
+    return (
+      <>
+        {parts.map((part, i) => {
+          if (part.startsWith('{{') && part.endsWith('}}')) {
+            return <span key={i} className="text-accent font-bold">{part}</span>
+          }
+          if (part.startsWith('[') && part.endsWith(']')) {
+            return <span key={i} className="text-purple-400 font-semibold">{part}</span>
+          }
+          return part
+        })}
+      </>
+    )
+  }
+
   if (!template) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-background border border-white/10 rounded-xl shadow-2xl max-w-4xl w-full max-h-[85vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-surface/30">
-          <div>
-            <h3 className="text-lg font-semibold text-text-primary">
-              {language === 'zh' ? '完整提示词预览' : 'Full Prompt Preview'}
-            </h3>
-            <p className="text-xs text-text-muted mt-1">
-              {template.name} - {language === 'zh' ? template.descriptionZh : template.description}
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title={language === 'zh' ? '完整提示词预览' : 'Full Prompt Preview'}
+      size="5xl"
+      noPadding
+    >
+      <div className="flex h-[700px] bg-background">
+        {/* Sidebar Navigation */}
+        <div className="w-64 border-r border-border-subtle bg-surface/30 flex flex-col">
+          <div className="p-4 border-b border-border-subtle">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={language === 'zh' ? '搜索提示词...' : 'Search prompt...'}
+                className="w-full bg-surface/50 border border-border-subtle rounded-lg pl-9 pr-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all"
+              />
+            </div>
+          </div>
+          <nav className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+            {sections.map((section) => (
+              <button
+                key={section.id}
+                onClick={() => {
+                  setActiveSection(section.id)
+                  const element = document.getElementById(`section-${section.id}`)
+                  element?.scrollIntoView({ behavior: 'smooth' })
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all ${activeSection === section.id
+                  ? 'bg-accent/10 text-accent border border-accent/20'
+                  : 'text-text-secondary hover:bg-surface/20 hover:text-text-primary border border-transparent'
+                  }`}
+              >
+                <span className="truncate">{section.title}</span>
+                {activeSection === section.id && <ChevronRight className="w-3.5 h-3.5" />}
+              </button>
+            ))}
+          </nav>
+          <div className="p-4 border-t border-border-subtle bg-surface/20">
+            <Button
+              variant={copied ? 'success' : 'secondary'}
+              size="sm"
+              onClick={handleCopy}
+              className="w-full"
+              leftIcon={copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            >
+              {copied ? (language === 'zh' ? '已复制' : 'Copied') : (language === 'zh' ? '复制全文' : 'Copy Full')}
+            </Button>
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 flex flex-col min-w-0">
+          <div className="px-6 py-3 bg-surface/20 border-b border-border-subtle flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-text-muted uppercase tracking-wider">Template:</span>
+              <span className="text-xs font-bold text-accent px-2 py-0.5 bg-accent/10 rounded">{template.name}</span>
+            </div>
+            <div className="text-[10px] text-text-muted font-mono">
+              {previewContent.length} chars | {previewContent.split(/\s+/).length} words
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-gradient-to-b from-transparent to-surface/5">
+            <div className="max-w-3xl mx-auto space-y-8">
+              {previewContent.split('\n\n').map((block, blockIdx) => {
+                const isHeader = block.startsWith('## ')
+                if (isHeader) {
+                  const title = block.replace('## ', '').trim()
+                  const id = title.toLowerCase().replace(/\s+/g, '-')
+                  return (
+                    <div key={blockIdx} id={`section-${id}`} className="pt-4 first:pt-0">
+                      <h2 className="text-xl font-bold text-text-primary flex items-center gap-3 group">
+                        <span className="w-1.5 h-6 bg-accent rounded-full" />
+                        {title}
+                        <div className="flex-1 h-px bg-border-subtle group-hover:bg-border transition-colors" />
+                      </h2>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div key={blockIdx} className="relative group">
+                    <div className="absolute -left-4 top-0 bottom-0 w-0.5 bg-accent/0 group-hover:bg-accent/20 transition-all rounded-full" />
+                    <div className="text-sm text-text-secondary leading-relaxed whitespace-pre-wrap font-mono">
+                      {highlightText(block, searchQuery)}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+          <div className="px-8 py-4 border-t border-border-subtle bg-surface/30 flex items-center justify-between">
+            <p className="text-xs text-text-muted italic">
+              {language === 'zh'
+                ? '提示词包含：核心身份、沟通风格、代码质量标准、工具定义、工作流规范和环境信息'
+                : 'Prompt includes: Core identity, communication style, code quality standards, tool definitions, workflow guidelines, and environment info'}
             </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={handleCopy}>
-              {language === 'zh' ? '复制' : 'Copy'}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              ✕
+            <Button variant="ghost" size="sm" onClick={onClose} className="text-text-muted hover:text-text-primary">
+              {language === 'zh' ? '关闭' : 'Close'}
             </Button>
           </div>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="bg-surface/50 border border-white/5 rounded-lg p-4">
-            <pre className="text-xs font-mono text-text-primary whitespace-pre-wrap leading-relaxed">
-              {previewContent}
-            </pre>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-3 border-t border-white/5 bg-surface/30 text-xs text-text-muted">
-          {language === 'zh'
-            ? '提示词包含：核心身份、沟通风格、代码质量标准、工具定义、工作流规范和环境信息'
-            : 'Prompt includes: Core identity, communication style, code quality standards, tool definitions, workflow guidelines, and environment info'}
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -1135,7 +1264,7 @@ function SecuritySettings({ language }: { language: Language }) {
         </div>
       </div>
 
-      <section className="space-y-4 p-5 bg-surface/30 rounded-xl border border-white/5">
+      <section className="space-y-4 p-5 bg-surface/30 rounded-xl border border-border-subtle">
         <h4 className="text-sm font-medium text-text-secondary uppercase tracking-wider text-xs mb-2">
           {language === 'zh' ? '安全选项' : 'Security Options'}
         </h4>
@@ -1191,9 +1320,9 @@ function SecuritySettings({ language }: { language: Language }) {
           </Button>
         </div>
 
-        <div className="flex flex-wrap gap-2 p-4 bg-surface/30 rounded-xl border border-white/5 min-h-[100px]">
+        <div className="flex flex-wrap gap-2 p-4 bg-surface/30 rounded-xl border border-border-subtle min-h-[100px]">
           {editorConfig.ignoredDirectories.map(dir => (
-            <div key={dir} className="flex items-center gap-1.5 px-3 py-1.5 bg-surface rounded-lg border border-white/10 text-xs text-text-secondary group hover:border-red-500/30 transition-colors">
+            <div key={dir} className="flex items-center gap-1.5 px-3 py-1.5 bg-surface rounded-lg border border-border-subtle text-xs text-text-secondary group hover:border-red-500/30 transition-colors">
               <span className="font-mono">{dir}</span>
               <button
                 onClick={() => handleRemoveIgnoredDir(dir)}
@@ -1305,7 +1434,7 @@ function IndexSettings({ language }: { language: Language }) {
           {language === 'zh' ? 'Embedding 提供商' : 'Embedding Provider'}
         </h4>
         <div className="space-y-4">
-          <div className="p-5 bg-surface/30 rounded-xl border border-white/5 space-y-4">
+          <div className="p-5 bg-surface/30 rounded-xl border border-border-subtle space-y-4">
             <div>
               <label className="text-sm font-medium text-text-primary block mb-2">
                 {language === 'zh' ? '选择提供商' : 'Select Provider'}
@@ -1353,7 +1482,7 @@ function IndexSettings({ language }: { language: Language }) {
         </h4>
         <div className="space-y-4">
           {indexStatus && (
-            <div className="p-4 bg-surface/30 rounded-xl border border-white/5">
+            <div className="p-4 bg-surface/30 rounded-xl border border-border-subtle">
               <div className="text-sm text-text-primary">
                 {language === 'zh' ? '索引状态' : 'Index Status'}: {indexStatus.isIndexing
                   ? (language === 'zh' ? '索引中...' : 'Indexing...')
@@ -1392,6 +1521,14 @@ function IndexSettings({ language }: { language: Language }) {
       </section>
     </div>
   )
+}
+
+function DataPathDisplay() {
+  const [path, setPath] = useState('')
+  useEffect(() => {
+    window.electronAPI.getDataPath().then(setPath)
+  }, [])
+  return <span>{path || '...'}</span>
 }
 
 // 系统设置组件
@@ -1446,7 +1583,43 @@ function SystemSettings({ language }: { language: Language }) {
           {language === 'zh' ? '存储与缓存' : 'Storage & Cache'}
         </h4>
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-5 bg-surface/30 rounded-xl border border-white/5">
+          {/* 数据存储路径 */}
+          <div className="p-5 bg-surface/30 rounded-xl border border-border-subtle space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium text-text-primary">{language === 'zh' ? '应用数据存储路径' : 'App Data Storage Path'}</div>
+                <div className="text-xs text-text-muted mt-1">{language === 'zh' ? '管理配置、缓存和本地数据的存储位置' : 'Manage where config, cache, and local data are stored'}</div>
+              </div>
+              <Button variant="secondary" size="sm" onClick={async () => {
+                const newPath = await window.electronAPI.openFolder()
+                if (newPath) {
+                  const success = await window.electronAPI.setDataPath(newPath)
+                  if (success) {
+                    toast.success(language === 'zh' ? '路径已更新，重启后生效' : 'Path updated, restart required to take effect')
+                  } else {
+                    toast.error(language === 'zh' ? '更新路径失败' : 'Failed to update path')
+                  }
+                }
+              }}>
+                {language === 'zh' ? '更改路径' : 'Change Path'}
+              </Button>
+            </div>
+
+            <div className="flex items-start gap-2 p-3 bg-background/50 rounded-lg border border-border-subtle">
+              <HardDrive className="w-4 h-4 text-text-muted mt-0.5" />
+              <div className="text-xs text-text-secondary font-mono break-all">
+                {/* 这里我们需要一个方式获取当前路径，或者直接调用 electronAPI */}
+                <DataPathDisplay />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-[10px] text-status-warning">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              {language === 'zh' ? '更改路径后需要手动重启应用以应用所有变更' : 'Restart application manually after changing path to apply all changes'}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-5 bg-surface/30 rounded-xl border border-border-subtle">
             <div>
               <div className="text-sm font-medium text-text-primary">{language === 'zh' ? '清除缓存' : 'Clear Cache'}</div>
               <div className="text-xs text-text-muted mt-1">{language === 'zh' ? '清除编辑器缓存、索引数据和临时文件' : 'Clear editor cache, index data, and temporary files'}</div>

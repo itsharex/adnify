@@ -1,14 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
 import {
-  Sparkles,
   AlertTriangle,
   History,
   Plus,
   Trash2,
   Upload,
-  X,
-  MessageSquare
+  X
 } from 'lucide-react'
 import { Logo } from '@/renderer/components/Logo'
 import { useStore } from '@/renderer/store'
@@ -639,32 +637,11 @@ export default function ChatPanel() {
       </div>
 
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3 bg-background/60 backdrop-blur-md border-b border-white/5 select-none">
-        <div className="flex items-center gap-1 bg-surface/30 rounded-lg p-0.5 border border-white/5">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setChatMode('chat')}
-            className={`h-7 px-3 gap-1.5 text-xs font-medium transition-all duration-200 ${chatMode === 'chat'
-              ? 'bg-surface text-text-primary shadow-sm hover:bg-surface'
-              : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'
-              }`}
-          >
-            <MessageSquare className="w-3.5 h-3.5" />
-            Chat
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setChatMode('agent')}
-            className={`h-7 px-3 gap-1.5 text-xs font-medium transition-all duration-200 ${chatMode === 'agent'
-              ? 'bg-accent/10 text-accent shadow-sm shadow-accent/5 hover:bg-accent/15'
-              : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'
-              }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            Agent
-          </Button>
+      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-2.5 bg-background/60 backdrop-blur-md border-b border-border-subtle select-none">
+        <div className="flex items-center gap-3">
+          {contextStats && (
+            <ChatContextStats stats={contextStats} language={language} compact />
+          )}
         </div>
 
         <div className="flex items-center gap-1">
@@ -684,7 +661,7 @@ export default function ChatPanel() {
             size="icon"
             onClick={() => setShowThreads(!showThreads)}
             title="Chat history"
-            className="hover:bg-white/5 text-text-muted hover:text-text-primary"
+            className="hover:bg-surface/20 text-text-muted hover:text-text-primary"
           >
             <History className="w-4 h-4" />
           </Button>
@@ -693,11 +670,11 @@ export default function ChatPanel() {
             size="icon"
             onClick={() => createThread()}
             title="New chat"
-            className="hover:bg-white/5 text-text-muted hover:text-text-primary"
+            className="hover:bg-surface/20 text-text-muted hover:text-text-primary"
           >
             <Plus className="w-4 h-4" />
           </Button>
-          <div className="w-px h-4 bg-white/10 mx-1" />
+          <div className="w-px h-4 bg-border-subtle mx-1" />
           <Button
             variant="ghost"
             size="icon"
@@ -709,13 +686,6 @@ export default function ChatPanel() {
           </Button>
         </div>
       </div>
-
-      {/* Context Stats - 上下文统计 */}
-      {contextStats && (
-        <div className="absolute top-[54px] left-0 right-0 z-10">
-          <ChatContextStats stats={contextStats} language={language} />
-        </div>
-      )}
 
       {/* Thread list overlay */}
       {showThreads && (
@@ -734,9 +704,9 @@ export default function ChatPanel() {
               return (
                 <div
                   key={thread.id}
-                  className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all duration-200 border ${currentThreadId === thread.id
+                  className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all duration-200 border group ${currentThreadId === thread.id
                     ? 'bg-accent/10 border-accent/20 text-accent'
-                    : 'bg-surface/30 border-white/5 hover:border-white/10 hover:bg-surface/50 text-text-secondary'
+                    : 'bg-surface/30 border-border-subtle hover:border-border hover:bg-surface/50 text-text-secondary'
                     }`}
                   onClick={() => { switchThread(thread.id); setShowThreads(false) }}
                 >
@@ -750,7 +720,7 @@ export default function ChatPanel() {
                     variant="ghost"
                     size="icon"
                     onClick={(e) => { e.stopPropagation(); deleteThread(thread.id) }}
-                    className="hover:bg-red-500/10 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="h-8 w-8 hover:bg-red-500/10 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all transform scale-90 group-hover:scale-100"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -775,13 +745,14 @@ export default function ChatPanel() {
             </div>
           </div>
         </div>
-      )}
+      )
+      }
 
       {/* Messages Area */}
-      <div className="absolute inset-0 overflow-hidden bg-transparent pt-16 pb-48 z-0 flex flex-col">
+      <div className="absolute inset-0 overflow-hidden bg-transparent pt-14 pb-44 z-0 flex flex-col">
         {/* Plan View */}
         {plan && showPlan && (
-          <div className="h-1/3 min-h-[200px] border-b border-[#333] shrink-0">
+          <div className="h-1/3 min-h-[240px] shrink-0 z-10">
             <PlanList
               plan={plan}
               onUpdateStatus={handleStartPlan}
@@ -804,17 +775,21 @@ export default function ChatPanel() {
         )}
 
         {/* Empty State */}
-        {messages.length === 0 && hasApiKey ? (
-          <div className="h-full flex flex-col items-center justify-center gap-8 pb-20 opacity-60 animate-fade-in">
-            <div className="relative group">
-              <div className="absolute inset-0 bg-accent/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-              <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-surface to-surface-active border border-white/10 flex items-center justify-center shadow-2xl shadow-accent/5 relative z-10 transform group-hover:scale-105 transition-transform duration-500">
-                <Logo className="w-14 h-14 text-text-primary" glow />
+        {messages.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 animate-fade-in select-none">
+            <div className="relative mb-8">
+              <div className="absolute inset-0 bg-accent/20 blur-3xl rounded-full animate-pulse" />
+              <div className="relative w-16 h-16 bg-surface/40 backdrop-blur-2xl rounded-2xl border border-border-subtle flex items-center justify-center shadow-2xl">
+                <Logo className="w-8 h-8 text-accent opacity-80" glow />
               </div>
             </div>
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-br from-white to-white/60 mb-2">Adnify Agent</h2>
-              <p className="text-sm text-text-muted max-w-xs mx-auto leading-relaxed">{t('howCanIHelp', language)}</p>
+            <div className="text-center space-y-2">
+              <h1 className="text-xl font-bold text-text-primary tracking-tight opacity-90">
+                Adnify Agent
+              </h1>
+              <p className="text-sm text-text-muted max-w-[280px] leading-relaxed opacity-60">
+                {language === 'zh' ? '今天我能帮你构建什么？' : 'What can I help you build today?'}
+              </p>
             </div>
           </div>
         ) : (
@@ -831,105 +806,109 @@ export default function ChatPanel() {
       </div>
 
       {/* File Mention Popup */}
-      {showFileMention && (
-        <MentionPopup
-          position={mentionPosition}
-          query={mentionQuery}
-          candidates={mentionCandidates}
-          loading={mentionLoading}
-          onSelect={handleSelectMention}
-          onClose={() => { setShowFileMention(false); setMentionQuery('') }}
-        />
-      )}
+      {
+        showFileMention && (
+          <MentionPopup
+            position={mentionPosition}
+            query={mentionQuery}
+            candidates={mentionCandidates}
+            loading={mentionLoading}
+            onSelect={handleSelectMention}
+            onClose={() => { setShowFileMention(false); setMentionQuery('') }}
+          />
+        )
+      }
 
-      {/* Bottom Input Area */}
-      <div className="absolute bottom-0 left-0 right-0 z-20 bg-background/80 backdrop-blur-xl border-t border-white/5 shadow-2xl shadow-black/50">
+      {/* Bottom Input Area - Unified Tray */}
+      <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col">
+        <div className="mx-4 mb-4 bg-background/80 backdrop-blur-2xl border border-border-subtle rounded-2xl shadow-2xl shadow-black/20 overflow-hidden flex flex-col">
+          {/* Status Bar */}
+          <AgentStatusBar
+            pendingChanges={pendingChanges}
+            isStreaming={isStreaming}
+            isAwaitingApproval={isAwaitingApproval}
+            streamingStatus={getStreamingStatus()}
+            onStop={abort}
+            onReviewFile={async (filePath) => {
+              const change = pendingChanges.find(c => c.filePath === filePath)
+              if (!change) return
 
-        {/* Status Bar */}
-        <AgentStatusBar
-          pendingChanges={pendingChanges}
-          isStreaming={isStreaming}
-          isAwaitingApproval={isAwaitingApproval}
-          streamingStatus={getStreamingStatus()}
-          onStop={abort}
-          onReviewFile={async (filePath) => {
-            const change = pendingChanges.find(c => c.filePath === filePath)
-            if (!change) return
-
-            const currentContent = await window.electronAPI.readFile(filePath)
-            if (currentContent !== null) {
-              openFile(filePath, currentContent)
-              setActiveFile(filePath)
-              setActiveDiff({
-                original: change.snapshot.content || '',
-                modified: currentContent,
-                filePath,
-              })
-            }
-          }}
-          onAcceptFile={(filePath) => {
-            acceptChange(filePath)
-            toast.success(`Accepted: ${filePath.split(/[\\/]/).pop()}`)
-          }}
-          onRejectFile={async (filePath) => {
-            const success = await undoChange(filePath)
-            if (success) {
-              toast.success(`Reverted: ${filePath.split(/[\\/]/).pop()}`)
-            } else {
-              toast.error('Failed to revert')
-            }
-          }}
-          onUndoAll={async () => {
-            if (pendingChanges.length === 0) {
-              toast.info('No changes to undo')
-              return
-            }
-            const result = await undoAllChanges()
-            if (result.success && result.restoredFiles.length > 0) {
-              toast.success(`Restored ${result.restoredFiles.length} file(s)`)
+              const currentContent = await window.electronAPI.readFile(filePath)
+              if (currentContent !== null) {
+                openFile(filePath, currentContent)
+                setActiveFile(filePath)
+                setActiveDiff({
+                  original: change.snapshot.content || '',
+                  modified: currentContent,
+                  filePath,
+                })
+              }
+            }}
+            onAcceptFile={(filePath) => {
+              acceptChange(filePath)
+              toast.success(`Accepted: ${filePath.split(/[\\/]/).pop()}`)
+            }}
+            onRejectFile={async (filePath) => {
+              const success = await undoChange(filePath)
+              if (success) {
+                toast.success(`Reverted: ${filePath.split(/[\\/]/).pop()}`)
+              } else {
+                toast.error('Failed to revert')
+              }
+            }}
+            onUndoAll={async () => {
+              if (pendingChanges.length === 0) {
+                toast.info('No changes to undo')
+                return
+              }
+              const result = await undoAllChanges()
+              if (result.success && result.restoredFiles.length > 0) {
+                toast.success(`Restored ${result.restoredFiles.length} file(s)`)
+                setActiveDiff(null)
+              } else if (result.errors.length > 0) {
+                toast.error(`Undo failed: ${result.errors[0]}`)
+              }
+            }}
+            onKeepAll={() => {
+              if (pendingChanges.length === 0) {
+                toast.info('No changes to accept')
+                return
+              }
+              acceptAllChanges()
               setActiveDiff(null)
-            } else if (result.errors.length > 0) {
-              toast.error(`Undo failed: ${result.errors[0]}`)
-            }
-          }}
-          onKeepAll={() => {
-            if (pendingChanges.length === 0) {
-              toast.info('No changes to accept')
-              return
-            }
-            acceptAllChanges()
-            setActiveDiff(null)
-            toast.success('Changes accepted')
-          }}
-        />
+              toast.success('Changes accepted')
+            }}
+          />
 
-        {/* Context Items */}
-        <ContextPanel
-          contextItems={contextItems}
-          activeFilePath={activeFilePath}
-          onRemove={removeContextItem}
-          onClear={clearContextItems}
-          onAddCurrentFile={handleAddCurrentFile}
-        />
+          {/* Context Items */}
+          <ContextPanel
+            contextItems={contextItems}
+            activeFilePath={activeFilePath}
+            onRemove={removeContextItem}
+            onClear={clearContextItems}
+            onAddCurrentFile={handleAddCurrentFile}
+          />
 
-        {/* Input */}
-        <ChatInput
-          input={input}
-          setInput={setInput}
-          images={images}
-          setImages={setImages}
-          isStreaming={isStreaming}
-          hasApiKey={hasApiKey}
-          hasPendingToolCall={isAwaitingApproval}
-          chatMode={chatMode}
-          onSubmit={handleSubmit}
-          onAbort={abort}
-          onInputChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          textareaRef={textareaRef}
-          inputContainerRef={inputContainerRef}
-        />
+          {/* Input */}
+          <ChatInput
+            input={input}
+            setInput={setInput}
+            images={images}
+            setImages={setImages}
+            isStreaming={isStreaming}
+            hasApiKey={hasApiKey}
+            hasPendingToolCall={isAwaitingApproval}
+            chatMode={chatMode}
+            setChatMode={setChatMode}
+            onSubmit={handleSubmit}
+            onAbort={abort}
+            onInputChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            textareaRef={textareaRef}
+            inputContainerRef={inputContainerRef}
+          />
+        </div>
 
         {/* Slash Command Popup */}
         {showSlashCommand && (
@@ -944,6 +923,6 @@ export default function ChatPanel() {
           />
         )}
       </div>
-    </div>
+    </div >
   )
 }

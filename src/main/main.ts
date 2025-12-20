@@ -37,21 +37,25 @@ const SECURITY_DEFAULTS = {
 } as const
 
 // ==========================================
-// Store 初始化
+// Store & Path 初始化
 // ==========================================
 
+// 1. 优先初始化 bootstrapStore (存储在默认位置)
 const bootstrapStore = new Store({ name: 'bootstrap' })
+
+// 2. 检查是否有自定义数据路径
+const customDataPath = bootstrapStore.get('customConfigPath') as string | undefined
+if (customDataPath && fs.existsSync(customDataPath)) {
+  console.log('[Main] Setting custom userData path:', customDataPath)
+  app.setPath('userData', customDataPath)
+}
+
 let mainStore: Store
 
 function initStore() {
-  const customPath = bootstrapStore.get('customConfigPath') as string | undefined
-  if (customPath && fs.existsSync(customPath)) {
-    console.log('[Main] Using custom config path:', customPath)
-    mainStore = new Store({ cwd: customPath })
-  } else {
-    console.log('[Main] Using default config path')
-    mainStore = new Store()
-  }
+  console.log('[Main] Initializing main store at:', app.getPath('userData'))
+  // 此时 new Store() 会自动使用 app.getPath('userData')
+  mainStore = new Store({ name: 'config' })
 }
 
 initStore()

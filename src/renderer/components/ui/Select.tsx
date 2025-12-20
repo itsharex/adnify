@@ -14,13 +14,38 @@ interface SelectProps {
     placeholder?: string
     className?: string
     disabled?: boolean
+    dropdownPosition?: 'top' | 'bottom' | 'auto'
 }
 
-export function Select({ options, value, onChange, placeholder = 'Select...', className = '', disabled = false }: SelectProps) {
+export function Select({
+    options,
+    value,
+    onChange,
+    placeholder = 'Select...',
+    className = '',
+    disabled = false,
+    dropdownPosition = 'auto'
+}: SelectProps) {
     const [isOpen, setIsOpen] = useState(false)
+    const [actualPosition, setActualPosition] = useState<'top' | 'bottom'>('bottom')
     const containerRef = useRef<HTMLDivElement>(null)
 
     const selectedOption = options.find(opt => opt.value === value)
+
+    useEffect(() => {
+        if (isOpen) {
+            if (dropdownPosition === 'auto') {
+                if (containerRef.current) {
+                    const rect = containerRef.current.getBoundingClientRect()
+                    const spaceBelow = window.innerHeight - rect.bottom
+                    const spaceAbove = rect.top
+                    setActualPosition(spaceBelow < 250 && spaceAbove > spaceBelow ? 'top' : 'bottom')
+                }
+            } else {
+                setActualPosition(dropdownPosition as 'top' | 'bottom')
+            }
+        }
+    }, [isOpen, dropdownPosition])
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -62,7 +87,10 @@ export function Select({ options, value, onChange, placeholder = 'Select...', cl
             </button>
 
             {isOpen && (
-                <div className="absolute z-50 w-full mt-1 py-1 bg-surface border border-border-subtle rounded-md shadow-xl animate-fade-in max-h-60 overflow-auto custom-scrollbar">
+                <div className={`
+                    absolute z-50 w-full py-1 bg-surface border border-border-subtle rounded-md shadow-xl animate-fade-in max-h-60 overflow-auto custom-scrollbar
+                    ${actualPosition === 'top' ? 'bottom-full mb-1' : 'mt-1'}
+                `}>
                     {options.map((option) => (
                         <button
                             key={option.value}

@@ -84,22 +84,30 @@ export function registerSettingsHandlers(
   })
 
   // 获取数据路径
-  ipcMain.handle('settings:getDataPath', () => mainStore.path)
+  ipcMain.handle('settings:getDataPath', () => {
+    const { app } = require('electron')
+    return app.getPath('userData')
+  })
 
   // 设置数据路径
   ipcMain.handle('settings:setDataPath', async (_, newPath: string) => {
     try {
       if (!fs.existsSync(newPath)) {
-        throw new Error('Directory does not exist')
+        fs.mkdirSync(newPath, { recursive: true })
       }
 
-      const currentData = mainStore.store
-      const newStore = new Store({ cwd: newPath })
-      newStore.store = currentData
+      // 保存到 bootstrapStore (存储在默认位置)
       bootstrapStore.set('customConfigPath', newPath)
+
+      // 迁移当前配置到新位置 (可选，但为了用户体验建议保留)
+      const currentData = mainStore.store
+      const newStore = new Store({ name: 'config', cwd: newPath })
+      newStore.store = currentData
       setMainStore(newStore)
+
       return true
-    } catch {
+    } catch (err) {
+      console.error('[Settings] Failed to set data path:', err)
       return false
     }
   })

@@ -12,7 +12,7 @@ import { ThemeSlice, createThemeSlice } from './slices/themeSlice'
 // 导出类型
 export type { OpenFile } from './slices/fileSlice'
 export type { ChatMode, Message, ToolCall, ContextStats } from './slices/chatSlice'
-export type { ProviderType, LLMConfig, AutoApproveSettings, ProviderModelConfig } from './slices/settingsSlice'
+export type { ProviderType, LLMConfig, AutoApproveSettings, ProviderModelConfig, SecuritySettings } from './slices/settingsSlice'
 export type { SidePanel, DiffView } from './slices/uiSlice'
 export type { ThemeName } from './slices/themeSlice'
 

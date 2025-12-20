@@ -51,7 +51,6 @@ export default function ContextPanel({
             default: return { icon: <File className="w-3 h-3" />, label: 'Unknown' }
         }
     }
-
     const isCurrentFileAdded = activeFilePath && contextItems.some(
         (s: ContextItem) => s.type === 'File' && (s as FileContext).uri === activeFilePath
     )
@@ -59,28 +58,33 @@ export default function ContextPanel({
     if (contextItems.length === 0 && !activeFilePath) return null
 
     return (
-        <div className="border-t border-white/5 bg-black/20 backdrop-blur-sm transition-all duration-300">
+        <div className="bg-surface/5 transition-all duration-300 animate-fade-in">
             {/* Header */}
             <div
-                className="flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-white/5"
+                className="flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-surface/20 transition-colors group"
                 onClick={() => setIsExpanded(!isExpanded)}
             >
-                <div className="flex items-center gap-2 text-xs text-text-muted">
-                    {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                    <span className="font-medium">Context</span>
-                    <span className="bg-white/10 px-1.5 rounded-full text-[10px]">{contextItems.length}</span>
+                <div className="flex items-center gap-2.5 text-[11px] text-text-muted">
+                    <div className="flex items-center gap-1.5">
+                        {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                        <span className="font-semibold uppercase tracking-wider">Context</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2 py-0.5 bg-surface/20 rounded-full border border-border-subtle">
+                        <span className="text-accent font-bold">{contextItems.length}</span>
+                        <span className="opacity-40">items</span>
+                    </div>
                     {contextItems.length > 0 && (
-                        <span className="flex items-center gap-1 ml-2 opacity-60">
+                        <div className="flex items-center gap-1.5 ml-1 opacity-60 group-hover:opacity-100 transition-opacity">
                             <Cpu className="w-3 h-3" />
-                            <span>~{estimatedTokens} tokens (est.)</span>
-                        </span>
+                            <span className="font-medium">~{estimatedTokens} tokens</span>
+                        </div>
                     )}
                 </div>
 
                 {contextItems.length > 0 && (
                     <button
                         onClick={(e) => { e.stopPropagation(); onClear() }}
-                        className="text-[10px] text-text-muted hover:text-text-primary hover:underline"
+                        className="text-[10px] font-medium text-text-muted hover:text-red-400 transition-colors uppercase tracking-tight"
                     >
                         Clear all
                     </button>
@@ -89,17 +93,17 @@ export default function ContextPanel({
 
             {/* Content */}
             {isExpanded && (
-                <div className="px-4 pb-3 animate-in slide-in-from-top-2 duration-200">
+                <div className="px-4 pb-3 animate-in slide-in-from-top-2 duration-300">
                     <div className="flex items-center gap-2 flex-wrap">
                         {/* Quick Add Current File */}
                         {activeFilePath && !isCurrentFileAdded && (
                             <button
                                 onClick={onAddCurrentFile}
-                                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-accent/10 hover:bg-accent/20 rounded-full border border-accent/20 text-xs text-accent transition-all group"
+                                className="flex items-center gap-2 px-3 py-1.5 bg-accent/10 hover:bg-accent/20 rounded-lg border border-accent/20 text-[11px] text-accent transition-all group shadow-sm shadow-accent/5"
                                 title="Add active file to context"
                             >
-                                <Plus className="w-3 h-3" />
-                                <span className="truncate max-w-[120px] font-medium">{activeFilePath.split(/[\\/]/).pop()}</span>
+                                <Plus className="w-3.5 h-3.5" />
+                                <span className="truncate max-w-[150px] font-semibold">{activeFilePath.split(/[\\/]/).pop()}</span>
                             </button>
                         )}
 
@@ -109,15 +113,17 @@ export default function ContextPanel({
                             return (
                                 <div
                                     key={`${item.type}-${index}`}
-                                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface/50 rounded-full border border-white/10 text-xs group hover:border-white/20 transition-colors"
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-surface/40 rounded-lg border border-border-subtle text-[11px] group hover:border-border hover:bg-surface/60 transition-all shadow-sm"
                                 >
-                                    {icon}
-                                    <span className="text-text-secondary truncate max-w-[150px] font-medium">{label}</span>
+                                    <div className="opacity-80 group-hover:opacity-100 transition-opacity">
+                                        {icon}
+                                    </div>
+                                    <span className="text-text-secondary truncate max-w-[180px] font-medium group-hover:text-text-primary transition-colors">{label}</span>
                                     <button
                                         onClick={() => onRemove(index)}
-                                        className="p-0.5 rounded-full hover:bg-red-500/20 text-text-muted hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                        className="p-0.5 rounded-md hover:bg-red-500/20 text-text-muted hover:text-red-500 transition-all opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100"
                                     >
-                                        <X className="w-3 h-3" />
+                                        <X className="w-3.5 h-3.5" />
                                     </button>
                                 </div>
                             )

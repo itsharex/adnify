@@ -46,7 +46,6 @@ export default function ComposerPanel({ onClose, initialChanges }: ComposerPanel
   const [expandedEdits, setExpandedEdits] = useState<Set<string>>(new Set())
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [fontSize, setFontSize] = useState(14)
-  const viewMode = 'grouped' as const  // 固定使用分组视图
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -251,371 +250,366 @@ export default function ComposerPanel({ onClose, initialChanges }: ComposerPanel
   }, [])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
-      <div className="w-[90vw] max-w-4xl max-h-[85vh] bg-surface border border-border-subtle rounded-xl shadow-2xl flex flex-col overflow-hidden animate-scale-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in p-4">
+      <div className="w-full max-w-5xl max-h-[90vh] bg-background/60 backdrop-blur-3xl border border-border-subtle rounded-[2rem] shadow-2xl flex flex-col overflow-hidden animate-scale-in relative">
+        {/* Background Decoration */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-[-10%] right-[-5%] w-96 h-96 bg-accent/10 rounded-full blur-[100px]" />
+          <div className="absolute bottom-[-5%] left-[-5%] w-80 h-80 bg-purple-500/5 rounded-full blur-[80px]" />
+        </div>
+
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle bg-surface-hover">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-accent" />
-            <span className="font-medium text-text-primary">{t('composer', language)}</span>
-            <span className="text-xs text-text-muted">{t('multiFileEdit', language)}</span>
+        <div className="relative flex items-center justify-between px-8 py-6 border-b border-border-subtle bg-surface/10">
+          <div className="flex items-center gap-4">
+            <div className="relative group">
+              <div className="absolute inset-0 bg-accent/20 blur-2xl rounded-full group-hover:bg-accent/30 transition-all duration-700" />
+              <div className="relative w-12 h-12 bg-surface/40 backdrop-blur-xl rounded-2xl border border-border-subtle flex items-center justify-center shadow-xl">
+                <Sparkles className="w-6 h-6 text-accent" />
+              </div>
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-text-primary tracking-tight flex items-center gap-2">
+                {t('composer', language)}
+                <span className="px-2 py-0.5 rounded-full bg-accent/10 text-[10px] text-accent font-bold uppercase tracking-widest border border-accent/20">
+                  BETA
+                </span>
+              </h2>
+              <p className="text-xs text-text-muted font-medium opacity-60 uppercase tracking-widest">
+                {t('multiFileEdit', language)}
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-surface-active text-text-muted hover:text-text-primary transition-colors"
+            className="p-2.5 rounded-xl hover:bg-surface/20 text-text-muted hover:text-text-primary transition-all duration-300 group"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
           </button>
         </div>
 
-        {/* Selected Files */}
-        <div className="px-3 py-2 border-b border-border-subtle bg-background/50">
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-[10px] text-text-muted">{t('filesToEdit', language)}:</span>
-            <button
-              onClick={() => setShowFileSelector(!showFileSelector)}
-              className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] bg-surface border border-border-subtle rounded hover:bg-surface-hover transition-colors"
-            >
-              <Plus className="w-2.5 h-2.5" />
-              {t('addFile', language)}
-            </button>
-          </div>
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+          {/* Main Content Area: Two Columns if changes exist, else single */}
+          <div className={`flex-1 flex overflow-hidden ${(fileEdits.length > 0 || (composerState.currentSession && composerState.currentSession.changes.length > 0)) ? 'divide-x divide-border-subtle' : ''}`}>
 
-          {/* File Selector Dropdown */}
-          {showFileSelector && (
-            <div className="absolute mt-1 w-64 max-h-48 overflow-y-auto bg-surface border border-border-subtle rounded-lg shadow-xl z-10">
-              {openFiles.map((file: { path: string; content: string }) => (
-                <button
-                  key={file.path}
-                  onClick={() => addFile(file.path)}
-                  disabled={selectedFiles.includes(file.path)}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-surface-hover disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <FileText className="w-3.5 h-3.5 text-text-muted" />
-                  <span className="truncate">{file.path.split(/[\\/]/).pop()}</span>
-                </button>
-              ))}
-              {openFiles.length === 0 && (
-                <div className="px-3 py-4 text-center text-text-muted text-xs">
-                  {t('noOpenFiles', language)}
-                </div>
-              )}
-            </div>
-          )}
+            {/* Left/Main Column: Input & File Selection */}
+            <div className={`flex flex-col ${(fileEdits.length > 0 || (composerState.currentSession && composerState.currentSession.changes.length > 0)) ? 'w-[45%]' : 'w-full'} transition-all duration-500`}>
 
-          {/* Selected Files List */}
-          <div className="flex flex-wrap gap-1.5">
-            {selectedFiles.map(path => (
-              <div
-                key={path}
-                className="flex items-center gap-1 px-1.5 py-0.5 bg-white/5 text-text-secondary text-[10px] rounded border border-white/5 hover:bg-white/10 transition-colors group"
-              >
-                <FileText className="w-2.5 h-2.5 text-text-muted group-hover:text-accent transition-colors" />
-                <span className="truncate max-w-[150px] opacity-80 group-hover:opacity-100">{path.split(/[\\/]/).pop()}</span>
-                <button
-                  onClick={() => removeFile(path)}
-                  className="p-0.5 hover:bg-white/10 rounded text-text-muted hover:text-red-400 transition-colors"
-                >
-                  <X className="w-2.5 h-2.5" />
-                </button>
-              </div>
-            ))}
-            {selectedFiles.length === 0 && (
-              <span className="text-[10px] text-text-muted italic">{t('noFilesSelected', language)}</span>
-            )}
-          </div>
-        </div>
+              {/* File Selection Area */}
+              <div className="px-8 py-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[10px] font-black text-text-primary uppercase tracking-[0.2em] opacity-40 flex items-center gap-2">
+                    <FolderOpen className="w-3 h-3" />
+                    {t('filesToEdit', language)}
+                  </h3>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowFileSelector(!showFileSelector)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold bg-accent/10 text-accent border border-accent/20 rounded-xl hover:bg-accent/20 transition-all duration-300 uppercase tracking-tighter"
+                    >
+                      <Plus className="w-3 h-3" />
+                      {t('addFile', language)}
+                    </button>
 
-        {/* Instruction Input */}
-        <div className="px-3 py-2 border-b border-border-subtle bg-surface/30 backdrop-blur-sm">
-          <div className="relative rounded-lg border border-white/10 overflow-hidden focus-within:border-accent/50 transition-all duration-200 shadow-sm">
-            <textarea
-              ref={inputRef}
-              value={instruction}
-              onChange={(e) => setInstruction(e.target.value)}
-              placeholder={t('describeChanges', language)}
-              className="w-full bg-transparent border-none px-3 py-2 text-sm text-text-primary placeholder-text-muted/70 focus:ring-0 resize-none leading-relaxed"
-              style={{ fontSize: `${fontSize}px` }}
-              rows={3}
-              disabled={isGenerating}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                  e.preventDefault()
-                  handleGenerate()
-                }
-              }}
-            />
-
-            {/* Toolbar / Actions inside input */}
-            <div className="flex items-center justify-between px-2 py-1 border-t border-white/5 bg-white/[0.02]">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-text-muted px-1">
-                  {t('filesSelected', language, { count: String(selectedFiles.length) })}
-                </span>
-              </div>
-
-              <button
-                onClick={handleGenerate}
-                disabled={!instruction.trim() || selectedFiles.length === 0 || isGenerating}
-                className="flex items-center gap-1.5 px-2.5 py-1 bg-accent text-white text-xs font-medium rounded hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm shadow-accent/20"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    {t('generating', language)}
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3 h-3" />
-                    {t('generateEdits', language)}
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {error && (
-            <div className="mt-2 flex items-center gap-2 text-xs text-status-error animate-fade-in">
-              <AlertCircle className="w-3.5 h-3.5" />
-              {error}
-            </div>
-          )}
-        </div>
-
-        {/* File Edits Preview - Generated Edits */}
-        {fileEdits.length > 0 && (
-          <div className="flex-1 overflow-y-auto">
-            <div className="px-3 py-1.5 flex items-center justify-between bg-surface-hover border-b border-border-subtle sticky top-0">
-              <span className="text-[10px] text-text-muted">
-                {t('filesModified', language, { count: String(fileEdits.length) })}
-              </span>
-              <button
-                onClick={applyAllEdits}
-                disabled={fileEdits.every(e => e.status !== 'pending')}
-                className="flex items-center gap-1 px-2 py-1 bg-green-600 text-white text-[10px] rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <Check className="w-3 h-3" />
-                {t('applyAll', language)}
-              </button>
-            </div>
-
-            {fileEdits.map(edit => (
-              <div key={edit.path} className="border-b border-border-subtle">
-                {/* File Header */}
-                <div
-                  className="flex items-center justify-between px-3 py-1.5 bg-background hover:bg-surface-hover cursor-pointer"
-                  onClick={() => toggleEditExpanded(edit.path)}
-                >
-                  <div className="flex items-center gap-2">
-                    {expandedEdits.has(edit.path) ? (
-                      <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
-                    ) : (
-                      <ChevronRight className="w-3.5 h-3.5 text-text-muted" />
-                    )}
-                    <FileText className="w-3.5 h-3.5 text-text-muted" />
-                    <span className="text-xs">{edit.path.split(/[\\/]/).pop()}</span>
-                    {edit.status === 'applied' && (
-                      <span className="px-1.5 py-0.5 bg-green-500/10 text-green-400 text-[10px] rounded">{t('applied', language)}</span>
-                    )}
-                    {edit.status === 'rejected' && (
-                      <span className="px-1.5 py-0.5 bg-red-500/10 text-red-400 text-[10px] rounded">{t('rejected', language)}</span>
+                    {/* File Selector Dropdown */}
+                    {showFileSelector && (
+                      <div className="absolute right-0 mt-2 w-72 max-h-64 overflow-y-auto bg-surface/95 backdrop-blur-2xl border border-border-subtle rounded-2xl shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200 custom-scrollbar">
+                        <div className="p-2 space-y-1">
+                          {openFiles.map((file: { path: string; content: string }) => (
+                            <button
+                              key={file.path}
+                              onClick={() => addFile(file.path)}
+                              disabled={selectedFiles.includes(file.path)}
+                              className="w-full flex items-center gap-3 px-3 py-2 text-left rounded-xl hover:bg-surface/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors group"
+                            >
+                              <FileText className="w-4 h-4 text-text-muted group-hover:text-accent transition-colors" />
+                              <div className="flex flex-col min-w-0">
+                                <span className="text-xs font-bold text-text-primary truncate">{file.path.split(/[\\/]/).pop()}</span>
+                                <span className="text-[9px] text-text-muted truncate opacity-50">{file.path}</span>
+                              </div>
+                            </button>
+                          ))}
+                          {openFiles.length === 0 && (
+                            <div className="px-4 py-8 text-center space-y-2">
+                              <FileText className="w-8 h-8 text-text-muted mx-auto opacity-20" />
+                              <p className="text-xs text-text-muted font-medium italic">
+                                {t('noOpenFiles', language)}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
+                </div>
 
-                  {edit.status === 'pending' && (
-                    <div className="flex items-center gap-1">
+                {/* Selected Files Chips */}
+                <div className="flex flex-wrap gap-2 min-h-[40px] p-3 rounded-2xl bg-surface/10 border border-border-subtle">
+                  {selectedFiles.map(path => (
+                    <div
+                      key={path}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-surface/20 text-text-primary text-[11px] font-bold rounded-xl border border-border-subtle hover:border-accent/30 hover:bg-accent/5 transition-all duration-300 group"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-text-muted group-hover:text-accent transition-colors" />
+                      <span className="truncate max-w-[180px]">{path.split(/[\\/]/).pop()}</span>
                       <button
-                        onClick={(e) => { e.stopPropagation(); applyEdit(edit) }}
-                        className="px-2 py-0.5 bg-green-600 text-white text-[10px] rounded hover:bg-green-700 transition-colors"
+                        onClick={() => removeFile(path)}
+                        className="p-1 hover:bg-red-500/10 rounded-lg text-text-muted hover:text-red-400 transition-all duration-300"
                       >
-                        {t('apply', language)}
+                        <X className="w-3 h-3" />
                       </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); rejectEdit(edit.path) }}
-                        className="px-2 py-0.5 bg-surface border border-border-subtle text-text-secondary text-[10px] rounded hover:bg-surface-hover transition-colors"
-                      >
-                        {t('reject', language)}
-                      </button>
+                    </div>
+                  ))}
+                  {selectedFiles.length === 0 && (
+                    <div className="flex items-center gap-2 text-[11px] text-text-muted italic opacity-50 px-2">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      {t('noFilesSelected', language)}
                     </div>
                   )}
                 </div>
+              </div>
 
-                {/* Diff Preview */}
-                {expandedEdits.has(edit.path) && (
-                  <div className="max-h-[300px] overflow-auto">
-                    <DiffViewer
-                      originalContent={edit.originalContent}
-                      modifiedContent={edit.newContent}
-                      filePath={edit.path}
-                      minimal={true}
-                      onAccept={() => applyEdit(edit)}
-                      onReject={() => rejectEdit(edit.path)}
-                    />
+              {/* Instruction Input Area */}
+              <div className="px-8 pb-8 flex-1 flex flex-col">
+                <div className="flex-1 relative flex flex-col rounded-3xl border border-border-subtle bg-surface/10 focus-within:border-accent/40 focus-within:bg-surface/20 transition-all duration-500 shadow-inner overflow-hidden group/input">
+                  <textarea
+                    ref={inputRef}
+                    value={instruction}
+                    onChange={(e) => setInstruction(e.target.value)}
+                    placeholder={t('describeChanges', language)}
+                    className="flex-1 w-full bg-transparent border-none px-6 py-5 text-base text-text-primary placeholder-text-muted/40 focus:ring-0 resize-none leading-relaxed font-medium"
+                    style={{ fontSize: `${fontSize}px` }}
+                    disabled={isGenerating}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault()
+                        handleGenerate()
+                      }
+                    }}
+                  />
+
+                  {/* Input Toolbar */}
+                  <div className="px-6 py-4 border-t border-border-subtle bg-surface/10 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface/20 border border-border-subtle">
+                        <div className={`w-1.5 h-1.5 rounded-full ${selectedFiles.length > 0 ? 'bg-accent animate-pulse' : 'bg-text-muted opacity-30'}`} />
+                        <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">
+                          {t('filesSelected', language, { count: String(selectedFiles.length) })}
+                        </span>
+                      </div>
+                      {instruction.length > 0 && (
+                        <span className="text-[10px] font-bold text-text-muted opacity-40 uppercase tracking-tighter">
+                          {instruction.length} chars
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={handleGenerate}
+                      disabled={!instruction.trim() || selectedFiles.length === 0 || isGenerating}
+                      className="relative group/btn overflow-hidden flex items-center gap-2 px-6 py-2.5 bg-accent text-accent-foreground text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-accent-hover disabled:opacity-30 disabled:grayscale disabled:cursor-not-allowed transition-all duration-500 shadow-xl shadow-accent/20"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-1000" />
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          {t('generating', language)}
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          {t('generateEdits', language)}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="mt-4 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-xs text-red-400 font-bold animate-in slide-in-from-top-2 duration-300">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    {error}
                   </div>
                 )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Composer Service Changes - Agent Changes */}
-        {composerState.currentSession && composerState.currentSession.changes.length > 0 && fileEdits.length === 0 && (
-          <div className="flex-1 overflow-y-auto">
-            {/* Header with stats */}
-            <div className="px-4 py-2 flex items-center justify-between bg-surface-hover border-b border-border-subtle sticky top-0 z-10">
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-text-muted">
-                  {summary.total} {language === 'zh' ? '个文件' : 'files'}
-                </span>
-                <span className="text-xs text-green-400">+{composerState.currentSession.totalLinesAdded}</span>
-                <span className="text-xs text-red-400">-{composerState.currentSession.totalLinesRemoved}</span>
-                {summary.pending > 0 && (
-                  <span className="px-1.5 py-0.5 bg-yellow-500/10 text-yellow-400 text-[10px] rounded">
-                    {summary.pending} pending
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleRejectAllComposer}
-                  disabled={summary.pending === 0}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-surface border border-border-subtle text-text-muted text-xs rounded-lg hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <XCircle className="w-3 h-3" />
-                  {language === 'zh' ? '全部拒绝' : 'Reject All'}
-                </button>
-                <button
-                  onClick={handleAcceptAllComposer}
-                  disabled={summary.pending === 0}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <CheckCheck className="w-3 h-3" />
-                  {language === 'zh' ? '全部接受' : 'Accept All'}
-                </button>
               </div>
             </div>
 
-            {/* Grouped by directory */}
-            {viewMode === 'grouped' ? (
-              Array.from(groupedChanges.entries()).map(([dir, changes]) => (
-                <div key={dir} className="border-b border-border-subtle">
-                  {/* Directory Header */}
-                  <div
-                    className="flex items-center gap-2 px-4 py-2 bg-background/50 hover:bg-surface-hover cursor-pointer"
-                    onClick={() => toggleDirExpanded(dir)}
-                  >
-                    {expandedDirs.has(dir) ? (
-                      <ChevronDown className="w-4 h-4 text-text-muted" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-text-muted" />
-                    )}
-                    <FolderOpen className="w-4 h-4 text-yellow-500" />
-                    <span className="text-sm text-text-secondary">{dir}</span>
-                    <span className="text-xs text-text-muted">({changes.length})</span>
+            {/* Right Column: Changes & Diff Preview */}
+            {(fileEdits.length > 0 || (composerState.currentSession && composerState.currentSession.changes.length > 0)) && (
+              <div className="flex-1 flex flex-col bg-surface/5 overflow-hidden animate-in slide-in-from-right-4 duration-500">
+
+                {/* Changes Header */}
+                <div className="px-8 py-6 border-b border-border-subtle flex items-center justify-between bg-surface/10">
+                  <div className="flex items-center gap-4">
+                    <h3 className="text-[10px] font-black text-text-primary uppercase tracking-[0.2em] opacity-40 flex items-center gap-2">
+                      <CheckCheck className="w-3 h-3" />
+                      {language === 'zh' ? '变更预览' : 'Changes Preview'}
+                    </h3>
+                    <div className="flex items-center gap-3 px-3 py-1 rounded-full bg-surface/20 border border-border-subtle">
+                      <span className="text-[10px] font-bold text-green-400">+{composerState.currentSession?.totalLinesAdded || 0}</span>
+                      <span className="text-[10px] font-bold text-red-400">-{composerState.currentSession?.totalLinesRemoved || 0}</span>
+                    </div>
                   </div>
 
-                  {/* Files in directory */}
-                  {expandedDirs.has(dir) && changes.map(change => (
-                    <div key={change.filePath} className="border-t border-border-subtle/50">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={fileEdits.length > 0 ? () => setFileEdits([]) : handleRejectAllComposer}
+                      disabled={summary.pending === 0 && fileEdits.length === 0}
+                      className="flex items-center gap-2 px-4 py-2 bg-surface/20 border border-border-subtle text-text-muted text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 disabled:opacity-30 transition-all duration-300"
+                    >
+                      <XCircle className="w-3.5 h-3.5" />
+                      {language === 'zh' ? '全部拒绝' : 'Reject All'}
+                    </button>
+                    <button
+                      onClick={fileEdits.length > 0 ? applyAllEdits : handleAcceptAllComposer}
+                      disabled={summary.pending === 0 && fileEdits.length === 0}
+                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-accent-foreground text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-green-500 shadow-lg shadow-green-900/20 disabled:opacity-30 transition-all duration-300"
+                    >
+                      <CheckCheck className="w-3.5 h-3.5" />
+                      {language === 'zh' ? '全部接受' : 'Accept All'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Changes List */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+                  {/* Generated Edits (Temporary) */}
+                  {fileEdits.map(edit => (
+                    <div key={edit.path} className="rounded-2xl border border-border-subtle bg-surface/10 overflow-hidden group/edit">
                       <div
-                        className="flex items-center justify-between px-4 py-2 pl-10 bg-background hover:bg-surface-hover cursor-pointer"
-                        onClick={() => toggleEditExpanded(change.filePath)}
+                        className="flex items-center justify-between px-5 py-3 hover:bg-surface/20 cursor-pointer transition-colors"
+                        onClick={() => toggleEditExpanded(edit.path)}
                       >
+                        <div className="flex items-center gap-3">
+                          <div className={`p-1.5 rounded-lg bg-surface/20 text-text-muted group-hover/edit:text-accent transition-colors`}>
+                            {expandedEdits.has(edit.path) ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-text-primary">{edit.path.split(/[\\/]/).pop()}</span>
+                            <span className="text-[9px] text-text-muted opacity-40 truncate max-w-[200px]">{edit.path}</span>
+                          </div>
+                        </div>
                         <div className="flex items-center gap-2">
-                          {expandedEdits.has(change.filePath) ? (
-                            <ChevronDown className="w-3 h-3 text-text-muted" />
+                          {edit.status === 'pending' ? (
+                            <>
+                              <button
+                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); applyEdit(edit) }}
+                                className="p-1.5 rounded-lg bg-green-600/20 text-green-400 hover:bg-green-600 hover:text-accent-foreground transition-all duration-300"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); rejectEdit(edit.path) }}
+                                className="p-1.5 rounded-lg bg-surface/20 text-text-muted hover:bg-red-500/20 hover:text-red-400 transition-all duration-300"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </>
                           ) : (
-                            <ChevronRight className="w-3 h-3 text-text-muted" />
-                          )}
-                          <FileText className="w-4 h-4 text-text-muted" />
-                          <span className="text-sm">{change.filePath.split(/[\\/]/).pop()}</span>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${change.changeType === 'create' ? 'bg-green-500/10 text-green-400' :
-                            change.changeType === 'delete' ? 'bg-red-500/10 text-red-400' :
-                              'bg-blue-500/10 text-blue-400'
-                            }`}>
-                            {change.changeType}
-                          </span>
-                          {change.status === 'accepted' && (
-                            <span className="px-1.5 py-0.5 bg-green-500/10 text-green-400 text-[10px] rounded">✓</span>
-                          )}
-                          {change.status === 'rejected' && (
-                            <span className="px-1.5 py-0.5 bg-red-500/10 text-red-400 text-[10px] rounded">✗</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${edit.status === 'applied' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
+                              }`}>
+                              {edit.status}
+                            </span>
                           )}
                         </div>
-
-                        {change.status === 'pending' && (
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleAcceptComposerChange(change.filePath) }}
-                              className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
-                            >
-                              <Check className="w-3 h-3" />
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleRejectComposerChange(change.filePath) }}
-                              className="px-2 py-1 bg-surface border border-border-subtle text-text-secondary text-xs rounded hover:bg-surface-hover transition-colors"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        )}
                       </div>
-
-                      {/* Diff Preview */}
-                      {expandedEdits.has(change.filePath) && change.oldContent !== null && change.newContent !== null && (
-                        <div className="max-h-[250px] overflow-auto border-t border-border-subtle/30">
+                      {expandedEdits.has(edit.path) && (
+                        <div className="border-t border-border-subtle bg-black/20 animate-in fade-in slide-in-from-top-1 duration-300">
                           <DiffViewer
-                            originalContent={change.oldContent || ''}
-                            modifiedContent={change.newContent || ''}
-                            filePath={change.filePath}
+                            originalContent={edit.originalContent}
+                            modifiedContent={edit.newContent}
+                            filePath={edit.path}
                             minimal={true}
-                            onAccept={() => handleAcceptComposerChange(change.filePath)}
-                            onReject={() => handleRejectComposerChange(change.filePath)}
+                            onAccept={() => applyEdit(edit)}
+                            onReject={() => rejectEdit(edit.path)}
                           />
                         </div>
                       )}
                     </div>
                   ))}
-                </div>
-              ))
-            ) : (
-              // Flat view
-              composerState.currentSession.changes.map(change => (
-                <div key={change.filePath} className="border-b border-border-subtle">
-                  <div
-                    className="flex items-center justify-between px-4 py-2 bg-background hover:bg-surface-hover cursor-pointer"
-                    onClick={() => toggleEditExpanded(change.filePath)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-text-muted" />
-                      <span className="text-sm">{change.relativePath}</span>
-                    </div>
-                    {change.status === 'pending' && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleAcceptComposerChange(change.filePath) }}
-                          className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
-                        >
-                          Accept
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleRejectComposerChange(change.filePath) }}
-                          className="px-2 py-1 bg-surface border border-border-subtle text-xs rounded hover:bg-surface-hover"
-                        >
-                          Reject
-                        </button>
+
+                  {/* Composer Service Changes (Persistent) */}
+                  {Array.from(groupedChanges.entries()).map(([dir, changes]) => (
+                    <div key={dir} className="space-y-2">
+                      <div
+                        className="flex items-center gap-2 px-2 py-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity group/dir"
+                        onClick={() => toggleDirExpanded(dir)}
+                      >
+                        {expandedDirs.has(dir) ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                        <FolderOpen className="w-3.5 h-3.5 text-yellow-500/70" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">{dir || 'root'}</span>
+                        <span className="text-[9px] font-bold text-text-muted">({changes.length})</span>
                       </div>
-                    )}
-                  </div>
+
+                      {expandedDirs.has(dir) && changes.map(change => (
+                        <div key={change.filePath} className="rounded-2xl border border-border-subtle bg-surface/10 overflow-hidden group/change ml-4">
+                          <div
+                            className="flex items-center justify-between px-5 py-3 hover:bg-surface/20 cursor-pointer transition-colors"
+                            onClick={() => toggleEditExpanded(change.filePath)}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="p-1.5 rounded-lg bg-surface/20 text-text-muted group-hover/change:text-accent transition-colors">
+                                {expandedEdits.has(change.filePath) ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-xs font-bold text-text-primary">{change.filePath.split(/[\\/]/).pop()}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[9px] font-black uppercase tracking-tighter ${change.changeType === 'create' ? 'text-green-400' :
+                                    change.changeType === 'delete' ? 'text-red-400' : 'text-blue-400'
+                                    }`}>
+                                    {change.changeType}
+                                  </span>
+                                  {change.status !== 'pending' && (
+                                    <span className={`text-[9px] font-black uppercase tracking-tighter ${change.status === 'accepted' ? 'text-green-400' : 'text-red-400'
+                                      }`}>
+                                      • {change.status}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            {change.status === 'pending' && (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleAcceptComposerChange(change.filePath) }}
+                                  className="p-1.5 rounded-lg bg-green-600/20 text-green-400 hover:bg-green-600 hover:text-accent-foreground transition-all duration-300"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleRejectComposerChange(change.filePath) }}
+                                  className="p-1.5 rounded-lg bg-surface/20 text-text-muted hover:bg-red-500/20 hover:text-red-400 transition-all duration-300"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          {expandedEdits.has(change.filePath) && change.oldContent !== null && change.newContent !== null && (
+                            <div className="border-t border-border-subtle bg-black/20 animate-in fade-in slide-in-from-top-1 duration-300">
+                              <DiffViewer
+                                originalContent={change.oldContent || ''}
+                                modifiedContent={change.newContent || ''}
+                                filePath={change.filePath}
+                                minimal={true}
+                                onAccept={() => handleAcceptComposerChange(change.filePath)}
+                                onReject={() => handleRejectComposerChange(change.filePath)}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
                 </div>
-              ))
+              </div>
             )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   )
 }
+
 
 /**
  * 构建 Composer 提示词
@@ -631,20 +625,20 @@ function buildComposerPrompt(
 
   return `You are a code editor assistant. The user wants to make changes across multiple files.
 
-## Files:
-${fileContents}
+                      ## Files:
+                      ${fileContents}
 
-## User Instruction:
-${instruction}
+                      ## User Instruction:
+                      ${instruction}
 
-## Response Format:
-For each file that needs changes, respond with:
----FILE: <filepath>---
-<complete new file content>
----END FILE---
+                      ## Response Format:
+                      For each file that needs changes, respond with:
+                      ---FILE: <filepath>---
+                        <complete new file content>
+                          ---END FILE---
 
-Only include files that need changes. Output the complete file content, not just the changes.
-Do not include any explanations outside the file blocks.`
+                          Only include files that need changes. Output the complete file content, not just the changes.
+                          Do not include any explanations outside the file blocks.`
 }
 
 interface LLMConfigForComposer {

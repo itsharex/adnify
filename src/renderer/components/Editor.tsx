@@ -838,12 +838,12 @@ export default function Editor() {
           <div className="text-center mb-12">
             <div className="relative inline-block mb-6 group">
               <div className="absolute inset-0 bg-accent/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-              <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-surface to-surface-active border border-white/10 flex items-center justify-center shadow-2xl relative z-10 transform group-hover:scale-105 transition-transform duration-500">
+              <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-surface to-surface-active border border-border-subtle flex items-center justify-center shadow-2xl relative z-10 transform group-hover:scale-105 transition-transform duration-500">
                 <FileCode className="w-12 h-12 text-accent" />
               </div>
             </div>
 
-            <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-br from-white to-white/60 mb-3 tracking-tight">
+            <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-br from-text-primary to-text-primary/60 mb-3 tracking-tight">
               ADNIFY
             </h1>
             <p className="text-text-muted text-lg font-light tracking-wide opacity-80">
@@ -855,7 +855,7 @@ export default function Editor() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl">
             <button
               onClick={() => useStore.getState().setShowQuickOpen(true)}
-              className="group flex items-center justify-between p-4 rounded-xl bg-surface/30 hover:bg-surface/60 border border-white/5 hover:border-accent/20 transition-all duration-300 backdrop-blur-sm"
+              className="group flex items-center justify-between p-4 rounded-xl bg-surface/30 hover:bg-surface/60 border border-border-subtle hover:border-accent/20 transition-all duration-300 backdrop-blur-sm"
             >
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center group-hover:bg-accent/20 transition-colors">
@@ -869,14 +869,14 @@ export default function Editor() {
                 </div>
               </div>
               <div className="flex gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
-                <kbd className="h-6 px-2 rounded bg-white/5 border border-white/5 text-[10px] font-mono flex items-center text-text-muted">Ctrl</kbd>
-                <kbd className="h-6 px-2 rounded bg-white/5 border border-white/5 text-[10px] font-mono flex items-center text-text-muted">P</kbd>
+                <kbd className="h-6 px-2 rounded bg-surface/50 border border-border-subtle text-[10px] font-mono flex items-center text-text-muted">Ctrl</kbd>
+                <kbd className="h-6 px-2 rounded bg-surface/50 border border-border-subtle text-[10px] font-mono flex items-center text-text-muted">P</kbd>
               </div>
             </button>
 
             <button
               onClick={() => useStore.getState().setShowCommandPalette(true)}
-              className="group flex items-center justify-between p-4 rounded-xl bg-surface/30 hover:bg-surface/60 border border-white/5 hover:border-accent/20 transition-all duration-300 backdrop-blur-sm"
+              className="group flex items-center justify-between p-4 rounded-xl bg-surface/30 hover:bg-surface/60 border border-border-subtle hover:border-accent/20 transition-all duration-300 backdrop-blur-sm"
             >
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
@@ -890,9 +890,9 @@ export default function Editor() {
                 </div>
               </div>
               <div className="flex gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
-                <kbd className="h-6 px-2 rounded bg-white/5 border border-white/5 text-[10px] font-mono flex items-center text-text-muted">Ctrl</kbd>
-                <kbd className="h-6 px-2 rounded bg-white/5 border border-white/5 text-[10px] font-mono flex items-center text-text-muted">Shift</kbd>
-                <kbd className="h-6 px-2 rounded bg-white/5 border border-white/5 text-[10px] font-mono flex items-center text-text-muted">P</kbd>
+                <kbd className="h-6 px-2 rounded bg-surface/50 border border-border-subtle text-[10px] font-mono flex items-center text-text-muted">Ctrl</kbd>
+                <kbd className="h-6 px-2 rounded bg-surface/50 border border-border-subtle text-[10px] font-mono flex items-center text-text-muted">Shift</kbd>
+                <kbd className="h-6 px-2 rounded bg-surface/50 border border-border-subtle text-[10px] font-mono flex items-center text-text-muted">P</kbd>
               </div>
             </button>
           </div>
@@ -900,14 +900,14 @@ export default function Editor() {
           {/* Footer Hints */}
           <div className="mt-12 flex items-center gap-8 text-xs text-text-muted/60">
             <div className="flex items-center gap-2">
-              <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/5 font-mono">Ctrl</kbd>
+              <kbd className="px-1.5 py-0.5 rounded bg-surface/50 border border-border-subtle font-mono">Ctrl</kbd>
               <span>+</span>
-              <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/5 font-mono">,</kbd>
+              <kbd className="px-1.5 py-0.5 rounded bg-surface/50 border border-border-subtle font-mono">,</kbd>
               <span>Settings</span>
             </div>
-            <div className="w-1 h-1 rounded-full bg-white/10" />
+            <div className="w-1 h-1 rounded-full bg-text-muted/20" />
             <div className="flex items-center gap-2">
-              <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/5 font-mono">F12</kbd>
+              <kbd className="px-1.5 py-0.5 rounded bg-surface/50 border border-border-subtle font-mono">F12</kbd>
               <span>DevTools</span>
             </div>
           </div>

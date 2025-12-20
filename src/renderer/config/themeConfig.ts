@@ -11,21 +11,21 @@ export interface ThemeColors {
   surface: string
   surfaceHover: string
   surfaceActive: string
-  
+
   // 文字色
   textPrimary: string
   textSecondary: string
   textMuted: string
-  
+
   // 边框色
   borderSubtle: string
   borderStrong: string
-  
+
   // 强调色
   accent: string
   accentHover: string
   accentMuted: string
-  
+
   // 状态色
   statusSuccess: string
   statusWarning: string
@@ -56,12 +56,12 @@ export const builtinThemes: Theme[] = [
     type: 'dark',
     monacoTheme: 'vs-dark',
     colors: {
-      background: '13 13 15',
-      backgroundSecondary: '17 17 19',
+      background: '9 9 11',
+      backgroundSecondary: '24 24 27',
       surface: '24 24 27',
-      surfaceHover: '31 31 35',
-      surfaceActive: '39 39 42',
-      textPrimary: '250 250 250',
+      surfaceHover: '39 39 42',
+      surfaceActive: '63 63 70',
+      textPrimary: '244 244 245',
       textSecondary: '161 161 170',
       textMuted: '113 113 122',
       borderSubtle: '39 39 42',
@@ -70,107 +70,57 @@ export const builtinThemes: Theme[] = [
       accentHover: '124 58 237',
       accentMuted: '139 92 246',
       statusSuccess: '34 197 94',
-      statusWarning: '245 158 11',
+      statusWarning: '234 179 8',
       statusError: '239 68 68',
       statusInfo: '59 130 246',
     },
   },
   {
-    id: 'github-dark',
-    name: 'GitHub Dark',
+    id: 'midnight',
+    name: 'Midnight',
     type: 'dark',
     monacoTheme: 'vs-dark',
     colors: {
-      background: '13 17 23',
-      backgroundSecondary: '22 27 34',
-      surface: '33 38 45',
-      surfaceHover: '48 54 61',
-      surfaceActive: '72 79 88',
-      textPrimary: '201 209 217',
-      textSecondary: '139 148 158',
-      textMuted: '110 118 129',
-      borderSubtle: '33 38 45',
-      borderStrong: '48 54 61',
-      accent: '88 166 255',
-      accentHover: '121 192 255',
-      accentMuted: '88 166 255',
-      statusSuccess: '63 185 80',
-      statusWarning: '210 153 34',
-      statusError: '248 81 73',
-      statusInfo: '88 166 255',
+      background: '2 6 23',
+      backgroundSecondary: '15 23 42',
+      surface: '15 23 42',
+      surfaceHover: '30 41 59',
+      surfaceActive: '51 65 85',
+      textPrimary: '248 250 252',
+      textSecondary: '148 163 184',
+      textMuted: '100 116 139',
+      borderSubtle: '15 23 42',
+      borderStrong: '30 41 59',
+      accent: '56 189 248',
+      accentHover: '14 165 233',
+      accentMuted: '56 189 248',
+      statusSuccess: '34 197 94',
+      statusWarning: '234 179 8',
+      statusError: '239 68 68',
+      statusInfo: '59 130 246',
     },
   },
   {
-    id: 'monokai',
-    name: 'Monokai',
-    type: 'dark',
-    monacoTheme: 'vs-dark',
-    colors: {
-      background: '39 40 34',
-      backgroundSecondary: '45 46 39',
-      surface: '62 61 50',
-      surfaceHover: '73 72 62',
-      surfaceActive: '117 113 94',
-      textPrimary: '248 248 242',
-      textSecondary: '207 207 194',
-      textMuted: '117 113 94',
-      borderSubtle: '62 61 50',
-      borderStrong: '73 72 62',
-      accent: '166 226 46',
-      accentHover: '184 243 57',
-      accentMuted: '166 226 46',
-      statusSuccess: '166 226 46',
-      statusWarning: '230 219 116',
-      statusError: '249 38 114',
-      statusInfo: '102 217 239',
-    },
-  },
-  {
-    id: 'one-dark',
-    name: 'One Dark',
-    type: 'dark',
-    monacoTheme: 'vs-dark',
-    colors: {
-      background: '40 44 52',
-      backgroundSecondary: '33 37 43',
-      surface: '44 49 58',
-      surfaceHover: '58 63 75',
-      surfaceActive: '75 82 99',
-      textPrimary: '171 178 191',
-      textSecondary: '157 165 180',
-      textMuted: '92 99 112',
-      borderSubtle: '24 26 31',
-      borderStrong: '58 63 75',
-      accent: '97 175 239',
-      accentHover: '116 185 240',
-      accentMuted: '97 175 239',
-      statusSuccess: '152 195 121',
-      statusWarning: '229 192 123',
-      statusError: '224 108 117',
-      statusInfo: '97 175 239',
-    },
-  },
-  {
-    id: 'adnify-light',
-    name: 'Adnify Light',
+    id: 'dawn',
+    name: 'Dawn',
     type: 'light',
     monacoTheme: 'vs',
     colors: {
       background: '255 255 255',
-      backgroundSecondary: '244 244 245',
-      surface: '228 228 231',
-      surfaceHover: '212 212 216',
-      surfaceActive: '161 161 170',
-      textPrimary: '24 24 27',
-      textSecondary: '63 63 70',
-      textMuted: '113 113 122',
-      borderSubtle: '228 228 231',
-      borderStrong: '212 212 216',
-      accent: '124 58 237',
-      accentHover: '109 40 217',
-      accentMuted: '124 58 237',
+      backgroundSecondary: '248 250 252',
+      surface: '255 255 255',
+      surfaceHover: '241 245 249',
+      surfaceActive: '226 232 240',
+      textPrimary: '15 23 42',
+      textSecondary: '71 85 105',
+      textMuted: '148 163 184',
+      borderSubtle: '241 245 249',
+      borderStrong: '226 232 240',
+      accent: '79 70 229',
+      accentHover: '67 56 202',
+      accentMuted: '79 70 229',
       statusSuccess: '22 163 74',
-      statusWarning: '217 119 6',
+      statusWarning: '202 138 4',
       statusError: '220 38 38',
       statusInfo: '37 99 235',
     },
@@ -192,11 +142,11 @@ class ThemeManager {
     try {
       const savedThemeId = await window.electronAPI.getSetting('themeId')
       const savedCustomThemes = await window.electronAPI.getSetting('customThemes')
-      
+
       if (savedCustomThemes && Array.isArray(savedCustomThemes)) {
         this.customThemes = savedCustomThemes as Theme[]
       }
-      
+
       if (savedThemeId && typeof savedThemeId === 'string') {
         const theme = this.getThemeById(savedThemeId)
         if (theme) {
@@ -280,10 +230,10 @@ class ThemeManager {
 
     // 设置主题类型
     root.setAttribute('data-theme', theme.type)
-    
+
     // 更新 color-scheme
     root.style.colorScheme = theme.type
-    
+
     console.log('[Theme] Applied theme:', theme.name)
   }
 
