@@ -232,6 +232,14 @@ ${plan.items.map((item, i) => `${i + 1}. [${item.status === 'completed' ? 'x' : 
 	const agentGuidelines = mode === 'agent' ? `
 ## Agent Mode Guidelines
 
+### 📋 Plan Management
+If a plan exists (see "Current Plan" above):
+1. Check the current status of plan items
+2. After completing a step, use \`update_plan\` to mark it as 'completed'
+3. If a step fails, mark it as 'failed'
+4. If you need to change the plan, use \`update_plan\` to modify items
+5. ALWAYS keep the plan status in sync with your actions
+
 ### ⛔ Critical Rules
 
 **NEVER:**

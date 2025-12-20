@@ -642,20 +642,25 @@ class AgentServiceClass {
             }
           }
 
-          // 如果没有原生工具调用，尝试从内容中解析 XML 格式的工具调用
-          const finalContent = content || result.content || ''
-          if (toolCalls.length === 0 && finalContent) {
+          // 始终尝试从内容中解析 XML 格式的工具调用（支持混合模式）
+          let finalContent = content || result.content || ''
+          if (finalContent) {
             const xmlToolCalls = this.parseXMLToolCalls(finalContent)
-            for (const tc of xmlToolCalls) {
-              toolCalls.push(tc)
-              // 添加到 UI
-              if (this.currentAssistantId) {
-                const store = useAgentStore.getState()
-                store.addToolCallPart(this.currentAssistantId, {
-                  id: tc.id,
-                  name: tc.name,
-                  arguments: tc.arguments,
-                })
+            if (xmlToolCalls.length > 0) {
+              // 移除 XML 工具调用字符串
+              finalContent = finalContent.replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '').trim()
+
+              for (const tc of xmlToolCalls) {
+                toolCalls.push(tc)
+                // 添加到 UI
+                if (this.currentAssistantId) {
+                  const store = useAgentStore.getState()
+                  store.addToolCallPart(this.currentAssistantId, {
+                    id: tc.id,
+                    name: tc.name,
+                    arguments: tc.arguments,
+                  })
+                }
               }
             }
           }
@@ -995,6 +1000,23 @@ class AgentServiceClass {
         }
       }
     }
+
+    // 更新上下文统计信息
+    const messages = useStore.getState().messages
+    const fileCount = contextItems.filter(item => item.type === 'File').length
+    const semanticResultCount = contextItems.filter(item => item.type === 'Codebase').length
+
+    useStore.getState().setContextStats({
+      totalChars,
+      maxChars: CONFIG.maxTotalContextChars,
+      fileCount,
+      maxFiles: 10, // 假设最多支持 10 个文件
+      messageCount: messages.length,
+      maxMessages: CONFIG.maxHistoryMessages,
+      semanticResultCount,
+      terminalChars: 0
+    })
+
     return parts.join('')
   }
 

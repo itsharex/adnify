@@ -67,6 +67,19 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['path', 'pattern'],
     },
   },
+  {
+    name: 'search_in_file',
+    description: 'Search for pattern within a specific file. Returns matching line numbers and content.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'File path to search in' },
+        pattern: { type: 'string', description: 'Search pattern' },
+        is_regex: { type: 'boolean', description: 'Use regex pattern (default: false)' },
+      },
+      required: ['path', 'pattern'],
+    },
+  },
   // 编辑类
   {
     name: 'edit_file',
@@ -335,6 +348,7 @@ export const TOOL_DISPLAY_NAMES: Record<string, string> = {
   get_lint_errors: 'Lint',
   web_search: 'Web Search',
   read_url: 'Read URL',
+  search_in_file: 'Search in File',
   create_plan: 'Create Plan',
   update_plan: 'Update Plan',
 }
@@ -541,6 +555,48 @@ export async function executeTool(
         return {
           success: true,
           result: formatted || 'No matches found'
+        }
+      }
+
+      case 'search_in_file': {
+        const path = resolvePath(validatedArgs.path, true)
+        const { pattern, is_regex } = validatedArgs
+
+        const content = await window.electronAPI.readFile(path)
+        if (content === null) {
+          return { success: false, result: '', error: `File not found: ${path}` }
+        }
+
+        const lines = content.split('\n')
+        const matches: string[] = []
+
+        lines.forEach((line, index) => {
+          const lineNum = index + 1
+          let matched = false
+
+          if (is_regex) {
+            try {
+              const regex = new RegExp(pattern, 'gi')
+              matched = regex.test(line)
+            } catch {
+              matched = false
+            }
+          } else {
+            matched = line.toLowerCase().includes(pattern.toLowerCase())
+          }
+
+          if (matched) {
+            matches.push(`${lineNum}: ${line.trim()}`)
+          }
+        })
+
+        if (matches.length === 0) {
+          return { success: true, result: `No matches found for "${pattern}" in ${path}` }
+        }
+
+        return {
+          success: true,
+          result: `Found ${matches.length} matches in ${path}:\n${matches.slice(0, 100).join('\n')}`
         }
       }
 
