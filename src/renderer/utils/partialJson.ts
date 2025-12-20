@@ -1,143 +1,121 @@
 /**
- * 部分 JSON 解析器
- * 用于解析流式传输中不完整的 JSON 字符串
+ * 健壮的流式 JSON 解析器
+ * 用于解析 LLM 流式输出的不完整 JSON，支持自动补全缺失的结构
  */
 
 /**
  * 尝试解析部分 JSON 字符串
- * 支持不完整的 JSON，会尝试补全缺失的引号和括号
+ * 使用状态机方法，比简单的正则替换更健壮
  */
 export function parsePartialJson(jsonString: string): Record<string, unknown> | null {
   if (!jsonString || jsonString.trim().length === 0) {
     return null
   }
 
-  // 首先尝试直接解析
+  // 1. 尝试直接解析（最快）
   try {
     return JSON.parse(jsonString)
   } catch {
     // 继续尝试修复
   }
 
-  // 尝试修复并解析
+  // 2. 尝试修复并解析
   try {
-    const fixed = fixPartialJson(jsonString)
+    const fixed = fixJson(jsonString)
     return JSON.parse(fixed)
-  } catch {
-    // 如果修复后仍然失败，尝试提取已知字段
+  } catch (e) {
+    // 3. 如果修复失败，尝试提取已知字段作为最后手段
     return extractKnownFields(jsonString)
   }
 }
 
 /**
  * 修复不完整的 JSON 字符串
+ * 通过模拟 JSON 解析状态机来补全缺失的结尾
  */
-function fixPartialJson(jsonString: string): string {
-  let result = jsonString.trim()
-  
-  // 确保以 { 开头
-  if (!result.startsWith('{')) {
-    result = '{' + result
+function fixJson(input: string): string {
+  let processed = input.trim()
+
+  // 确保以 { 或 [ 开头
+  if (!processed.startsWith('{') && !processed.startsWith('[')) {
+    const firstBrace = processed.indexOf('{')
+    const firstBracket = processed.indexOf('[')
+
+    if (firstBrace === -1 && firstBracket === -1) return '{}'
+
+    if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+      processed = processed.slice(firstBrace)
+    } else {
+      processed = processed.slice(firstBracket)
+    }
   }
 
-  // 处理字符串内的特殊字符
-  result = fixStringContent(result)
-
-  // 计算括号平衡
-  let braceCount = 0
-  let bracketCount = 0
+  const stack: ('{' | '[' | '"')[] = []
+  let isEscaped = false
   let inString = false
-  let escaped = false
 
-  for (let i = 0; i < result.length; i++) {
-    const char = result[i]
-    
-    if (escaped) {
-      escaped = false
-      continue
-    }
-    
-    if (char === '\\' && inString) {
-      escaped = true
-      continue
-    }
-    
-    if (char === '"') {
-      inString = !inString
-      continue
-    }
-    
-    if (!inString) {
-      if (char === '{') braceCount++
-      else if (char === '}') braceCount--
-      else if (char === '[') bracketCount++
-      else if (char === ']') bracketCount--
-    }
-  }
+  // 扫描字符串，维护状态栈
+  for (let i = 0; i < processed.length; i++) {
+    const char = processed[i]
 
-  // 如果在字符串中结束，关闭字符串
-  if (inString) {
-    result += '"'
-  }
-
-  // 关闭未闭合的括号
-  while (bracketCount > 0) {
-    result += ']'
-    bracketCount--
-  }
-  while (braceCount > 0) {
-    result += '}'
-    braceCount--
-  }
-
-  return result
-}
-
-/**
- * 修复字符串内容中的特殊字符
- */
-function fixStringContent(jsonString: string): string {
-  let result = ''
-  let inString = false
-  let escaped = false
-
-  for (let i = 0; i < jsonString.length; i++) {
-    const char = jsonString[i]
-    const charCode = char.charCodeAt(0)
-
-    if (escaped) {
-      result += char
-      escaped = false
+    if (isEscaped) {
+      isEscaped = false
       continue
     }
 
     if (char === '\\') {
-      escaped = true
-      result += char
+      isEscaped = true
       continue
     }
 
     if (char === '"') {
-      inString = !inString
-      result += char
+      if (inString) {
+        // 字符串结束
+        inString = false
+        // 弹出栈顶的引号标记（如果有的话，虽然我们只用 boolean 标记 inString，但为了逻辑一致性）
+      } else {
+        // 字符串开始
+        inString = true
+      }
       continue
     }
 
-    if (inString) {
-      // 转义字符串内的控制字符
-      if (char === '\n') {
-        result += '\\n'
-      } else if (char === '\r') {
-        result += '\\r'
-      } else if (char === '\t') {
-        result += '\\t'
-      } else if (charCode < 32) {
-        result += `\\u${charCode.toString(16).padStart(4, '0')}`
-      } else {
-        result += char
+    if (!inString) {
+      if (char === '{') {
+        stack.push('{')
+      } else if (char === '[') {
+        stack.push('[')
+      } else if (char === '}') {
+        if (stack.length > 0 && stack[stack.length - 1] === '{') {
+          stack.pop()
+        }
+      } else if (char === ']') {
+        if (stack.length > 0 && stack[stack.length - 1] === '[') {
+          stack.pop()
+        }
       }
-    } else {
-      result += char
+    }
+  }
+
+  // 根据状态栈补全结尾
+  let result = processed
+
+  // 1. 如果在字符串中结束，补全引号
+  if (inString) {
+    // 检查是否以转义符结尾
+    if (result.endsWith('\\')) {
+      result += '\\' // 补全转义符，变成 \\"
+    }
+    result += '"'
+  }
+
+  // 2. 补全缺失的括号
+  while (stack.length > 0) {
+    const token = stack.pop()
+    if (token === '{') {
+      result += '}'
+    } else if (token === '[') {
+      result += ']'
     }
   }
 
@@ -145,83 +123,72 @@ function fixStringContent(jsonString: string): string {
 }
 
 /**
- * 从不完整的 JSON 中提取已知字段
+ * 从严重损坏的 JSON 中提取已知字段
+ * 正则表达式回退策略
  */
 function extractKnownFields(jsonString: string): Record<string, unknown> {
   const result: Record<string, unknown> = {}
 
-  // 提取 path 字段
-  const pathMatch = jsonString.match(/"path"\s*:\s*"((?:[^"\\]|\\.)*)/)
-  if (pathMatch) {
-    result.path = unescapeString(pathMatch[1])
+  // 辅助函数：安全提取字段
+  const extract = (key: string) => {
+    // 匹配 "key": "value..." 或 "key": value
+    // 注意：这只是一个简单的启发式匹配，无法处理复杂的嵌套
+    const regex = new RegExp(`"${key}"\\s*:\\s*(?:"((?:[^"\\\\]|\\\\.)*)"|([^,}]+))`)
+    const match = jsonString.match(regex)
+    if (match) {
+      if (match[1] !== undefined) {
+        // 字符串值
+        try {
+          result[key] = JSON.parse(`"${match[1]}"`)
+        } catch {
+          result[key] = match[1] // 回退到原始字符串
+        }
+      } else if (match[2] !== undefined) {
+        // 非字符串值 (number, boolean, null)
+        try {
+          result[key] = JSON.parse(match[2])
+        } catch {
+          result[key] = match[2]
+        }
+      }
+    }
   }
 
-  // 提取 content 字段（可能很长，包含换行）
-  const contentMatch = jsonString.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/)
-  if (contentMatch) {
-    result.content = unescapeString(contentMatch[1])
-  }
+  // 常用工具参数字段
+  const commonFields = [
+    'path', 'content', 'command', 'query', 'pattern',
+    'search_replace_blocks', 'start_line', 'end_line',
+    'line', 'column', 'paths', 'url', 'question'
+  ]
 
-  // 提取 search_replace_blocks 字段
-  const searchReplaceMatch = jsonString.match(/"search_replace_blocks"\s*:\s*"((?:[^"\\]|\\.)*)/)
-  if (searchReplaceMatch) {
-    result.search_replace_blocks = unescapeString(searchReplaceMatch[1])
-  }
-
-  // 提取 command 字段
-  const commandMatch = jsonString.match(/"command"\s*:\s*"((?:[^"\\]|\\.)*)/)
-  if (commandMatch) {
-    result.command = unescapeString(commandMatch[1])
-  }
-
-  // 提取 query 字段
-  const queryMatch = jsonString.match(/"query"\s*:\s*"((?:[^"\\]|\\.)*)/)
-  if (queryMatch) {
-    result.query = unescapeString(queryMatch[1])
-  }
-
-  // 提取 pattern 字段
-  const patternMatch = jsonString.match(/"pattern"\s*:\s*"((?:[^"\\]|\\.)*)/)
-  if (patternMatch) {
-    result.pattern = unescapeString(patternMatch[1])
-  }
+  commonFields.forEach(extract)
 
   return result
 }
 
 /**
- * 反转义 JSON 字符串
- */
-function unescapeString(str: string): string {
-  return str
-    .replace(/\\n/g, '\n')
-    .replace(/\\r/g, '\r')
-    .replace(/\\t/g, '\t')
-    .replace(/\\"/g, '"')
-    .replace(/\\\\/g, '\\')
-}
-
-/**
  * 智能截断工具结果
- * 根据工具类型和内容特点进行截断
+ * 根据工具类型和内容特点进行截断，避免 UI 卡顿
  */
 export function truncateToolResult(
   result: string,
   toolName: string,
   maxLength?: number
 ): string {
+  if (!result) return ''
+
   // 工具特定的限制
   const limits: Record<string, number> = {
-    read_file: 15000,
-    read_multiple_files: 20000,
-    search_files: 8000,
-    get_dir_tree: 5000,
-    list_directory: 5000,
-    run_command: 10000,
-    codebase_search: 8000,
-    find_references: 5000,
-    get_document_symbols: 5000,
-    default: 10000,
+    read_file: 20000,
+    read_multiple_files: 30000,
+    search_files: 10000,
+    get_dir_tree: 8000,
+    list_directory: 8000,
+    run_command: 15000,
+    codebase_search: 10000,
+    find_references: 8000,
+    get_document_symbols: 8000,
+    default: 12000,
   }
 
   const limit = maxLength || limits[toolName] || limits.default
@@ -230,46 +197,37 @@ export function truncateToolResult(
     return result
   }
 
-  // 智能截断策略
-  if (toolName === 'search_files' || toolName === 'find_references') {
-    // 搜索结果：保留更多开头（最相关的结果）
-    const headSize = Math.floor(limit * 0.85)
-    const tailSize = Math.floor(limit * 0.1)
-    return (
-      result.slice(0, headSize) +
-      '\n\n... [truncated: showing first results] ...\n\n' +
-      result.slice(-tailSize)
-    )
-  }
+  const truncatedMsg = (omitted: number) => `\n\n... [truncated: ${omitted} chars omitted] ...\n\n`
 
-  if (toolName === 'read_file' || toolName === 'read_multiple_files') {
-    // 文件内容：保留开头和结尾
-    const headSize = Math.floor(limit * 0.6)
-    const tailSize = Math.floor(limit * 0.35)
+  // 智能截断策略
+  if (toolName === 'search_files' || toolName === 'find_references' || toolName === 'codebase_search') {
+    // 搜索结果：保留更多开头（最相关的结果）
+    const headSize = Math.floor(limit * 0.9)
+    const tailSize = Math.floor(limit * 0.05)
     return (
       result.slice(0, headSize) +
-      '\n\n... [truncated: ' + (result.length - limit) + ' chars omitted] ...\n\n' +
+      truncatedMsg(result.length - limit) +
       result.slice(-tailSize)
     )
   }
 
   if (toolName === 'run_command') {
     // 命令输出：保留更多结尾（通常错误信息在最后）
-    const headSize = Math.floor(limit * 0.3)
-    const tailSize = Math.floor(limit * 0.65)
+    const headSize = Math.floor(limit * 0.2)
+    const tailSize = Math.floor(limit * 0.75)
     return (
       result.slice(0, headSize) +
-      '\n\n... [truncated] ...\n\n' +
+      truncatedMsg(result.length - limit) +
       result.slice(-tailSize)
     )
   }
 
-  // 默认：均匀截断
+  // 默认：保留大部分开头和一部分结尾
   const headSize = Math.floor(limit * 0.7)
   const tailSize = Math.floor(limit * 0.25)
   return (
     result.slice(0, headSize) +
-    '\n\n... [truncated] ...\n\n' +
+    truncatedMsg(result.length - limit) +
     result.slice(-tailSize)
   )
 }

@@ -112,7 +112,7 @@ function FileTreeItem({
     onCancelCreate: () => void
     onCreateSubmit: (parentPath: string, name: string, type: 'file' | 'folder') => void
 }) {
-    const { expandedFolders, toggleFolder, expandFolder, openFile, setActiveFile, activeFilePath, language } = useStore()
+    const { expandedFolders, toggleFolder, expandFolder, openFile, setActiveFile, activeFilePath, language, fileTreeRefreshKey } = useStore()
     const [children, setChildren] = useState<FileItem[]>([])
     const [isLoading, setIsLoading] = useState(false)
     const [isRenaming, setIsRenaming] = useState(false)
@@ -124,13 +124,15 @@ function FileTreeItem({
     const isActive = activeFilePath === item.path
     const isCreatingHere = creatingIn?.path === item.path
 
+    // 当展开或刷新触发时加载子目录
     useEffect(() => {
         if (item.isDirectory && isExpanded) {
             // 先检查缓存，如果有缓存则不显示 loading
             const loadChildren = async () => {
                 setIsLoading(true)
                 try {
-                    const items = await directoryCacheService.getDirectory(item.path)
+                    // 刷新时使用 forceRefresh 确保获取最新内容
+                    const items = await directoryCacheService.getDirectory(item.path, true)
                     setChildren(items)
 
                     // 预加载下一层子目录（提升展开速度）
@@ -144,7 +146,7 @@ function FileTreeItem({
             }
             loadChildren()
         }
-    }, [item.path, item.isDirectory, isExpanded])
+    }, [item.path, item.isDirectory, isExpanded, fileTreeRefreshKey])  // 添加 fileTreeRefreshKey 依赖
 
     useEffect(() => {
         if (isRenaming && renameInputRef.current) {
@@ -374,7 +376,7 @@ function FileTreeItem({
 }
 
 function ExplorerView() {
-    const { workspacePath, workspace, setWorkspacePath, setFiles, language } = useStore()
+    const { workspacePath, workspace, setWorkspacePath, setFiles, language, triggerFileTreeRefresh } = useStore()
     const [gitStatus, setGitStatus] = useState<GitStatus | null>(null)
     const [isGitRepo, setIsGitRepo] = useState(false)
     // 内联创建状态：记录在哪个文件夹创建什么类型
@@ -404,11 +406,14 @@ function ExplorerView() {
     const refreshFiles = useCallback(async () => {
         if (workspacePath) {
             // 强制刷新根目录缓存
+            directoryCacheService.clear()  // 清除所有目录缓存
             const items = await directoryCacheService.getDirectory(workspacePath, true)
             setFiles(items)
             updateGitStatus()
+            // 触发 FileTreeItem 重新加载子目录
+            triggerFileTreeRefresh()
         }
-    }, [workspacePath, setFiles, updateGitStatus])
+    }, [workspacePath, setFiles, updateGitStatus, triggerFileTreeRefresh])
 
     // 工作区变化时更新 Git 状态
     useEffect(() => {
@@ -1768,6 +1773,7 @@ function OutlineView() {
 
     // 加载符号
     useEffect(() => {
+        console.log('[OutlineView] Check conditions:', { activeFilePath, isLspReady })
         if (!activeFilePath || !isLspReady) {
             setSymbols([])
             return
@@ -1776,7 +1782,9 @@ function OutlineView() {
         const loadSymbols = async () => {
             setIsLoading(true)
             try {
+                console.log('[OutlineView] Loading symbols for:', activeFilePath)
                 const result = await getDocumentSymbols(activeFilePath)
+                console.log('[OutlineView] Got symbols:', result?.length || 0)
                 setSymbols(result || [])
                 // 默认展开第一层
                 const firstLevel = new Set(result?.map((s: LspDocumentSymbol) => s.name) || [])

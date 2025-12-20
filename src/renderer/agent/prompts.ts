@@ -5,6 +5,7 @@
 
 import { ChatMode } from '../store'
 import { rulesService } from './rulesService'
+import { useAgentStore } from './core/AgentStore'
 import { FILE_LIMITS } from '../../shared/constants'
 
 // Search/Replace 块格式 - 从统一模块导入
@@ -22,14 +23,6 @@ export const MAX_DIR_ITEMS = FILE_LIMITS.MAX_DIR_ITEMS
 export const MAX_SEARCH_RESULTS = FILE_LIMITS.MAX_SEARCH_RESULTS
 export const MAX_TERMINAL_OUTPUT = FILE_LIMITS.MAX_TERMINAL_OUTPUT
 export const MAX_CONTEXT_CHARS = FILE_LIMITS.MAX_CONTEXT_CHARS
-
-// Search/Replace 块模板
-const searchReplaceBlockTemplate = `\
-<<<<<<< SEARCH
-// ... original code goes here
-=======
-// ... updated code goes here
->>>>>>> REPLACE`
 
 // 工具描述
 const toolDescriptions = {
@@ -65,22 +58,51 @@ Parameters:
 - is_regex (optional): Whether pattern is regex`,
 
 	edit_file: `Edit a file using SEARCH/REPLACE blocks. This is the PREFERRED method for making changes.
+
+**CRITICAL**: You MUST read the file first using read_file before editing.
+
 Parameters:
-- path (required): File path to edit
+- path (required): Absolute file path to edit
 - search_replace_blocks (required): String containing SEARCH/REPLACE blocks
 
-**FORMAT** (Git-style markers):
-${searchReplaceBlockTemplate}
+**EXACT FORMAT REQUIRED** (use exactly 7 angle brackets):
+\`\`\`
+<<<<<<< SEARCH
+[exact original code to find - copy from read_file output]
+=======
+[new replacement code]
+>>>>>>> REPLACE
+\`\`\`
 
-**RULES:**
-1. SEARCH block must EXACTLY match existing code (including whitespace and indentation).
-2. Each SEARCH block must be unique in the file.
-3. You can use multiple blocks for multiple changes.
-4. **Keep SEARCH blocks as small as possible** while being unique. Smaller blocks are more robust to minor formatting differences.
-5. Include enough context lines to make the match unique.
-6. Each marker must be on its own line.
-7. **Indentation**: While the system handles minor indentation differences, try to match the original indentation as closely as possible.
-8. **Newlines**: Ensure you include the correct number of newlines between markers and content.`,
+**FORMAT RULES - MUST FOLLOW:**
+1. Use EXACTLY 7 '<' characters followed by ' SEARCH' (with space)
+2. Use EXACTLY 7 '=' characters as divider (no text)
+3. Use EXACTLY 7 '>' characters followed by ' REPLACE' (with space)
+4. Each marker MUST be on its own line
+5. Do NOT wrap the blocks in markdown code fences inside the parameter
+
+**CORRECT EXAMPLE:**
+\`\`\`
+<<<<<<< SEARCH
+function oldName() {
+  return 1;
+}
+=======
+function newName() {
+  return 2;
+}
+>>>>>>> REPLACE
+\`\`\`
+
+**WRONG EXAMPLES (DO NOT DO):**
+- \`<<< SEARCH\` (wrong: only 3 brackets)
+- \`<<<<<<<SEARCH\` (wrong: no space before SEARCH)
+- \`<<<<<<< search\` (wrong: lowercase)
+
+**COMMON ERRORS:**
+- "Invalid SEARCH/REPLACE block format" → Check your marker format matches exactly
+- "Search block not found" → SEARCH content doesn't match file, re-read the file
+- "Matched N times" → SEARCH block is not unique, add more context lines`,
 
 	write_file: `Write or overwrite entire file content. Use edit_file for partial changes.
 Parameters:
@@ -123,6 +145,16 @@ Parameters:
 Parameters:
 - path (required): File path to check
 - refresh (optional): Force refresh cache`,
+
+	create_plan: `Create a new execution plan. Use this at the start of a complex task.
+Parameters:
+- items (required): Array of plan items, each with 'title' and optional 'description'`,
+
+	update_plan: `Update the current plan status or items. Use this to mark steps as completed or failed.
+Parameters:
+- status (optional): Update overall plan status ('active', 'completed', 'failed')
+- items (optional): Array of items to update, each with 'id' and 'status' ('pending', 'in_progress', 'completed', 'failed', 'skipped')
+- currentStepId (optional): Set the current active step ID`,
 }
 
 // 构建工具定义字符串
@@ -186,50 +218,82 @@ export async function buildSystemPrompt(
 	// 工具定义（仅 agent 模式）
 	const toolDefs = buildToolDefinitions(mode)
 
+	// 获取当前计划
+	const store = useAgentStore.getState()
+	const plan = store.plan
+	const planSection = plan && plan.items.length > 0 ? `
+## Current Plan
+Status: ${plan.status}
+
+${plan.items.map((item, i) => `${i + 1}. [${item.status === 'completed' ? 'x' : item.status === 'in_progress' ? '/' : item.status === 'failed' ? '!' : ' '}] ${item.title}`).join('\n')}
+` : ''
+
 	// Agent 模式特定指导
 	const agentGuidelines = mode === 'agent' ? `
 ## Agent Mode Guidelines
 
-### CRITICAL: Response Format
-**You MUST output text before and after tool calls. Never call tools silently.**
+### ⛔ Critical Rules
 
-When making changes:
-1. First, write a brief explanation of what you will do (1-2 sentences)
-2. Then call the tool(s) using the native tool_calls API
-3. After tools complete, write a brief summary
+**NEVER:**
+- Use bash commands (cat, head, tail, grep) to read files - ALWAYS use read_file tool instead
+- Continue working after the task is complete
+- Make additional "improvements" or optimizations not requested by the user
+- Commit, push, or deploy code unless explicitly asked
 
-### Code Changes
-- **ALWAYS use tools** (edit_file, write_file) to modify files
-- **NEVER output code blocks** for the user to copy-paste
-- If you want to show code, use a tool to write it to a file
+**ALWAYS:**
+- Bias toward action - just do it, don't ask for confirmation on minor details
+- Do exactly what was requested, no more and no less
+- Stop immediately when the task is done
 
-### Tool Usage
-- Read files before editing to understand current state
-- Complete tasks fully without leaving TODOs
-- Check for lint errors after editing
+### 🔧 Tool Calling Format
+You have access to tools via the native function calling API. When you need to use a tool:
+1. Decide which tool(s) to use based on the task
+2. Call the tool with the required parameters
+3. Wait for the result before proceeding
+4. Handle any errors by adjusting your approach
 
-### Safety
-- Never modify files outside workspace
-- Be cautious with destructive operations
+**Tool Call Tips:**
+- You can call multiple independent tools in parallel
+- Always check tool results for errors before continuing
+- If a tool fails, read the error message carefully and try a different approach
 
-### CRITICAL: Task Completion
-**STOP calling tools when the task is complete.** Do NOT continue making changes in a loop.
+### 📄 File Editing Workflow
+**ALWAYS follow this sequence when editing files:**
+1. \`read_file\` - First, read the target file to understand its current content
+2. \`edit_file\` - Then, edit using SEARCH/REPLACE blocks
+3. \`get_lint_errors\` (optional) - Check for errors after editing
+
+**Key Rules:**
+- Never skip step 1 (read_file). The system will reject edits to unread files.
+- Keep SEARCH blocks small and unique
+- If edit fails, re-read the file and try again with a more specific SEARCH block
+
+### 💬 Response Format
+Keep responses SHORT and focused:
+- Answer directly, avoid unnecessary explanation
+- Don't repeat what the code does
+- Skip preambles like "I'll help you..."
+- Use brief explanations before/after tool calls
+
+### ⚠️ Error Handling
+When a tool returns an error:
+- **"Read-before-write required"** → Use read_file first, then retry
+- **"Matched N times"** → Your SEARCH block is not unique, make it more specific
+- **"Search block not found"** → Content doesn't exist as specified, re-read the file
+- **"File not found"** → Check the path, use list_directory to explore
+
+### 🛑 Task Completion
+**STOP calling tools when the task is complete.**
 
 When to STOP:
 - The requested change has been successfully applied
-- The file has been created/edited as requested
 - The command has been executed successfully
 - You have answered the user's question
 
 When you're done:
 1. Write a brief summary of what was accomplished
 2. Do NOT call any more tools
-3. Wait for the user's next request
-
-**NEVER:**
-- Keep editing the same file repeatedly
-- Make additional "improvements" not requested by the user
-- Continue the loop after successful completion` : ''
+3. Wait for the user's next request` : ''
 
 	// 自定义指令
 	const customSection = customInstructions
@@ -246,6 +310,7 @@ When you're done:
 		personalityPrompt,
 		systemInfo,
 		toolDefs,
+		planSection,
 		agentGuidelines,
 		rulesSection,
 		customSection,

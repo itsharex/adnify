@@ -59,6 +59,8 @@ export class OpenAIProvider extends BaseProvider {
       systemPrompt,
       maxTokens,
       signal,
+      thinkingEnabled,
+      thinkingBudget,
       onStream,
       onToolCall,
       onComplete,
@@ -120,7 +122,9 @@ export class OpenAIProvider extends BaseProvider {
       }
 
       const convertedTools = this.convertTools(tools)
-      const requestBody: OpenAI.ChatCompletionCreateParamsStreaming = {
+
+      // 构建请求体，使用 any 以支持扩展参数（如 reasoning_effort）
+      const requestBody: Record<string, unknown> = {
         model,
         messages: openaiMessages,
         stream: true,
@@ -131,7 +135,19 @@ export class OpenAIProvider extends BaseProvider {
         requestBody.tools = convertedTools
       }
 
-      const stream = await this.client.chat.completions.create(requestBody, { signal })
+      // Thinking/Reasoning 模式支持
+      // DeepSeek: reasoning_effort 参数
+      // 其他兼容 API 可能使用不同字段
+      if (thinkingEnabled) {
+        // DeepSeek R1 使用 reasoning_effort
+        requestBody.reasoning_effort = 'medium'  // low/medium/high
+        this.log('info', 'Thinking mode enabled', { budget: thinkingBudget })
+      }
+
+      const stream = await this.client.chat.completions.create(
+        requestBody as unknown as OpenAI.ChatCompletionCreateParamsStreaming,
+        { signal }
+      )
 
       let fullContent = ''
       let fullReasoning = ''

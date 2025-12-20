@@ -5,15 +5,13 @@
 
 import { ToolDefinition, ToolApprovalType } from './types'
 import { validatePath, isSensitivePath } from '@/renderer/utils/pathUtils'
-import { pathToLspUri, lspUriToPath } from '@/renderer/services/lspService'
+import { pathToLspUri } from '@/renderer/services/lspService'
 import {
   parseSearchReplaceBlocks,
   applySearchReplaceBlocks,
   calculateLineChanges,
 } from '@/renderer/utils/searchReplace'
-
-// calculateLineChanges, parseSearchReplaceBlocks, applySearchReplaceBlocks
-// 现在从 @/renderer/utils/searchReplace 统一模块导入
+import { validateToolArgs, formatValidationError } from '../tools'
 
 // ===== 工具定义 =====
 
@@ -249,18 +247,53 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['url'],
     },
   },
+  // Plan 工具
   {
-    name: 'ask_user',
-    description: 'Ask the user a question and wait for their response. Use when you need clarification or user input.',
-    approvalType: 'dangerous',
+    name: 'create_plan',
+    description: 'Create a new execution plan with a list of steps.',
     parameters: {
       type: 'object',
       properties: {
-        question: { type: 'string', description: 'The question to ask the user' },
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string' },
+              description: { type: 'string' }
+            },
+            required: ['title']
+          }
+        }
       },
-      required: ['question'],
-    },
+      required: ['items']
+    }
   },
+  {
+    name: 'update_plan',
+    description: 'Update the current plan status or specific items.',
+    parameters: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['active', 'completed', 'failed'] },
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'failed', 'skipped'] },
+              title: { type: 'string' }
+            },
+            required: ['id']
+          }
+        },
+        currentStepId: { type: 'string' }
+      },
+      required: []
+    }
+  },
+
 ]
 
 // ===== 工具审批类型映射 =====
@@ -302,14 +335,12 @@ export const TOOL_DISPLAY_NAMES: Record<string, string> = {
   get_lint_errors: 'Lint',
   web_search: 'Web Search',
   read_url: 'Read URL',
-  ask_user: 'Ask User',
+  create_plan: 'Create Plan',
+  update_plan: 'Update Plan',
 }
 
 // 写入类工具（需要显示代码预览）
 export const WRITE_TOOLS = ['edit_file', 'write_file', 'create_file_or_folder']
-
-
-// Search/Replace 函数从 @/renderer/utils/searchReplace 导入
 
 
 // ===== 目录树构建 =====
@@ -397,13 +428,24 @@ export async function executeTool(
   args: Record<string, unknown>,
   workspacePath?: string
 ): Promise<ToolExecutionResult> {
+  // 1. Zod 参数校验
+  const validation = validateToolArgs(toolName, args)
+
+  if (!validation.success) {
+    return {
+      success: false,
+      result: '',
+      error: formatValidationError(toolName, validation)
+    }
+  }
+
+  // 使用校验后的参数（类型安全）
+  const validatedArgs = validation.data as any
+
   try {
+
     /**
      * 安全路径解析
-     * 1. 验证路径格式
-     * 2. 检查目录遍历攻击
-     * 3. 检查敏感文件访问
-     * 4. 确保路径在工作区内
      */
     const resolvePath = (p: unknown, allowRead = false) => {
       if (typeof p !== 'string') throw new Error('Invalid path: not a string')
@@ -428,15 +470,19 @@ export async function executeTool(
 
     switch (toolName) {
       case 'read_file': {
-        const path = resolvePath(args.path, true) // 读取允许访问更多文件
+        const path = resolvePath(validatedArgs.path, true) // 读取允许访问更多文件
         const content = await window.electronAPI.readFile(path)
         if (content === null) {
           return { success: false, result: '', error: `File not found: ${path}` }
         }
 
+        // 标记文件已读取（用于 read-before-write 验证）
+        const { AgentService } = await import('./AgentService')
+        AgentService.markFileAsRead(path)
+
         const lines = content.split('\n')
-        const startLine = typeof args.start_line === 'number' ? Math.max(1, args.start_line) : 1
-        const endLine = typeof args.end_line === 'number' ? Math.min(lines.length, args.end_line) : lines.length
+        const startLine = typeof validatedArgs.start_line === 'number' ? Math.max(1, validatedArgs.start_line) : 1
+        const endLine = typeof validatedArgs.end_line === 'number' ? Math.min(lines.length, validatedArgs.end_line) : lines.length
 
         const selectedLines = lines.slice(startLine - 1, endLine)
         const numberedContent = selectedLines
@@ -445,694 +491,452 @@ export async function executeTool(
 
         return {
           success: true,
-          result: `File: ${path}\\nLines ${startLine}-${endLine} of ${lines.length}\\n\\n${numberedContent}`,
+          result: numberedContent,
+          meta: { filePath: path }
         }
       }
 
       case 'list_directory': {
-        const path = resolvePath(args.path)
+        const path = resolvePath(validatedArgs.path, true)
         const items = await window.electronAPI.readDir(path)
-        if (!items?.length) {
-          return { success: true, result: `Directory empty or not found: ${path}` }
+
+        if (!items) {
+          return { success: false, result: '', error: `Directory not found: ${path}` }
         }
 
-        const formatted = items
-          .slice(0, 100)
+        const result = items
           .map(item => `${item.isDirectory ? '📁' : '📄'} ${item.name}`)
-          .join('\\n')
+          .join('\n')
 
-        return {
-          success: true,
-          result: `Contents of ${path} (${items.length} items):\\n${formatted}${items.length > 100 ? '\\n...(truncated)' : ''}`,
-        }
+        return { success: true, result }
       }
 
       case 'get_dir_tree': {
-        const path = resolvePath(args.path)
-        const maxDepth = Math.min(typeof args.max_depth === 'number' ? args.max_depth : 3, 5)
+        const path = resolvePath(validatedArgs.path, true)
+        const maxDepth = validatedArgs.max_depth || 3
         const tree = await buildDirTree(path, maxDepth)
-
-        if (!tree.length) {
-          return { success: true, result: `Directory empty or not found: ${path}` }
-        }
-
-        return {
-          success: true,
-          result: `Directory tree of ${path}:\\n${formatDirTree(tree)}`,
-        }
+        const result = formatDirTree(tree)
+        return { success: true, result }
       }
 
       case 'search_files': {
-        const searchPath = resolvePath(args.path)
-        const pattern = String(args.pattern)
-        const isRegex = args.is_regex === true
-        const filePattern = typeof args.file_pattern === 'string' ? args.file_pattern : undefined
+        const path = resolvePath(validatedArgs.path, true)
+        const { pattern, is_regex, file_pattern } = validatedArgs
 
-        try {
-          // 使用 ripgrep 进行高性能递归搜索
-          const searchResults = await window.electronAPI.searchFiles(pattern, searchPath, {
-            isRegex,
-            isCaseSensitive: false,
-            include: filePattern,
-          })
+        const results = await window.electronAPI.searchFiles(pattern, path, {
+          isRegex: !!is_regex,
+          include: file_pattern,
+          isCaseSensitive: false
+        })
 
-          if (!searchResults || searchResults.length === 0) {
-            return { success: true, result: `No matches for "${pattern}" in ${searchPath}` }
-          }
+        if (!results) {
+          return { success: false, result: 'Search failed' }
+        }
 
-          // 按文件分组结果
-          const fileGroups = new Map<string, { line: number; text: string }[]>()
-          for (const result of searchResults) {
-            const relativePath = result.path.replace(searchPath, '').replace(/^[\\/]/, '')
-            if (!fileGroups.has(relativePath)) {
-              fileGroups.set(relativePath, [])
-            }
-            const matches = fileGroups.get(relativePath)!
-            if (matches.length < 5) { // 每个文件最多显示 5 个匹配
-              matches.push({ line: result.line, text: result.text })
-            }
-          }
+        const formatted = results
+          .slice(0, 50) // Limit results
+          .map(r => `${r.path}:${r.line}: ${r.text.trim()}`)
+          .join('\n')
 
-          // 格式化输出
-          let output = `Found matches in ${fileGroups.size} files (${searchResults.length} total matches):\\n\\n`
-          let fileCount = 0
-
-          for (const [file, matches] of fileGroups) {
-            if (fileCount >= 30) { // 最多显示 30 个文件
-              output += `\\n... and ${fileGroups.size - 30} more files`
-              break
-            }
-
-            output += `📄 ${file}:\\n`
-            for (const m of matches) {
-              output += `  Line ${m.line}: ${m.text}\\n`
-            }
-            output += '\\n'
-            fileCount++
-          }
-
-          return { success: true, result: output }
-        } catch (error) {
-          // 如果 ripgrep 失败，回退到简单搜索
-          console.warn('[search_files] ripgrep failed, falling back to simple search:', error)
-          return { success: false, result: '', error: `Search failed: ${error}` }
+        return {
+          success: true,
+          result: formatted || 'No matches found'
         }
       }
 
       case 'edit_file': {
-        const path = resolvePath(args.path)
-        const blocksStr = String(args.search_replace_blocks)
+        const path = resolvePath(validatedArgs.path)
+        const { search_replace_blocks } = validatedArgs
 
-        const content = await window.electronAPI.readFile(path)
-        if (content === null) {
+        // 验证文件是否已读取
+        const { AgentService } = await import('./AgentService')
+        if (!AgentService.hasReadFile(path)) {
+          return {
+            success: false,
+            result: '',
+            error: 'Read-before-write required: You must read the file using read_file before editing it.'
+          }
+        }
+
+        const originalContent = await window.electronAPI.readFile(path)
+        if (originalContent === null) {
           return { success: false, result: '', error: `File not found: ${path}` }
         }
 
-        const blocks = parseSearchReplaceBlocks(blocksStr)
-        if (!blocks.length) {
-          return {
-            success: false,
-            result: '',
-            error: 'No valid SEARCH/REPLACE blocks found.',
-          }
+        // 解析块
+        const blocks = parseSearchReplaceBlocks(search_replace_blocks)
+        if (blocks.length === 0) {
+          return { success: false, result: '', error: 'No valid SEARCH/REPLACE blocks found.' }
         }
 
-        const { newContent, appliedCount, errors } = applySearchReplaceBlocks(content, blocks)
-
-        if (appliedCount === 0) {
-          return {
-            success: false,
-            result: '',
-            error: `No changes applied. Errors:\\n${errors.join('\\n')}`,
-          }
+        // 应用编辑
+        const applyResult = applySearchReplaceBlocks(originalContent, blocks)
+        if (applyResult.errors.length > 0) {
+          return { success: false, result: '', error: applyResult.errors.join('\n') }
         }
 
-        // Checkpoint 现在在 AgentService 中创建
-        const success = await window.electronAPI.writeFile(path, newContent)
+        // 写入文件
+        const success = await window.electronAPI.writeFile(path, applyResult.newContent)
         if (!success) {
-          return { success: false, result: '', error: `Failed to write: ${path}` }
+          return { success: false, result: '', error: 'Failed to write file' }
         }
 
-        // 计算行数变化
-        const lineChanges = calculateLineChanges(content, newContent)
+        // 计算变更行数
+        const lineChanges = calculateLineChanges(originalContent, applyResult.newContent)
 
         return {
           success: true,
-          result: `✅ Applied ${appliedCount}/${blocks.length} changes to ${path}`,
+          result: 'File updated successfully',
           meta: {
             filePath: path,
-            oldContent: content,
-            newContent,
+            oldContent: originalContent,
+            newContent: applyResult.newContent,
             linesAdded: lineChanges.added,
-            linesRemoved: lineChanges.removed,
-          },
+            linesRemoved: lineChanges.removed
+          }
         }
       }
 
       case 'write_file': {
-        const path = resolvePath(args.path)
-        const content = String(args.content)
+        const path = resolvePath(validatedArgs.path)
+        const { content } = validatedArgs
 
-        // 确保父目录存在
-        const parentDir = path.replace(/[/\\][^/\\]+$/, '')
-        if (parentDir && parentDir !== path) {
-          await window.electronAPI.mkdir(parentDir)
-        }
-
-        const oldContent = await window.electronAPI.readFile(path)
-        const isNewFile = oldContent === null
-
-        // Checkpoint 现在在 AgentService 中创建
+        const originalContent = await window.electronAPI.readFile(path) || ''
         const success = await window.electronAPI.writeFile(path, content)
 
         if (!success) {
-          return { success: false, result: '', error: `Failed to write: ${path}` }
+          return { success: false, result: '', error: 'Failed to write file' }
         }
 
-        // 计算实际的行数变化
-        const lineChanges = calculateLineChanges(oldContent || '', content)
+        const lineChanges = calculateLineChanges(originalContent, content)
 
         return {
           success: true,
-          result: `✅ ${isNewFile ? 'Created' : 'Updated'} ${path}`,
+          result: 'File written successfully',
           meta: {
             filePath: path,
-            oldContent: oldContent || '',
+            oldContent: originalContent,
             newContent: content,
             linesAdded: lineChanges.added,
-            linesRemoved: lineChanges.removed,
-            isNewFile,
-          },
+            linesRemoved: lineChanges.removed
+          }
         }
       }
 
       case 'create_file_or_folder': {
-        const pathStr = String(args.path)
-        const isFolder = pathStr.endsWith('/') || pathStr.endsWith('\\')
-        const path = resolvePath(pathStr.replace(/[/\\]$/, ''))
-        const content = typeof args.content === 'string' ? args.content : ''
+        const path = resolvePath(validatedArgs.path)
+        const isFolder = path.endsWith('/') || path.endsWith('\\')
 
-        // Checkpoint 现在在 AgentService 中创建
         if (isFolder) {
           const success = await window.electronAPI.mkdir(path)
-          if (!success) {
-            return { success: false, result: '', error: `Failed to create folder: ${path}` }
-          }
-          return { success: true, result: `✅ Created folder: ${path}` }
-        } else {
-          const parentDir = path.replace(/[/\\][^/\\]+$/, '')
-          if (parentDir && parentDir !== path) {
-            await window.electronAPI.mkdir(parentDir)
-          }
-          const success = await window.electronAPI.writeFile(path, content)
-          if (!success) {
-            return { success: false, result: '', error: `Failed to create file: ${path}` }
-          }
           return {
-            success: true,
-            result: `✅ Created file: ${path}`,
+            success,
+            result: success ? 'Folder created' : 'Failed to create folder'
+          }
+        } else {
+          const content = validatedArgs.content || ''
+          const success = await window.electronAPI.writeFile(path, content)
+          return {
+            success,
+            result: success ? 'File created' : 'Failed to create file',
             meta: {
               filePath: path,
-              oldContent: '',
-              newContent: content,
-              linesAdded: content.split('\n').length,
-              linesRemoved: 0,
               isNewFile: true,
-            },
+              newContent: content,
+              linesAdded: content.split('\n').length
+            }
           }
         }
       }
 
       case 'delete_file_or_folder': {
-        const path = resolvePath(args.path)
+        const path = resolvePath(validatedArgs.path)
 
-        // Checkpoint 现在在 AgentService 中创建
         const success = await window.electronAPI.deleteFile(path)
-        if (!success) {
-          return { success: false, result: '', error: `Failed to delete: ${path}` }
+        return {
+          success,
+          result: success ? 'Deleted successfully' : 'Failed to delete'
         }
-        return { success: true, result: `✅ Deleted: ${path}` }
       }
 
       case 'run_command': {
-        const command = String(args.command)
-        const cwd = typeof args.cwd === 'string' ? resolvePath(args.cwd) : workspacePath
-        const timeout = (typeof args.timeout === 'number' ? args.timeout : 30) * 1000
+        const { command, cwd, timeout } = validatedArgs
 
-        // 解析命令和参数
-        const parts = command.trim().split(/\s+/)
-        const baseCommand = parts[0]
-        const commandArgs = parts.slice(1)
+        // 验证 cwd
+        const validCwd = cwd ? resolvePath(cwd, true) : workspacePath
 
         const result = await window.electronAPI.executeSecureCommand({
-          command: baseCommand,
-          args: commandArgs,
-          cwd: cwd || undefined,
-          timeout: timeout,
-          requireConfirm: true
+          command: command.split(' ')[0],
+          args: command.split(' ').slice(1),
+          cwd: validCwd,
+          timeout: (timeout || 30) * 1000,
+          requireConfirm: false
         })
 
-        let output = `$ ${command}\\n`
-        if (cwd) output += `(cwd: ${cwd})\\n`
-        output += `Exit code: ${result.exitCode || 0}\\n\\n`
-        if (result.output) output += result.output
-        if (result.errorOutput) output += `\\nStderr:\\n${result.errorOutput}`
-        if (result.error) output += `\\nError: ${result.error}`
-        if (!result.output && !result.errorOutput && !result.error) output += '(No output)'
-
-        // 智能错误处理：让 Agent 能够继续对话并了解失败原因
-        const commandSuccess = result.success && (result.exitCode === 0)
-
-        // 如果命令失败，在输出中添加解释性信息，帮助 AI 理解问题
-        if (!commandSuccess) {
-          if (result.error && result.error.includes('不在白名单中')) {
-            output += `\n\n⚠️ **Security Restriction**: ${result.error}`
-            output += `\n💡 **Solution**: Add "${baseCommand}" to the whitelist in Settings > Security > Shell Command Whitelist.`
-          } else if (result.error && result.error.includes('未设置工作区')) {
-            output += `\n\n⚠️ **Workspace Required**: ${result.error}`
-            output += `\n💡 **Solution**: Open a workspace folder first (File > Open Folder).`
-          } else if (result.exitCode !== 0) {
-            output += `\n\n⚠️ **Command Failed**: Exit code ${result.exitCode}`
-            output += `\n💡 **Analysis**: The command executed but returned an error. Check the output above for details.`
-          }
-        }
-
         return {
-          success: true, // 始终返回成功，让 Agent 继续对话
-          result: output,
-          error: commandSuccess ? undefined : `Command completed with errors (exit code: ${result.exitCode}). See output above for details.`,
+          success: result.success,
+          result: result.output || (result.success ? 'Command executed' : 'Command failed'),
+          error: result.error
         }
       }
 
+
+
       case 'get_lint_errors': {
-        const lintPath = resolvePath(args.path)
+        const path = resolvePath(validatedArgs.path, true)
+        const { refresh } = validatedArgs
 
-        try {
-          // 动态导入 lintService 避免循环依赖
-          const { lintService } = await import('../lintService')
+        const { lintService } = await import('../lintService')
+        const errors = await lintService.getLintErrors(path, refresh)
 
-          // 首先尝试从 LSP 获取诊断信息
-          const lspDiagnostics = await window.electronAPI.getLspDiagnostics?.(lintPath)
+        const formatted = errors.length > 0
+          ? errors.map((e: any) => `[${e.severity}] ${e.message} (Line ${e.startLine})`).join('\n')
+          : 'No lint errors found.'
 
-          if (lspDiagnostics && lspDiagnostics.length > 0) {
-            // 格式化 LSP 诊断结果
-            const errors = lspDiagnostics.map((d: any) => ({
-              code: d.code?.toString() || d.source || 'lsp',
-              message: d.message,
-              severity: (d.severity === 1 ? 'error' : d.severity === 2 ? 'warning' : 'info') as 'error' | 'warning' | 'info',
-              startLine: (d.range?.start?.line || 0) + 1,
-              endLine: (d.range?.end?.line || 0) + 1,
-              file: lintPath,
-            }))
-
-            return {
-              success: true,
-              result: lintService.formatErrors(errors),
-            }
-          }
-
-          // 如果 LSP 没有结果，尝试运行 lint 命令
-          const errors = await lintService.getLintErrors(lintPath, true)
-
-          if (errors.length === 0) {
-            // 最后尝试快速语法检查
-            const content = await window.electronAPI.readFile(lintPath)
-            if (content) {
-              const ext = lintPath.split('.').pop()?.toLowerCase() || ''
-              const lang = ['ts', 'tsx', 'js', 'jsx'].includes(ext) ? 'typescript' : ext
-              const syntaxErrors = lintService.quickSyntaxCheck(content, lang)
-
-              if (syntaxErrors.length > 0) {
-                return {
-                  success: true,
-                  result: lintService.formatErrors(syntaxErrors),
-                }
-              }
-            }
-          }
-
-          return {
-            success: true,
-            result: lintService.formatErrors(errors),
-          }
-        } catch (error) {
-          return {
-            success: true,
-            result: `✅ No lint errors found in ${lintPath}`,
-          }
-        }
+        return { success: true, result: formatted }
       }
 
       case 'codebase_search': {
-        const query = String(args.query)
-        const topK = typeof args.top_k === 'number' ? args.top_k : 10
+        const { query, top_k } = validatedArgs
 
-        try {
-          if (!workspacePath) {
-            return { success: false, result: '', error: 'No workspace path available' }
-          }
-
-          const results = await window.electronAPI.indexSearch(workspacePath, query, topK)
-
-          if (!results || results.length === 0) {
-            return { success: true, result: `No semantic matches found for: "${query}"` }
-          }
-
-          let output = `Found ${results.length} semantic matches for "${query}":\\n\\n`
-
-          for (const result of results) {
-            const score = (result.score * 100).toFixed(1)
-            output += `📄 ${result.relativePath} (${score}% match)\\n`
-            output += `   Lines ${result.startLine}-${result.endLine} | ${result.type}\\n`
-            // 显示代码片段（限制长度）
-            const snippet = result.content.slice(0, 200).replace(/\\n/g, '\\n   ')
-            output += `   ${snippet}${result.content.length > 200 ? '...' : ''}\\n\\n`
-          }
-
-          return { success: true, result: output }
-        } catch (error) {
-          return { success: false, result: '', error: `Codebase search failed: ${error}` }
+        if (!workspacePath) {
+          return { success: false, result: '', error: 'No workspace open' }
         }
+
+        const results = await window.electronAPI.indexSearch(workspacePath, query, top_k || 10)
+
+        if (!results || results.length === 0) {
+          return { success: false, result: 'No results found' }
+        }
+
+        const formatted = results
+          .map(r => `${r.relativePath}:${r.startLine}: ${r.content.trim()}`)
+          .join('\n')
+
+        return { success: true, result: formatted }
       }
 
       case 'find_references': {
-        const refPath = resolvePath(args.path)
-        const line = typeof args.line === 'number' ? args.line - 1 : 0 // LSP uses 0-indexed
-        const column = typeof args.column === 'number' ? args.column - 1 : 0
+        const path = resolvePath(validatedArgs.path, true)
+        const { line, column } = validatedArgs
+        const uri = pathToLspUri(path)
 
-        try {
-          const results = await window.electronAPI.lspReferences({
-            uri: pathToLspUri(refPath),
-            line,
-            character: column,
-          })
+        const locations = await window.electronAPI.lspReferences({
+          uri,
+          line: line - 1, // LSP is 0-indexed
+          character: column - 1,
+          workspacePath
+        })
 
-          if (!results || results.length === 0) {
-            return { success: true, result: 'No references found' }
-          }
-
-          let output = `Found ${results.length} references:\\n\\n`
-
-          for (const ref of results.slice(0, 30)) {
-            const filePath = lspUriToPath(ref.uri)
-            const relativePath = workspacePath
-              ? filePath.replace(workspacePath, '').replace(/^[\\/]/, '')
-              : filePath
-            const startLine = (ref.range?.start?.line || 0) + 1
-            output += `📍 ${relativePath}:${startLine}\\n`
-          }
-
-          if (results.length > 30) {
-            output += `\\n... and ${results.length - 30} more references`
-          }
-
-          return { success: true, result: output }
-        } catch (error) {
-          return { success: false, result: '', error: `Find references failed: ${error}` }
+        if (!locations || locations.length === 0) {
+          return { success: true, result: 'No references found' }
         }
+
+        const result = locations.map(loc =>
+          `${loc.uri}:${loc.range.start.line + 1}:${loc.range.start.character + 1}`
+        ).join('\n')
+
+        return { success: true, result }
       }
 
       case 'go_to_definition': {
-        const defPath = resolvePath(args.path)
-        const line = typeof args.line === 'number' ? args.line - 1 : 0
-        const column = typeof args.column === 'number' ? args.column - 1 : 0
+        const path = resolvePath(validatedArgs.path, true)
+        const { line, column } = validatedArgs
+        const uri = pathToLspUri(path)
 
-        try {
-          const results = await window.electronAPI.lspDefinition({
-            uri: pathToLspUri(defPath),
-            line,
-            character: column,
-          })
+        const locations = await window.electronAPI.lspDefinition({
+          uri,
+          line: line - 1,
+          character: column - 1,
+          workspacePath
+        })
 
-          if (!results || (Array.isArray(results) && results.length === 0)) {
-            return { success: true, result: 'No definition found' }
-          }
-
-          const definitions = Array.isArray(results) ? results : [results]
-          let output = `Found ${definitions.length} definition(s):\\n\\n`
-
-          for (const def of definitions) {
-            // LSP 可能返回 Location 或 LocationLink 格式
-            const defAny = def as any
-            const uri = defAny.uri || defAny.targetUri
-            const range = defAny.range || defAny.targetSelectionRange || defAny.targetRange
-            if (!uri) continue
-
-            const filePath = lspUriToPath(uri)
-            const relativePath = workspacePath
-              ? filePath.replace(workspacePath, '').replace(/^[\\/]/, '')
-              : filePath
-            const startLine = (range?.start?.line || 0) + 1
-
-            output += `📍 ${relativePath}:${startLine}\\n`
-
-            // 尝试读取定义处的代码
-            try {
-              const content = await window.electronAPI.readFile(filePath)
-              if (content) {
-                const lines = content.split('\n')
-                const contextStart = Math.max(0, startLine - 2)
-                const contextEnd = Math.min(lines.length, startLine + 5)
-                const snippet = lines.slice(contextStart, contextEnd)
-                  .map((l, i) => `${contextStart + i + 1}: ${l}`)
-                  .join('\n')
-                output += `\`\`\`\\n${snippet}\\n\`\`\`\\n\\n`
-              }
-            } catch {
-              // 忽略读取错误
-            }
-          }
-
-          return { success: true, result: output }
-        } catch (error) {
-          return { success: false, result: '', error: `Go to definition failed: ${error}` }
+        if (!locations || locations.length === 0) {
+          return { success: true, result: 'Definition not found' }
         }
+
+        const result = locations.map(loc =>
+          `${loc.uri}:${loc.range.start.line + 1}:${loc.range.start.character + 1}`
+        ).join('\n')
+
+        return { success: true, result }
       }
 
       case 'get_hover_info': {
-        const hoverPath = resolvePath(args.path)
-        const line = typeof args.line === 'number' ? args.line - 1 : 0
-        const column = typeof args.column === 'number' ? args.column - 1 : 0
+        const path = resolvePath(validatedArgs.path, true)
+        const { line, column } = validatedArgs
+        const uri = pathToLspUri(path)
 
-        try {
-          const result = await window.electronAPI.lspHover({
-            uri: pathToLspUri(hoverPath),
-            line,
-            character: column,
-          })
+        const hover = await window.electronAPI.lspHover({
+          uri,
+          line: line - 1,
+          character: column - 1,
+          workspacePath
+        })
 
-          if (!result || !result.contents) {
-            return { success: true, result: 'No hover information available' }
-          }
-
-          let output = '📝 Type Information:\\n\\n'
-
-          // 处理不同格式的 contents
-          const contents = result.contents as any
-          if (typeof contents === 'string') {
-            output += contents
-          } else if (Array.isArray(contents)) {
-            for (const item of contents) {
-              if (typeof item === 'string') {
-                output += item + '\\n'
-              } else if (item.value) {
-                const lang = item.language || item.kind || ''
-                output += `\`\`\`${lang}\\n${item.value}\\n\`\`\`\\n`
-              }
-            }
-          } else if (contents.value) {
-            const lang = contents.language || contents.kind || ''
-            output += `\`\`\`${lang}\\n${contents.value}\\n\`\`\`\\n`
-          }
-
-          return { success: true, result: output }
-        } catch (error) {
-          return { success: false, result: '', error: `Get hover info failed: ${error}` }
+        if (!hover || !hover.contents) {
+          return { success: true, result: 'No hover info' }
         }
+
+        const contents = Array.isArray(hover.contents)
+          ? hover.contents.join('\n')
+          : (typeof hover.contents === 'string' ? hover.contents : hover.contents.value)
+
+        return { success: true, result: contents }
       }
 
       case 'get_document_symbols': {
-        const symbolPath = resolvePath(args.path)
+        const path = resolvePath(validatedArgs.path, true)
+        const uri = pathToLspUri(path)
 
-        try {
-          const results = await window.electronAPI.lspDocumentSymbol({
-            uri: pathToLspUri(symbolPath),
-          })
+        const symbols = await window.electronAPI.lspDocumentSymbol({
+          uri,
+          workspacePath
+        })
 
-          if (!results || results.length === 0) {
-            return { success: true, result: 'No symbols found in this file' }
-          }
-
-          const symbolKindNames: Record<number, string> = {
-            1: 'File', 2: 'Module', 3: 'Namespace', 4: 'Package',
-            5: 'Class', 6: 'Method', 7: 'Property', 8: 'Field',
-            9: 'Constructor', 10: 'Enum', 11: 'Interface', 12: 'Function',
-            13: 'Variable', 14: 'Constant', 15: 'String', 16: 'Number',
-            17: 'Boolean', 18: 'Array', 19: 'Object', 20: 'Key',
-            21: 'Null', 22: 'EnumMember', 23: 'Struct', 24: 'Event',
-            25: 'Operator', 26: 'TypeParameter',
-          }
-
-          let output = `Symbols in ${args.path}:\\n\\n`
-
-          const formatSymbol = (symbol: any, indent = 0): string => {
-            const prefix = '  '.repeat(indent)
-            const kind = symbolKindNames[symbol.kind] || 'Unknown'
-            const line = (symbol.range?.start?.line || symbol.location?.range?.start?.line || 0) + 1
-            let result = `${prefix}${kind}: ${symbol.name} (line ${line})\\n`
-
-            if (symbol.children) {
-              for (const child of symbol.children) {
-                result += formatSymbol(child, indent + 1)
-              }
-            }
-            return result
-          }
-
-          for (const symbol of results) {
-            output += formatSymbol(symbol)
-          }
-
-          return { success: true, result: output }
-        } catch (error) {
-          return { success: false, result: '', error: `Get document symbols failed: ${error}` }
+        if (!symbols || symbols.length === 0) {
+          return { success: true, result: 'No symbols found' }
         }
+
+        // 简单格式化
+        const formatSymbol = (s: any, depth: number): string => {
+          const indent = '  '.repeat(depth)
+          let out = `${indent}${s.name} (${s.kind})\n`
+          if (s.children) {
+            out += s.children.map((c: any) => formatSymbol(c, depth + 1)).join('')
+          }
+          return out
+        }
+
+        const result = symbols.map(s => formatSymbol(s, 0)).join('')
+        return { success: true, result }
       }
 
       case 'read_multiple_files': {
-        const paths = args.paths as string[]
-        if (!Array.isArray(paths) || paths.length === 0) {
-          return { success: false, result: '', error: 'paths must be a non-empty array' }
-        }
+        const { paths } = validatedArgs
+        let result = ''
 
-        const results: string[] = []
-        const errors: string[] = []
-
-        for (const p of paths.slice(0, 10)) { // 限制最多 10 个文件
-          const fullPath = resolvePath(p)
+        for (const p of paths) {
           try {
-            const content = await window.electronAPI.readFile(fullPath)
+            const validPath = resolvePath(p, true)
+            const content = await window.electronAPI.readFile(validPath)
+
             if (content !== null) {
-              const lines = content.split('\n')
-              const numberedContent = lines
-                .map((line, i) => `${i + 1}: ${line}`)
-                .join('\n')
-              results.push(`\\n### File: ${p}\\nLines: ${lines.length}\\n\`\`\`\\n${numberedContent}\\n\`\`\`\\n`)
+              result += `\n--- File: ${p} ---\n${content}\n`
+
+              // 标记已读
+              const { AgentService } = await import('./AgentService')
+              AgentService.markFileAsRead(validPath)
             } else {
-              errors.push(`File not found: ${p}`)
+              result += `\n--- File: ${p} ---\n[File not found]\n`
             }
-          } catch (e) {
-            errors.push(`Error reading ${p}: ${e}`)
+          } catch (e: any) {
+            result += `\n--- File: ${p} ---\n[Error: ${e.message}]\n`
           }
         }
 
-        let output = `Read ${results.length} file(s):\\n`
-        output += results.join('\\n')
-
-        if (errors.length > 0) {
-          output += `\\n\\n⚠️ Errors:\\n${errors.join('\\n')}`
-        }
-
-        if (paths.length > 10) {
-          output += `\\n\\n⚠️ Only first 10 files were read (${paths.length} requested)`
-        }
-
-        return { success: true, result: output }
+        return { success: true, result }
       }
 
-      // ===== Phase 2: 网络工具 =====
-
       case 'web_search': {
-        const query = String(args.query)
-        const maxResults = typeof args.max_results === 'number' ? args.max_results : 5
-
-        const result = await window.electronAPI.httpWebSearch(query, maxResults)
+        const { query, max_results } = validatedArgs
+        const result = await window.electronAPI.httpWebSearch(query, max_results)
 
         if (!result.success || !result.results) {
-          return {
-            success: false,
-            result: '',
-            error: result.error || 'Web search failed',
-          }
+          return { success: false, result: '', error: result.error || 'Search failed' }
         }
 
-        if (result.results.length === 0) {
-          return {
-            success: true,
-            result: `No results found for: "${query}"`,
-          }
-        }
+        const formatted = result.results
+          .map((r: any) => `[${r.title}](${r.url})\n${r.content}`)
+          .join('\n\n')
 
-        let output = `Search results for "${query}":\\n\\n`
-        for (const r of result.results) {
-          output += `**${r.title}**\\n`
-          output += `URL: ${r.url}\\n`
-          output += `${r.snippet}\\n\\n`
-        }
-
-        return { success: true, result: output }
+        return { success: true, result: formatted }
       }
 
       case 'read_url': {
-        const url = String(args.url)
-        const timeout = typeof args.timeout === 'number' ? args.timeout * 1000 : 30000
-
-        // 简单的 URL 验证
-        if (!url.startsWith('http://') && !url.startsWith('https://')) {
-          return {
-            success: false,
-            result: '',
-            error: 'Invalid URL: must start with http:// or https://',
-          }
-        }
-
-        const result = await window.electronAPI.httpReadUrl(url, timeout)
+        const { url, timeout } = validatedArgs
+        const result = await window.electronAPI.httpReadUrl(url, timeout || 30)
 
         if (!result.success || !result.content) {
+          return { success: false, result: '', error: result.error || 'Failed to read URL' }
+        }
+
+        return {
+          success: true,
+          result: `Title: ${result.title}\n\n${result.content}`
+        }
+      }
+
+      case 'create_plan': {
+        const { items } = validatedArgs
+        const { useAgentStore } = await import('./AgentStore')
+        useAgentStore.getState().createPlan(items)
+
+        // 返回创建的计划详情（包含生成的 ID）
+        const plan = useAgentStore.getState().plan
+        if (plan) {
+          const itemsSummary = plan.items.map((item, idx) =>
+            `[${idx}] ${item.id.slice(0, 8)}... - ${item.title}`
+          ).join('\n')
           return {
-            success: false,
-            result: '',
-            error: result.error || 'Failed to fetch URL',
+            success: true,
+            result: `Plan created successfully with ${plan.items.length} items:\n${itemsSummary}\n\nUse index (0-based) or item ID to update items.`
+          }
+        }
+        return { success: true, result: 'Plan created successfully' }
+      }
+
+      case 'update_plan': {
+        const { status, items, currentStepId } = validatedArgs
+        const { useAgentStore } = await import('./AgentStore')
+        const store = useAgentStore.getState()
+        const plan = store.plan
+
+        if (status) {
+          store.updatePlanStatus(status as any)
+        }
+
+        if (items && plan) {
+          for (const item of items) {
+            // 支持通过索引更新（如果 id 是纯数字字符串）
+            let targetId = item.id
+            const maybeIndex = parseInt(item.id, 10)
+            if (!isNaN(maybeIndex) && maybeIndex >= 0 && maybeIndex < plan.items.length) {
+              targetId = plan.items[maybeIndex].id
+            }
+
+            store.updatePlanItem(targetId, {
+              status: item.status as any,
+              title: item.title
+            })
           }
         }
 
-        let output = `Fetched: ${url}\\n`
-        if (result.title) {
-          output += `Title: ${result.title}\\n`
+        if (currentStepId !== undefined) {
+          // 同样支持索引
+          let stepId = currentStepId
+          if (plan && currentStepId !== null) {
+            const maybeIndex = parseInt(currentStepId, 10)
+            if (!isNaN(maybeIndex) && maybeIndex >= 0 && maybeIndex < plan.items.length) {
+              stepId = plan.items[maybeIndex].id
+            }
+          }
+          store.setPlanStep(stepId)
         }
-        output += `Status: ${result.statusCode}\\n`
-        output += `Content-Type: ${result.contentType}\\n\\n`
 
-        // 截断过长的内容
-        const content = result.content.length > 50000
-          ? result.content.slice(0, 50000) + '\\n\\n...(content truncated, showing first 50000 characters)'
-          : result.content
-
-        output += content
-
-        return { success: true, result: output }
-      }
-
-      case 'ask_user': {
-        const question = String(args.question)
-
-        // ask_user 返回一个特殊标记，告诉 AgentService 需要更多用户输入
-        // 实际的用户交互由 AgentService 处理
-        return {
-          success: true,
-          result: `💬 **Question for user**: ${question}\\n\\n_Waiting for user response..._`,
-          meta: {
-            requiresUserInput: true,
-            question,
-          } as any,
-        }
+        return { success: true, result: 'Plan updated successfully' }
       }
 
       default:
         return { success: false, result: '', error: `Unknown tool: ${toolName}` }
     }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    return { success: false, result: '', error: message }
+
+  } catch (error: any) {
+    return {
+      success: false,
+      result: '',
+      error: `Execution error: ${error.message}`
+    }
   }
 }
+

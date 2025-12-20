@@ -16,6 +16,7 @@ interface ToolCallGroupProps {
     pendingToolId?: string
     onApproveTool?: () => void
     onRejectTool?: () => void
+    onApproveAll?: () => void  // 批量审批
     onOpenDiff?: (path: string, oldContent: string, newContent: string) => void
 }
 
@@ -24,6 +25,7 @@ export default function ToolCallGroup({
     pendingToolId,
     onApproveTool,
     onRejectTool,
+    onApproveAll,
     onOpenDiff,
 }: ToolCallGroupProps) {
     const [isExpanded, setIsExpanded] = useState(false)
@@ -144,6 +146,7 @@ export default function ToolCallGroup({
                                 isAwaitingApproval={isPending}
                                 onApprove={isPending ? onApproveTool : undefined}
                                 onReject={isPending ? onRejectTool : undefined}
+                                onApproveAll={isPending ? onApproveAll : undefined}
                             />
                         )
                     })}

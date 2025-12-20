@@ -255,6 +255,8 @@ export default function SettingsModal() {
                   setAiInstructions={setAiInstructions}
                   promptTemplateId={localPromptTemplateId}
                   setPromptTemplateId={setLocalPromptTemplateId}
+                  llmConfig={localConfig}
+                  setLLMConfig={setLocalConfig}
                   language={localLanguage}
                 />
               )}
@@ -742,11 +744,13 @@ interface AgentSettingsProps {
   setAiInstructions: (value: string) => void
   promptTemplateId: string
   setPromptTemplateId: (value: string) => void
+  llmConfig: LLMConfig
+  setLLMConfig: React.Dispatch<React.SetStateAction<LLMConfig>>
   language: Language
 }
 
 function AgentSettings({
-  autoApprove, setAutoApprove, aiInstructions, setAiInstructions, promptTemplateId, setPromptTemplateId, language
+  autoApprove, setAutoApprove, aiInstructions, setAiInstructions, promptTemplateId, setPromptTemplateId, llmConfig, setLLMConfig, language
 }: AgentSettingsProps) {
   const templates = getPromptTemplates()
 
@@ -773,6 +777,44 @@ function AgentSettings({
               : 'When enabled, the Agent will execute operations without confirmation. Use with caution.'}
           </p>
         </div>
+      </section>
+
+      {/* Thinking Mode */}
+      <section className="space-y-4 p-5 bg-gradient-to-br from-purple-500/5 to-transparent rounded-xl border border-purple-500/10">
+        <div className="flex items-center justify-between">
+          <h4 className="flex items-center gap-2 text-sm font-medium text-purple-400 uppercase tracking-wider text-xs">
+            <Sparkles className="w-4 h-4" />
+            {language === 'zh' ? 'Thinking 模式' : 'Thinking Mode'}
+          </h4>
+          <Switch
+            checked={llmConfig.thinkingEnabled || false}
+            onChange={(e) => setLLMConfig({ ...llmConfig, thinkingEnabled: e.target.checked })}
+          />
+        </div>
+        <p className="text-xs text-text-muted">
+          {language === 'zh'
+            ? '启用后，AI 将在回答前进行深度思考。适用于复杂问题和代码审查。支持 Claude、DeepSeek R1、Gemini 2.0。'
+            : 'When enabled, AI will think deeply before responding. Best for complex problems and code review. Supports Claude, DeepSeek R1, Gemini 2.0.'}
+        </p>
+        {llmConfig.thinkingEnabled && (
+          <div className="pt-2 animate-fade-in">
+            <label className="text-sm font-medium text-text-primary block mb-2">
+              {language === 'zh' ? 'Thinking Token 预算' : 'Thinking Token Budget'}
+            </label>
+            <Input
+              type="number"
+              value={llmConfig.thinkingBudget || 16000}
+              onChange={(e) => setLLMConfig({ ...llmConfig, thinkingBudget: parseInt(e.target.value) || 16000 })}
+              min={4000}
+              max={64000}
+              step={4000}
+              className="w-40"
+            />
+            <p className="text-xs text-text-muted mt-1">
+              {language === 'zh' ? '建议 8000-32000' : 'Recommended 8000-32000'}
+            </p>
+          </div>
+        )}
       </section>
 
       <section className="space-y-4">

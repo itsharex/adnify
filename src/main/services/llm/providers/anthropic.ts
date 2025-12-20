@@ -66,6 +66,8 @@ export class AnthropicProvider extends BaseProvider {
       tools,
       systemPrompt,
       signal,
+      thinkingEnabled,
+      thinkingBudget,
       onStream,
       onToolCall,
       onComplete,
@@ -112,14 +114,29 @@ export class AnthropicProvider extends BaseProvider {
         }
       }
 
+      // 构建请求参数
+      const requestParams: Record<string, unknown> = {
+        model,
+        max_tokens: 8192,
+        system: systemPrompt,
+        messages: anthropicMessages,
+        tools: this.convertTools(tools),
+      }
+
+      // Extended Thinking 支持 (Claude 3.5 Sonnet, Claude 4 等)
+      // https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking
+      if (thinkingEnabled) {
+        requestParams.thinking = {
+          type: 'enabled',
+          budget_tokens: thinkingBudget || 16000,  // 默认 16k thinking tokens
+        }
+        // thinking 模式需要更大的 max_tokens
+        requestParams.max_tokens = Math.max(8192, (thinkingBudget || 16000) + 4096)
+        this.log('info', 'Extended thinking enabled', { budget: thinkingBudget })
+      }
+
       const stream = this.client.messages.stream(
-        {
-          model,
-          max_tokens: 8192,
-          system: systemPrompt,
-          messages: anthropicMessages,
-          tools: this.convertTools(tools),
-        },
+        requestParams as unknown as Anthropic.MessageCreateParamsStreaming,
         { signal }
       )
 

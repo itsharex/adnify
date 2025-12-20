@@ -26,17 +26,22 @@ export interface ToolCall {
   rawParams?: Record<string, unknown>
 }
 
+export interface ToolProperty {
+  type: string
+  description?: string
+  enum?: string[]
+  items?: ToolProperty
+  properties?: Record<string, ToolProperty>
+  required?: string[]
+}
+
 export interface ToolDefinition {
   name: string
   description: string
   approvalType?: ToolApprovalType
   parameters: {
     type: 'object'
-    properties: Record<string, {
-      type: string
-      description: string
-      enum?: string[]
-    }>
+    properties: Record<string, ToolProperty>
     required: string[]
   }
 }
@@ -144,6 +149,24 @@ export interface InterruptedToolMessage {
   timestamp: number
 }
 
+// ===== Plan Mode 类型 =====
+
+export interface PlanItem {
+  id: string
+  title: string
+  description?: string
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped'
+}
+
+export interface Plan {
+  id: string
+  items: PlanItem[]
+  status: 'draft' | 'active' | 'completed' | 'failed'
+  currentStepId: string | null
+  createdAt: number
+  updatedAt: number
+}
+
 export type ChatMessage =
   | UserMessage
   | AssistantMessage
@@ -188,11 +211,17 @@ export interface SymbolsContext {
   type: 'Symbols'
 }
 
+export interface WebContext {
+  type: 'Web'
+  query?: string
+}
+
 export type ContextItem =
   | FileContext
   | CodeSelectionContext
   | FolderContext
   | CodebaseContext
+  | WebContext
   | GitContext
   | TerminalContext
   | SymbolsContext

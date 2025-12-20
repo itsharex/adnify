@@ -61,6 +61,9 @@ export interface FileSlice {
   setActiveFile: (path: string | null) => void
   updateFileContent: (path: string, content: string) => void
   markFileSaved: (path: string) => void
+  // 文件树刷新触发器
+  fileTreeRefreshKey: number
+  triggerFileTreeRefresh: () => void
 }
 
 export const createFileSlice: StateCreator<FileSlice, [], [], FileSlice> = (set) => ({
@@ -71,14 +74,31 @@ export const createFileSlice: StateCreator<FileSlice, [], [], FileSlice> = (set)
   openFiles: [],
   activeFilePath: null,
   selectedFolderPath: null,
+  fileTreeRefreshKey: 0,
 
-  setWorkspace: (workspace) => set({
-    workspace,
-    workspacePath: workspace?.roots[0] || null
+  triggerFileTreeRefresh: () => set((state) => ({
+    fileTreeRefreshKey: state.fileTreeRefreshKey + 1
+  })),
+
+  setWorkspace: (workspace) => set((state) => {
+    // 自动展开所有根文件夹
+    const newExpanded = new Set(state.expandedFolders)
+    workspace?.roots.forEach(root => newExpanded.add(root))
+    return {
+      workspace,
+      workspacePath: workspace?.roots[0] || null,
+      expandedFolders: newExpanded
+    }
   }),
-  setWorkspacePath: (path) => set({
-    workspacePath: path,
-    workspace: path ? { configPath: null, roots: [path] } : null
+  setWorkspacePath: (path) => set((state) => {
+    // 自动展开根文件夹
+    const newExpanded = new Set(state.expandedFolders)
+    if (path) newExpanded.add(path)
+    return {
+      workspacePath: path,
+      workspace: path ? { configPath: null, roots: [path] } : null,
+      expandedFolders: newExpanded
+    }
   }),
   addRoot: (path) => set((state) => {
     if (!state.workspace) return { workspace: { configPath: null, roots: [path] }, workspacePath: path }

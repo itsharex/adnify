@@ -71,16 +71,21 @@ export interface LLMMessage {
   toolName?: string
 }
 
+export interface ToolProperty {
+  type: string
+  description?: string
+  enum?: string[]
+  items?: ToolProperty
+  properties?: Record<string, ToolProperty>
+  required?: string[]
+}
+
 export interface ToolDefinition {
   name: string
   description: string
   parameters: {
     type: 'object'
-    properties: Record<string, {
-      type: string
-      description: string
-      enum?: string[]
-    }>
+    properties: Record<string, ToolProperty>
     required?: string[]
   }
 }
@@ -99,6 +104,9 @@ export interface LLMConfig {
   baseUrl?: string
   timeout?: number
   maxTokens?: number
+  // Thinking 模式配置
+  thinkingEnabled?: boolean
+  thinkingBudget?: number
 }
 
 // Security Audit Log Entry

@@ -31,6 +31,8 @@ const READ_TOOLS = [
   'get_hover_info',
   'get_document_symbols',
   'get_lint_errors',
+  'web_search',
+  'read_url',
 ]
 
 // ===== 配置常量 =====
@@ -62,6 +64,36 @@ class AgentServiceClass {
   private approvalResolver: ((approved: boolean) => void) | null = null
   private currentAssistantId: string | null = null
   private isRunning = false
+  private unsubscribers: (() => void)[] = []
+
+  // 会话级文件追踪：记录已读取的文件（用于 read-before-write 验证）
+  private readFilesInSession = new Set<string>()
+
+  /**
+   * 检查文件是否已在当前会话中读取
+   */
+  hasReadFile(filePath: string): boolean {
+    // 标准化路径以确保一致性
+    const normalizedPath = filePath.replace(/\\/g, '/').toLowerCase()
+    return this.readFilesInSession.has(normalizedPath)
+  }
+
+  /**
+   * 标记文件已读取
+   */
+  markFileAsRead(filePath: string): void {
+    const normalizedPath = filePath.replace(/\\/g, '/').toLowerCase()
+    this.readFilesInSession.add(normalizedPath)
+    console.log(`[Agent] File marked as read: ${filePath}`)
+  }
+
+  /**
+   * 清空会话状态（新对话开始时调用）
+   */
+  clearSession(): void {
+    this.readFilesInSession.clear()
+    console.log('[Agent] Session cleared')
+  }
 
   // ===== 公共方法 =====
 
@@ -75,6 +107,8 @@ class AgentServiceClass {
       model: string
       apiKey: string
       baseUrl?: string
+      thinkingEnabled?: boolean
+      thinkingBudget?: number
     },
     workspacePath: string | null,
     systemPrompt: string
@@ -101,7 +135,10 @@ class AgentServiceClass {
       const contextItems = store.getCurrentThread()?.contextItems || []
 
       // 2. 读取上下文文件内容
-      const contextContent = await this.buildContextContent(contextItems)
+      const userQuery = typeof userMessage === 'string' ? userMessage :
+        (Array.isArray(userMessage) ? userMessage.filter(p => p.type === 'text').map(p => (p as TextContent).text).join('') : '')
+
+      const contextContent = await this.buildContextContent(contextItems, userQuery)
 
       // 3. 添加用户消息到 store
       const userMessageId = store.addUserMessage(userMessage, contextItems)
@@ -149,6 +186,25 @@ class AgentServiceClass {
       this.approvalResolver(false)
       this.approvalResolver = null
     }
+  }
+
+  /**
+   * 批准当前工具并开启该类型的会话级自动审批
+   * 用于"批准全部"功能
+   */
+  approveAndEnableAuto(): void {
+    // 获取当前待审批工具的类型
+    const streamState = useAgentStore.getState().streamState
+    if (streamState.currentToolCall) {
+      const approvalType = getToolApprovalType(streamState.currentToolCall.name)
+      if (approvalType) {
+        // 临时开启该类型的自动审批
+        useStore.getState().setAutoApprove({ [approvalType]: true })
+        console.log(`[Agent] Auto-approve enabled for type: ${approvalType}`)
+      }
+    }
+    // 批准当前工具
+    this.approve()
   }
 
   /**
@@ -238,6 +294,29 @@ class AgentServiceClass {
         .sort()
         .join('|')
 
+      // 确保所有工具调用都已添加到 Store，并且状态正确
+      if (this.currentAssistantId) {
+        const currentMsg = store.getMessages().find(m => m.id === this.currentAssistantId)
+        if (currentMsg && currentMsg.role === 'assistant') {
+          const existingToolCalls = (currentMsg as any).toolCalls || []
+
+          for (const tc of result.toolCalls) {
+            const existing = existingToolCalls.find((e: any) => e.id === tc.id)
+            if (!existing) {
+              // 不存在则添加
+              store.addToolCallPart(this.currentAssistantId, {
+                id: tc.id,
+                name: tc.name,
+                arguments: tc.arguments,
+              })
+            } else if (!existing.status) {
+              // 存在但无状态，更新为 pending
+              store.updateToolCall(this.currentAssistantId, tc.id, { status: 'pending' })
+            }
+          }
+        }
+      }
+
       if (recentToolCalls.includes(currentCallSignature)) {
         consecutiveRepeats++
         console.warn(`[Agent] Detected repeated tool call (${consecutiveRepeats}/${MAX_CONSECUTIVE_REPEATS}):`, currentCallSignature.slice(0, 100))
@@ -286,8 +365,16 @@ class AgentServiceClass {
         const readResults = await Promise.all(
           readToolCalls.map(async (toolCall) => {
             console.log(`[Agent] Executing read tool: ${toolCall.name}`, toolCall.arguments)
-            const toolResult = await this.executeToolCall(toolCall, workspacePath)
-            return { toolCall, toolResult }
+            try {
+              const toolResult = await this.executeToolCall(toolCall, workspacePath)
+              return { toolCall, toolResult }
+            } catch (error: any) {
+              console.error(`[Agent] Error executing read tool ${toolCall.name}:`, error)
+              return {
+                toolCall,
+                toolResult: { success: false, content: `Error executing tool: ${error.message}`, rejected: false }
+              }
+            }
           })
         )
 
@@ -303,12 +390,21 @@ class AgentServiceClass {
         }
       }
 
-      // 串行执行写入工具
+      // 串行执行写入工具（添加微任务断点以保持 UI 响应）
       for (const toolCall of writeToolCalls) {
         if (this.abortController?.signal.aborted || userRejected) break
 
+        // 微任务断点：让出主线程，保持 UI 响应
+        await new Promise(resolve => setTimeout(resolve, 0))
+
         console.log(`[Agent] Executing write tool: ${toolCall.name}`, toolCall.arguments)
-        const toolResult = await this.executeToolCall(toolCall, workspacePath)
+        let toolResult
+        try {
+          toolResult = await this.executeToolCall(toolCall, workspacePath)
+        } catch (error: any) {
+          console.error(`[Agent] Error executing write tool ${toolCall.name}:`, error)
+          toolResult = { success: false, content: `Error executing tool: ${error.message}`, rejected: false }
+        }
 
         llmMessages.push({
           role: 'tool' as const,
@@ -398,10 +494,12 @@ class AgentServiceClass {
       let content = ''
       const toolCalls: LLMToolCall[] = []
       let currentToolCall: { id: string; name: string; argsString: string } | null = null
-      const unsubscribers: (() => void)[] = []
 
-      const cleanup = () => {
-        unsubscribers.forEach(unsub => unsub())
+      // 只清除监听器，不重置完整状态
+      // 完整 cleanup 在 sendMessage finally 中进行
+      const cleanupListeners = () => {
+        this.unsubscribers.forEach(unsub => unsub())
+        this.unsubscribers = []
       }
 
       // 验证工具名称是否合法
@@ -412,7 +510,7 @@ class AgentServiceClass {
       }
 
       // 监听流式文本
-      unsubscribers.push(
+      this.unsubscribers.push(
         window.electronAPI.onLLMStream((chunk: LLMStreamChunk) => {
           if (chunk.type === 'text' && chunk.content) {
             content += chunk.content
@@ -511,7 +609,7 @@ class AgentServiceClass {
       )
 
       // 监听非流式工具调用
-      unsubscribers.push(
+      this.unsubscribers.push(
         window.electronAPI.onLLMToolCall((toolCall: LLMToolCall) => {
           if (!isValidToolName(toolCall.name)) return
           if (!toolCalls.find(tc => tc.id === toolCall.id)) {
@@ -528,22 +626,41 @@ class AgentServiceClass {
       )
 
       // 监听完成
-      unsubscribers.push(
+      this.unsubscribers.push(
         window.electronAPI.onLLMDone((result) => {
-          cleanup()
+          cleanupListeners()
           if (result.toolCalls) {
             for (const tc of result.toolCalls) {
               if (!toolCalls.find(t => t.id === tc.id)) toolCalls.push(tc)
             }
           }
-          resolve({ content: content || result.content, toolCalls })
+
+          // 如果没有原生工具调用，尝试从内容中解析 XML 格式的工具调用
+          const finalContent = content || result.content || ''
+          if (toolCalls.length === 0 && finalContent) {
+            const xmlToolCalls = this.parseXMLToolCalls(finalContent)
+            for (const tc of xmlToolCalls) {
+              toolCalls.push(tc)
+              // 添加到 UI
+              if (this.currentAssistantId) {
+                const store = useAgentStore.getState()
+                store.addToolCallPart(this.currentAssistantId, {
+                  id: tc.id,
+                  name: tc.name,
+                  arguments: tc.arguments,
+                })
+              }
+            }
+          }
+
+          resolve({ content: finalContent, toolCalls })
         })
       )
 
       // 监听错误
-      unsubscribers.push(
+      this.unsubscribers.push(
         window.electronAPI.onLLMError((error) => {
-          cleanup()
+          cleanupListeners()
           resolve({ error: error.message })
         })
       )
@@ -555,7 +672,7 @@ class AgentServiceClass {
         tools: getToolDefinitions(),
         systemPrompt: '',
       }).catch((err) => {
-        cleanup()
+        cleanupListeners()
         resolve({ error: err.message || 'Failed to send message' })
       })
     })
@@ -611,7 +728,21 @@ class AgentServiceClass {
       }
     }
 
-    const result = await executeTool(name, args, workspacePath || undefined)
+    // 添加 60 秒超时保护
+    const timeoutMs = 60000
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Tool execution timed out after ${timeoutMs / 1000}s`)), timeoutMs)
+    )
+
+    let result: import('./ToolExecutor').ToolExecutionResult
+    try {
+      result = await Promise.race([
+        executeTool(name, args, workspacePath || undefined),
+        timeoutPromise
+      ])
+    } catch (error: any) {
+      result = { success: false, result: '', error: error.message }
+    }
 
     const status: ToolStatus = result.success ? 'success' : 'error'
     if (this.currentAssistantId) {
@@ -669,11 +800,45 @@ class AgentServiceClass {
   ): Promise<OpenAIMessage[]> {
     const store = useAgentStore.getState()
     const historyMessages = store.getMessages()
-    const filteredMessages = historyMessages
-      .filter(m => m.role !== 'checkpoint')
-      .slice(-CONFIG.maxHistoryMessages)
 
-    const openaiMessages = buildOpenAIMessages(filteredMessages, systemPrompt)
+    // 导入压缩模块
+    const { shouldCompactContext, prepareMessagesForCompact, createCompactedSystemMessage } = await import('./ContextCompressor')
+
+    // 检查是否需要压缩上下文
+    // 使用类型断言：过滤后的消息不包含 checkpoint 类型
+    type NonCheckpointMessage = Exclude<typeof historyMessages[number], { role: 'checkpoint' }>
+    let filteredMessages: NonCheckpointMessage[] = historyMessages.filter(
+      (m): m is NonCheckpointMessage => m.role !== 'checkpoint'
+    )
+    let compactedSummary: string | null = null
+
+    if (shouldCompactContext(filteredMessages)) {
+      console.log('[Agent] Context exceeds threshold, compacting...')
+
+      // 如果已有压缩摘要，直接使用
+      const existingSummary = (store as any).contextSummary
+      if (existingSummary) {
+        compactedSummary = existingSummary
+        // 只保留最近的消息
+        const { recentMessages } = prepareMessagesForCompact(filteredMessages as any)
+        filteredMessages = recentMessages as NonCheckpointMessage[]
+      } else {
+        // 这里只做准备，实际压缩需要在会话开始时或定期执行
+        // 为了不阻塞当前请求，先截断消息
+        filteredMessages = filteredMessages.slice(-CONFIG.maxHistoryMessages)
+      }
+    } else {
+      filteredMessages = filteredMessages.slice(-CONFIG.maxHistoryMessages)
+    }
+
+    // 构建系统提示词（可能包含压缩摘要）
+    const effectiveSystemPrompt = compactedSummary
+      ? `${systemPrompt}\n\n${createCompactedSystemMessage(compactedSummary)}`
+      : systemPrompt
+
+    // 类型断言：过滤后的消息不包含 checkpoint
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const openaiMessages = buildOpenAIMessages(filteredMessages as any, effectiveSystemPrompt)
 
     for (const msg of openaiMessages) {
       if (msg.role === 'tool' && typeof msg.content === 'string') {
@@ -692,10 +857,13 @@ class AgentServiceClass {
     return openaiMessages
   }
 
-  private async buildContextContent(contextItems: ContextItem[]): Promise<string> {
+  private async buildContextContent(contextItems: ContextItem[], userQuery?: string): Promise<string> {
     if (!contextItems || contextItems.length === 0) return ''
     const parts: string[] = []
     let totalChars = 0
+
+    // Get workspace path from store
+    const workspacePath = useStore.getState().workspacePath
 
     for (const item of contextItems) {
       if (totalChars >= CONFIG.maxTotalContextChars) {
@@ -716,8 +884,42 @@ class AgentServiceClass {
             totalChars += fileBlock.length
           }
         } catch (e) { }
-      } else if (item.type === 'Codebase') {
-        parts.push('\n[Codebase context enabled]\n')
+      } else if (item.type === 'Codebase' && workspacePath && userQuery) {
+        try {
+          parts.push('\n[Searching codebase...]\n')
+          // Strip @codebase from query for better results
+          const cleanQuery = userQuery.replace(/@codebase\s*/i, '').trim() || userQuery
+          const results = await window.electronAPI.indexSearch(workspacePath, cleanQuery, 20)
+          if (results && results.length > 0) {
+            const searchBlock = `\n### Codebase Search Results for "${cleanQuery}":\n` +
+              results.map(r => `#### ${r.relativePath} (Score: ${r.score.toFixed(2)})\n\`\`\`${r.language}\n${r.content}\n\`\`\``).join('\n\n') + '\n'
+            parts.push(searchBlock)
+            totalChars += searchBlock.length
+          } else {
+            parts.push('\n[No relevant codebase results found]\n')
+          }
+        } catch (e) {
+          console.error('[Agent] Codebase search failed:', e)
+          parts.push('\n[Codebase search failed]\n')
+        }
+      } else if (item.type === 'Web' && userQuery) {
+        try {
+          parts.push('\n[Searching web...]\n')
+          // Strip @web from query
+          const cleanQuery = userQuery.replace(/@web\s*/i, '').trim() || userQuery
+          const searchResult = await executeTool('web_search', { query: cleanQuery }, workspacePath || undefined)
+
+          if (searchResult.success) {
+            const searchBlock = `\n### Web Search Results for "${cleanQuery}":\n${searchResult.result}\n`
+            parts.push(searchBlock)
+            totalChars += searchBlock.length
+          } else {
+            parts.push(`\n[Web search failed: ${searchResult.error}]\n`)
+          }
+        } catch (e) {
+          console.error('[Agent] Web search failed:', e)
+          parts.push('\n[Web search failed]\n')
+        }
       }
     }
     return parts.join('')
@@ -736,6 +938,60 @@ class AgentServiceClass {
     } else {
       return [contextPart, ...message]
     }
+  }
+
+  /**
+   * 解析 XML 格式的工具调用
+   * 支持格式如：<tool_call><function=tool_name><parameter=param>value</parameter></function></tool_call>
+   */
+  private parseXMLToolCalls(content: string): LLMToolCall[] {
+    const toolCalls: LLMToolCall[] = []
+
+    // 匹配 <tool_call>...</tool_call> 块
+    const toolCallRegex = /<tool_call>([\s\S]*?)<\/tool_call>/gi
+    let toolCallMatch
+
+    while ((toolCallMatch = toolCallRegex.exec(content)) !== null) {
+      const toolCallContent = toolCallMatch[1]
+
+      // 匹配 <function=name>...</function> 或 <function name="...">...</function>
+      const funcRegex = /<function[=\s]+["']?([^"'>\s]+)["']?\s*>([\s\S]*?)<\/function>/gi
+      let funcMatch
+
+      while ((funcMatch = funcRegex.exec(toolCallContent)) !== null) {
+        const toolName = funcMatch[1]
+        const paramsContent = funcMatch[2]
+
+        // 解析参数
+        const args: Record<string, unknown> = {}
+
+        // 匹配 <parameter=name>value</parameter> 或 <parameter name="...">value</parameter>
+        const paramRegex = /<parameter[=\s]+["']?([^"'>\s]+)["']?\s*>([\s\S]*?)<\/parameter>/gi
+        let paramMatch
+
+        while ((paramMatch = paramRegex.exec(paramsContent)) !== null) {
+          const paramName = paramMatch[1]
+          let paramValue: unknown = paramMatch[2].trim()
+
+          // 尝试解析 JSON 值
+          try {
+            paramValue = JSON.parse(paramValue as string)
+          } catch {
+            // 保持字符串格式
+          }
+
+          args[paramName] = paramValue
+        }
+
+        toolCalls.push({
+          id: `xml-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          name: toolName,
+          arguments: args
+        })
+      }
+    }
+
+    return toolCalls
   }
 
   private parsePartialArgs(argsString: string, _toolName: string): Record<string, unknown> {
@@ -758,6 +1014,9 @@ class AgentServiceClass {
   }
 
   private cleanup(): void {
+    this.unsubscribers.forEach(unsub => unsub())
+    this.unsubscribers = []
+
     const store = useAgentStore.getState()
     if (this.currentAssistantId) store.finalizeAssistant(this.currentAssistantId)
     store.setStreamPhase('idle')

@@ -148,6 +148,23 @@ export default function Editor() {
 
   // 监听主题变化并更新 Monaco 主题
   const currentTheme = useStore((state) => state.currentTheme) as ThemeName
+  const workspacePath = useStore((state) => state.workspacePath)
+  const isLspReady = useStore((state) => state.isLspReady)
+
+  // 监听 workspacePath 变化，启动 LSP 服务器
+  useEffect(() => {
+    if (workspacePath && !isLspReady) {
+      console.log('[Editor] workspacePath changed, starting LSP server:', workspacePath)
+      startLspServer(workspacePath).then((success) => {
+        if (success) {
+          console.log('[Editor] LSP server started (from workspacePath change)')
+          setIsLspReady(true)
+        } else {
+          console.warn('[Editor] LSP server failed to start')
+        }
+      })
+    }
+  }, [workspacePath, isLspReady, setIsLspReady])
 
   useEffect(() => {
     if (monacoRef.current && currentTheme) {

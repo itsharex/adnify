@@ -13,6 +13,9 @@ export interface LLMConfig {
   baseUrl?: string
   timeout?: number
   maxTokens?: number
+  // Thinking 模式配置
+  thinkingEnabled?: boolean
+  thinkingBudget?: number  // thinking token 预算 (默认 16000)
 }
 
 export interface AutoApproveSettings {
@@ -60,6 +63,8 @@ const defaultLLMConfig: LLMConfig = {
   model: 'gpt-4o',
   apiKey: '',
   baseUrl: '',
+  thinkingEnabled: false,
+  thinkingBudget: 16000,
 }
 
 const defaultAutoApprove: AutoApproveSettings = {

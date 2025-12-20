@@ -25,6 +25,8 @@ import {
   // 类型守卫
   isAssistantMessage,
   isTextPart,
+  Plan,
+  PlanItem,
 } from './types'
 
 // ===== Store 类型 =====
@@ -49,6 +51,9 @@ interface AgentState {
     terminal: boolean
     dangerous: boolean
   }
+
+  // Plan Mode 状态
+  plan: Plan | null
 }
 
 interface AgentActions {
@@ -98,6 +103,16 @@ interface AgentActions {
   getCheckpointForMessage: (messageId: string) => MessageCheckpoint | null
   clearMessageCheckpoints: () => void
 
+  // Plan 操作
+  createPlan: (items: Array<{ title: string; description?: string }>) => void
+  updatePlanStatus: (status: Plan['status']) => void
+
+  updatePlanItem: (itemId: string, updates: Partial<PlanItem>) => void
+  addPlanItem: (item: { title: string; description?: string }) => void
+  deletePlanItem: (itemId: string) => void
+  setPlanStep: (stepId: string | null) => void
+  clearPlan: () => void
+
   // 获取器
   getCurrentThread: () => ChatThread | null
   getMessages: () => ChatMessage[]
@@ -123,6 +138,61 @@ const createEmptyThread = (): ChatThread => ({
   },
 })
 
+// ===== 流式响应节流优化 =====
+// 使用 requestAnimationFrame 批量更新流式内容，减少状态更新频率
+class StreamingBuffer {
+  private buffer: Map<string, string> = new Map() // messageId -> pending content
+  private rafId: number | null = null
+  private flushCallback: ((messageId: string, content: string) => void) | null = null
+
+  setFlushCallback(callback: (messageId: string, content: string) => void) {
+    this.flushCallback = callback
+  }
+
+  append(messageId: string, content: string): void {
+    const existing = this.buffer.get(messageId) || ''
+    this.buffer.set(messageId, existing + content)
+    this.scheduleFlush()
+  }
+
+  private scheduleFlush(): void {
+    if (this.rafId) return // 已有待执行的刷新
+    this.rafId = requestAnimationFrame(() => {
+      this.flush()
+      this.rafId = null
+    })
+  }
+
+  private flush(): void {
+    if (!this.flushCallback) return
+    this.buffer.forEach((content, messageId) => {
+      if (content) {
+        this.flushCallback!(messageId, content)
+      }
+    })
+    this.buffer.clear()
+  }
+
+  // 立即刷新（用于流式结束时）
+  flushNow(): void {
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId)
+      this.rafId = null
+    }
+    this.flush()
+  }
+
+  clear(): void {
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId)
+      this.rafId = null
+    }
+    this.buffer.clear()
+  }
+}
+
+const streamingBuffer = new StreamingBuffer()
+
 // ===== Store 实现 =====
 
 export const useAgentStore = create<AgentStore>()(
@@ -139,6 +209,7 @@ export const useAgentStore = create<AgentStore>()(
         terminal: false,
         dangerous: false,
       },
+      plan: null,
 
       // 线程操作
       createThread: () => {
@@ -241,6 +312,12 @@ export const useAgentStore = create<AgentStore>()(
       },
 
       appendToAssistant: (messageId, content) => {
+        // 使用 StreamingBuffer 批量更新，通过 requestAnimationFrame 节流
+        streamingBuffer.append(messageId, content)
+      },
+
+      // 内部方法：实际执行内容追加（由 StreamingBuffer 调用）
+      _doAppendToAssistant: (messageId: string, content: string) => {
         const state = get()
         const threadId = state.currentThreadId
         if (!threadId) return
@@ -284,6 +361,9 @@ export const useAgentStore = create<AgentStore>()(
       },
 
       finalizeAssistant: (messageId) => {
+        // 先刷新缓冲区，确保所有内容都已写入
+        streamingBuffer.flushNow()
+
         const state = get()
         const threadId = state.currentThreadId
         if (!threadId) return
@@ -924,6 +1004,102 @@ export const useAgentStore = create<AgentStore>()(
       getMessageCheckpoints: () => {
         return get().messageCheckpoints
       },
+
+      // Plan 操作实现
+      createPlan: (items) => {
+        set(() => ({
+          plan: {
+            id: crypto.randomUUID(),
+            items: items.map(item => ({
+              id: crypto.randomUUID(),
+              title: item.title,
+              description: item.description,
+              status: 'pending'
+            })),
+            status: 'draft',
+            currentStepId: null,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          }
+        }))
+      },
+
+      updatePlanStatus: (status) => {
+        set((state) => {
+          if (!state.plan) return {}
+          return {
+            plan: {
+              ...state.plan,
+              status,
+              updatedAt: Date.now()
+            }
+          }
+        })
+      },
+
+      updatePlanItem: (itemId, updates) => {
+        set((state) => {
+          if (!state.plan) return {}
+          return {
+            plan: {
+              ...state.plan,
+              items: state.plan.items.map(item =>
+                item.id === itemId ? { ...item, ...updates } : item
+              ),
+              updatedAt: Date.now()
+            }
+          }
+        })
+      },
+
+      addPlanItem: (item) => {
+        set((state) => {
+          if (!state.plan) return {}
+          const newItem: PlanItem = {
+            id: generateId(),
+            title: item.title,
+            description: item.description,
+            status: 'pending',
+          }
+          return {
+            plan: {
+              ...state.plan,
+              items: [...state.plan.items, newItem],
+              updatedAt: Date.now(),
+            },
+          }
+        })
+      },
+
+      deletePlanItem: (itemId) => {
+        set((state) => {
+          if (!state.plan) return {}
+          return {
+            plan: {
+              ...state.plan,
+              items: state.plan.items.filter(item => item.id !== itemId),
+              updatedAt: Date.now(),
+            },
+          }
+        })
+      },
+
+      setPlanStep: (stepId) => {
+        set((state) => {
+          if (!state.plan) return {}
+          return {
+            plan: {
+              ...state.plan,
+              currentStepId: stepId,
+              updatedAt: Date.now()
+            }
+          }
+        })
+      },
+
+      clearPlan: () => {
+        set({ plan: null })
+      }
     }),
     {
       name: 'adnify-agent-store',
@@ -932,12 +1108,11 @@ export const useAgentStore = create<AgentStore>()(
         threads: state.threads,
         currentThreadId: state.currentThreadId,
         autoApprove: state.autoApprove,
+        plan: state.plan,
       }),
     }
   )
 )
-
-// ===== 选择器 =====
 
 const EMPTY_MESSAGES: ChatMessage[] = []
 const EMPTY_CONTEXT_ITEMS: ContextItem[] = []
@@ -972,3 +1147,10 @@ export const selectPendingChanges = (state: AgentStore) => state.pendingChanges
 export const selectHasPendingChanges = (state: AgentStore) => state.pendingChanges.length > 0
 
 export const selectMessageCheckpoints = (state: AgentStore) => state.messageCheckpoints
+
+// ===== StreamingBuffer 初始化 =====
+// 在 store 创建后设置回调
+streamingBuffer.setFlushCallback((messageId: string, content: string) => {
+  const store = useAgentStore.getState() as any
+  store._doAppendToAssistant(messageId, content)
+})

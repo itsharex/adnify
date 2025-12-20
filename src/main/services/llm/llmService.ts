@@ -108,6 +108,9 @@ export class LLMService {
         systemPrompt,
         maxTokens: config.maxTokens,
         signal: this.currentAbortController.signal,
+        // Thinking 模式配置
+        thinkingEnabled: config.thinkingEnabled,
+        thinkingBudget: config.thinkingBudget,
 
         onStream: (chunk) => {
           if (!this.window.isDestroyed()) {

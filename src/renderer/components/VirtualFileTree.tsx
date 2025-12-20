@@ -19,7 +19,7 @@ import { useStore } from '../store'
 import { FileItem } from '../types/electron'
 import { t } from '../i18n'
 import { getDirPath, joinPath } from '../utils/pathUtils'
-import { toast } from './Toast'
+import { toast } from './ToastProvider'
 import { Input, ContextMenu, ContextMenuItem } from './ui'
 import { directoryCacheService } from '../services/directoryCacheService'
 import { keybindingService } from '../services/keybindingService'
@@ -141,6 +141,13 @@ export function VirtualFileTree({
       })
     }
   }, [childrenCache, loadingDirs])
+
+  // 当 items (根目录内容) 变化时，清除子目录缓存以确保一致性
+  // 这使得刷新或折叠后重新展开目录时能获取最新内容
+  useEffect(() => {
+    setChildrenCache(new Map())
+    directoryCacheService.clear()
+  }, [items])
 
   // 展开文件夹时加载子目录
   useEffect(() => {

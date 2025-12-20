@@ -2,7 +2,7 @@
  * 自定义确认对话框组件
  * 替代原生 window.confirm，支持国际化和自定义样式
  */
-import { useRef, useState, useCallback, createContext, useContext, ReactNode, useEffect } from 'react'
+import { useState, useCallback, createContext, useContext, ReactNode, useEffect } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { useStore } from '../store'
 import { t } from '../i18n'

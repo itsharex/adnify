@@ -30,3 +30,4 @@ out/
 /package-lock.json
 /void
 /.claude
+/claude-code-main

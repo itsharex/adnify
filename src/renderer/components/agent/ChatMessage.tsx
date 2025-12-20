@@ -3,7 +3,7 @@
  * Cursor 风格：完全扁平化，无气泡，沉浸式体验
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { User, Copy, Check, RefreshCw, Edit2, RotateCcw } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -32,13 +32,14 @@ interface ChatMessageProps {
   onRestore?: (messageId: string) => void
   onApproveTool?: () => void
   onRejectTool?: () => void
+  onApproveAll?: () => void  // 批准全部
   onOpenDiff?: (path: string, oldContent: string, newContent: string) => void
   pendingToolId?: string
   hasCheckpoint?: boolean
 }
 
 // 代码块组件 - 更加精致的玻璃质感
-const CodeBlock = ({ language, children, fontSize }: { language: string | undefined; children: React.ReactNode; fontSize: number }) => {
+const CodeBlock = React.memo(({ language, children, fontSize }: { language: string | undefined; children: React.ReactNode; fontSize: number }) => {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = useCallback(() => {
@@ -75,10 +76,12 @@ const CodeBlock = ({ language, children, fontSize }: { language: string | undefi
       </SyntaxHighlighter>
     </div>
   )
-}
+})
+
+CodeBlock.displayName = 'CodeBlock'
 
 // Markdown 渲染组件 - 优化排版
-const MarkdownContent = ({ content, fontSize }: { content: string; fontSize: number }) => (
+const MarkdownContent = React.memo(({ content, fontSize }: { content: string; fontSize: number }) => (
   <div style={{ fontSize: `${fontSize}px` }} className="text-text-primary/90 leading-7">
     <ReactMarkdown
       className="prose prose-invert max-w-none"
@@ -115,10 +118,12 @@ const MarkdownContent = ({ content, fontSize }: { content: string; fontSize: num
       {content}
     </ReactMarkdown>
   </div>
-)
+))
+
+MarkdownContent.displayName = 'MarkdownContent'
 
 // 渲染单个 Part
-const RenderPart = ({
+const RenderPart = React.memo(({
   part,
   index,
   pendingToolId,
@@ -174,19 +179,22 @@ const RenderPart = ({
   }
 
   return null
-}
+})
 
-export default function ChatMessage({
+RenderPart.displayName = 'RenderPart'
+
+const ChatMessage = React.memo(({
   message,
   onEdit,
   onRegenerate,
   onRestore,
   onApproveTool,
   onRejectTool,
+  onApproveAll,
   onOpenDiff,
   pendingToolId,
   hasCheckpoint,
-}: ChatMessageProps) {
+}: ChatMessageProps) => {
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState('')
   const [copied, setCopied] = useState(false)
@@ -355,6 +363,7 @@ export default function ChatMessage({
                             pendingToolId={pendingToolId}
                             onApproveTool={onApproveTool}
                             onRejectTool={onRejectTool}
+                            onApproveAll={onApproveAll}
                             onOpenDiff={onOpenDiff}
                           />
                         )
@@ -465,4 +474,8 @@ export default function ChatMessage({
       </div>
     </div>
   )
-}
+})
+
+ChatMessage.displayName = 'ChatMessage'
+
+export default ChatMessage

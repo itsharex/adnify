@@ -46,22 +46,44 @@ export class GeminiProvider extends BaseProvider {
   }
 
   async chat(params: ChatParams): Promise<void> {
-    const { model, messages, tools, systemPrompt, onStream, onToolCall, onComplete, onError } =
-      params
+    const {
+      model,
+      messages,
+      tools,
+      systemPrompt,
+      thinkingEnabled,
+      thinkingBudget,
+      onStream,
+      onToolCall,
+      onComplete,
+      onError
+    } = params
 
     try {
       this.log('info', 'Starting chat', { model, messageCount: messages.length })
 
       const requestOptions = this.baseUrl ? { baseUrl: this.baseUrl } : undefined
 
+      // Gemini 2.0 支持 thinking 模式
+      // https://ai.google.dev/gemini-api/docs/thinking
+      const modelConfig: Record<string, unknown> = {
+        model,
+        systemInstruction: systemPrompt,
+        tools: this.convertTools(tools) as Parameters<
+          typeof this.client.getGenerativeModel
+        >[0]['tools'],
+      }
+
+      // 添加 thinking 配置 (Gemini 2.0+)
+      if (thinkingEnabled) {
+        modelConfig.thinkingConfig = {
+          thinkingBudget: thinkingBudget || 8192,  // Gemini 默认 8k thinking
+        }
+        this.log('info', 'Thinking mode enabled', { budget: thinkingBudget })
+      }
+
       const genModel = this.client.getGenerativeModel(
-        {
-          model,
-          systemInstruction: systemPrompt,
-          tools: this.convertTools(tools) as Parameters<
-            typeof this.client.getGenerativeModel
-          >[0]['tools'],
-        },
+        modelConfig as unknown as Parameters<typeof this.client.getGenerativeModel>[0],
         requestOptions
       )
 

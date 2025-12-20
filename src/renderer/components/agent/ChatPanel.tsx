@@ -1,9 +1,5 @@
-/**
- * Chat Panel
- * Agent 聊天面板 - 沉浸式设计
- */
-
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
 import {
   Sparkles,
   AlertTriangle,
@@ -27,17 +23,15 @@ import {
   getMessageText,
   ContextItem,
   FileContext,
-  CodebaseContext,
-  GitContext,
-  TerminalContext,
-  SymbolsContext,
 } from '@/renderer/agent/core/types'
 
 import { ChatInput, PendingImage } from '@/renderer/components/chat'
-import FileMentionPopup from '@/renderer/components/FileMentionPopup'
+import MentionPopup from '@/renderer/components/agent/MentionPopup'
+import { MentionParser, MentionCandidate } from '@/renderer/agent/core/MentionParser'
 import ChatMessageUI from './ChatMessage'
 import AgentStatusBar from './AgentStatusBar'
 import ContextPanel from './ContextPanel'
+import PlanList from './PlanList'
 import { keybindingService } from '@/renderer/services/keybindingService'
 import SlashCommandPopup from './SlashCommandPopup'
 import { slashCommandService, SlashCommand } from '@/renderer/services/slashCommandService'
@@ -82,6 +76,7 @@ export default function ChatPanel() {
     deleteMessagesAfter,
     approveCurrentTool,
     rejectCurrentTool,
+    approveAllCurrentTool,
     acceptAllChanges,
     undoAllChanges,
     acceptChange,
@@ -91,6 +86,15 @@ export default function ChatPanel() {
     addContextItem,
     removeContextItem,
     clearContextItems,
+    checkContextLength,
+    // Plan
+    plan,
+    updatePlanStatus,
+    updatePlanItem,
+    addPlanItem,
+    deletePlanItem,
+    setPlanStep,
+
   } = useAgent()
 
   const [input, setInput] = useState('')
@@ -99,68 +103,41 @@ export default function ChatPanel() {
   const [showFileMention, setShowFileMention] = useState(false)
   const [mentionQuery, setMentionQuery] = useState('')
   const [mentionPosition, setMentionPosition] = useState({ x: 0, y: 0 })
+  const [mentionCandidates, setMentionCandidates] = useState<MentionCandidate[]>([])
+  const [mentionLoading, setMentionLoading] = useState(false)
+  const [mentionRange, setMentionRange] = useState<{ start: number; end: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [showSlashCommand, setShowSlashCommand] = useState(false)
   const [slashCommandQuery, setSlashCommandQuery] = useState('')
+  const [showContextWarning, setShowContextWarning] = useState(false)
+  const [showPlan, setShowPlan] = useState(true)
 
-  const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const inputContainerRef = useRef<HTMLDivElement>(null)
 
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const messagesListRef = useRef<HTMLDivElement>(null)
-  const isAtBottomRef = useRef(true) // 默认在底部
+  const virtuosoRef = useRef<VirtuosoHandle>(null)
+  const [atBottom, setAtBottom] = useState(true)
 
-  // 滚动到底部辅助函数
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
-    if (scrollContainerRef.current) {
-      const { scrollHeight, clientHeight } = scrollContainerRef.current
-      // 使用 scrollTo 代替 scrollIntoView，控制更精确
-      scrollContainerRef.current.scrollTo({
-        top: scrollHeight - clientHeight,
-        behavior
+  // 自动滚动逻辑
+  useEffect(() => {
+    if (isStreaming && atBottom) {
+      virtuosoRef.current?.scrollToIndex({
+        index: messages.length - 1,
+        align: 'end',
+        behavior: 'auto'
       })
     }
-  }, [])
+  }, [messages, isStreaming, atBottom])
 
-  // 监听滚动事件，更新 isAtBottomRef
-  const handleScroll = useCallback(() => {
-    if (!scrollContainerRef.current) return
-    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current
-    // 容差设为 50px
-    const distanceToBottom = scrollHeight - scrollTop - clientHeight
-    isAtBottomRef.current = distanceToBottom < 50
-  }, [])
-
-  // 监听消息列表高度变化 (处理工具卡片展开等情况)
-  useEffect(() => {
-    if (!messagesListRef.current) return
-
-    const observer = new ResizeObserver(() => {
-      if (isAtBottomRef.current) {
-        scrollToBottom(isStreaming ? 'auto' : 'smooth')
-      }
-    })
-
-    observer.observe(messagesListRef.current)
-    return () => observer.disconnect()
-  }, [isStreaming, scrollToBottom])
-
-  // 消息更新时的滚动逻辑
-  useEffect(() => {
-    if (isAtBottomRef.current) {
-      scrollToBottom(isStreaming ? 'auto' : 'smooth')
-    }
-  }, [messages, isStreaming, scrollToBottom])
-  // 一次性同步 inputPrompt 到本地 input（来自终端 Fix 等外部调用）
+  // 一次性同步 inputPrompt 到本地 input
   useEffect(() => {
     if (inputPrompt) {
       setInput(inputPrompt)
-      setInputPrompt('')  // 立即清空，避免持续监听
+      setInputPrompt('')
     }
   }, [inputPrompt, setInputPrompt])
 
-  // 处理文件点击 - 用于打开文件
+  // 处理文件点击
   const handleFileClick = useCallback(async (filePath: string) => {
     const fullPath = toFullPath(filePath, workspacePath)
     const content = await window.electronAPI.readFile(fullPath)
@@ -254,24 +231,35 @@ export default function ChatPanel() {
   }, [addImage, contextItems, addContextItem])
 
   // 输入变化处理
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleInputChange = useCallback(async (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value
     const cursorPos = e.target.selectionStart || 0
     setInput(value)
 
-    const textBeforeCursor = value.slice(0, cursorPos)
-    const atMatch = textBeforeCursor.match(/@([^\s@]*)$/)
+    const parseResult = MentionParser.parse(value, cursorPos)
 
-    if (atMatch) {
-      setMentionQuery(atMatch[1])
+    if (parseResult) {
+      setMentionQuery(parseResult.query)
+      setMentionRange(parseResult.range)
+
       if (inputContainerRef.current) {
         const rect = inputContainerRef.current.getBoundingClientRect()
         setMentionPosition({ x: rect.left + 16, y: rect.top })
       }
       setShowFileMention(true)
       setShowSlashCommand(false)
+
+      // Fetch suggestions
+      setMentionLoading(true)
+      try {
+        const suggestions = await MentionParser.getSuggestions(parseResult.query, workspacePath)
+        setMentionCandidates(suggestions)
+      } catch (err) {
+        console.error('Error fetching suggestions:', err)
+      } finally {
+        setMentionLoading(false)
+      }
     } else if (value.startsWith('/')) {
-      // 检测斜杠命令
       setSlashCommandQuery(value)
       setShowSlashCommand(true)
       setShowFileMention(false)
@@ -282,50 +270,118 @@ export default function ChatPanel() {
       setMentionQuery('')
       setSlashCommandQuery('')
     }
-  }, [])
+  }, [workspacePath])
 
   // 上下文选择
-  const handleSelectFile = useCallback((selection: string) => {
-    const cursorPos = textareaRef.current?.selectionStart || input.length
-    const textBeforeCursor = input.slice(0, cursorPos)
-    const textAfterCursor = input.slice(cursorPos)
+  const handleExecutePlanStep = useCallback((stepId: string | null) => {
+    setPlanStep(stepId)
+    if (stepId && plan) {
+      const step = plan.items.find(i => i.id === stepId)
+      if (step) {
+        // 自动发送消息触发执行
+        sendMessage(`Execute plan step: ${step.title}\n\nDescription: ${step.description || ''}`)
+      }
+    }
+  }, [plan, setPlanStep, sendMessage])
 
-    const atIndex = textBeforeCursor.lastIndexOf('@')
-    if (atIndex !== -1) {
-      const newInput = textBeforeCursor.slice(0, atIndex) + textAfterCursor.trimStart()
-      setInput(newInput)
+  // 开始执行计划
+  const handleStartPlan = useCallback((status: 'active' | 'completed' | 'failed' | 'draft') => {
+    updatePlanStatus(status)
+    // 如果是开始计划，自动触发第一个待执行的步骤
+    if (status === 'active' && plan) {
+      const firstPendingStep = plan.items.find(i => i.status === 'pending')
+      if (firstPendingStep) {
+        handleExecutePlanStep(firstPendingStep.id)
+      } else {
+        // 没有待执行的步骤，直接发送执行计划的消息
+        sendMessage(`Start executing the plan. The plan has ${plan.items.length} items.`)
+      }
+    }
+  }, [plan, updatePlanStatus, handleExecutePlanStep, sendMessage])
+
+  const handleSelectMention = useCallback((candidate: MentionCandidate) => {
+    if (!mentionRange) return
+
+    const textBeforeMention = input.slice(0, mentionRange.start)
+    const textAfterMention = input.slice(mentionRange.end)
+
+    // Replace with label, but maybe we want to keep the @?
+    // Usually we replace "@query" with "@label "
+    // But for special mentions like @codebase, we keep it as is.
+    // For files, we might want to show just the filename but store the full path?
+    // The ChatInput detects @file:path or just path.
+    // Let's stick to the previous behavior: replace with the value.
+
+    let replacement = ''
+    let contextItem: ContextItem | null = null
+
+    switch (candidate.type) {
+      case 'codebase':
+        replacement = '@codebase '
+        contextItem = { type: 'Codebase' }
+        break
+      case 'git':
+        replacement = '@git '
+        contextItem = { type: 'Git' }
+        break
+      case 'terminal':
+        replacement = '@terminal '
+        contextItem = { type: 'Terminal' }
+        break
+      case 'symbols':
+        replacement = '@symbols '
+        contextItem = { type: 'Symbols' }
+        break
+      case 'file':
+      case 'folder':
+        // For files, we insert the relative path
+        // ChatInput regex expects: /@(?:file:)?([^\s@]+\.[a-zA-Z0-9]+)/g
+        // So we can just insert the path.
+        // Or we can use the format @file:path
+        replacement = `@${candidate.description || candidate.label} `
+        contextItem = {
+          type: candidate.type === 'folder' ? 'Folder' : 'File',
+          uri: candidate.data.path
+        }
+        break
+      case 'web':
+        replacement = '@web '
+        contextItem = { type: 'Web' }
+        break
     }
 
-    const specialContexts = ['codebase', 'git', 'terminal', 'symbols']
-    if (specialContexts.includes(selection)) {
-      const exists = contextItems.some((s: ContextItem) => s.type === selection.charAt(0).toUpperCase() + selection.slice(1))
-      if (!exists) {
-        let contextItem: ContextItem
-        switch (selection) {
-          case 'codebase': contextItem = { type: 'Codebase' } as CodebaseContext; break
-          case 'git': contextItem = { type: 'Git' } as GitContext; break
-          case 'terminal': contextItem = { type: 'Terminal' } as TerminalContext; break
-          case 'symbols': contextItem = { type: 'Symbols' } as SymbolsContext; break
-          default: return
+    const newInput = textBeforeMention + replacement + textAfterMention
+    setInput(newInput)
+
+    if (contextItem) {
+      // Check if exists
+      const exists = contextItems.some(item => {
+        if (item.type !== contextItem!.type) return false
+        if (item.type === 'File' && contextItem!.type === 'File') {
+          return (item as FileContext).uri === (contextItem as FileContext).uri
         }
-        addContextItem(contextItem)
-      }
-    } else {
-      const fullPath = workspacePath ? `${workspacePath}/${selection}` : selection
-      const exists = contextItems.some((s: ContextItem) => s.type === 'File' && (s as FileContext).uri.endsWith(selection))
+        return true
+      })
+
       if (!exists) {
-        addContextItem({ type: 'File', uri: fullPath })
+        addContextItem(contextItem)
       }
     }
 
     setShowFileMention(false)
     setMentionQuery('')
     textareaRef.current?.focus()
-  }, [input, workspacePath, contextItems, addContextItem])
+  }, [input, mentionRange, contextItems, addContextItem])
 
   // 提交
   const handleSubmit = useCallback(async () => {
     if ((!input.trim() && images.length === 0) || isStreaming) return
+
+    const contextCheck = checkContextLength()
+    if (contextCheck.needsCompact) {
+      setShowContextWarning(true)
+      return
+    }
 
     let userMessage: string | Array<{ type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }> = input.trim()
 
@@ -346,10 +402,25 @@ export default function ChatPanel() {
       ]
     }
 
+    // 检查是否是斜杠命令
+    if (input.startsWith('/')) {
+      const result = slashCommandService.parse(input, {
+        activeFilePath: activeFilePath || undefined,
+        selectedCode: selectedCode || undefined,
+        workspacePath: workspacePath || undefined,
+      })
+      if (result) {
+        userMessage = result.prompt
+        if (result.mode) {
+          setChatMode(result.mode)
+        }
+      }
+    }
+
     setInput('')
     setImages([])
     await sendMessage(userMessage)
-  }, [input, images, isStreaming, sendMessage])
+  }, [input, images, isStreaming, sendMessage, checkContextLength, activeFilePath, selectedCode, workspacePath, setChatMode])
 
   // 编辑消息
   const handleEditMessage = useCallback(async (messageId: string, content: string) => {
@@ -400,7 +471,7 @@ export default function ChatPanel() {
     setShowSlashCommand(false)
     setSlashCommandQuery('')
     textareaRef.current?.focus()
-  }, [activeFilePath, workspacePath, setChatMode])
+  }, [activeFilePath, selectedCode, workspacePath, setChatMode])
 
   // 键盘处理
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -432,7 +503,6 @@ export default function ChatPanel() {
       return
     }
 
-    // 确认对话框
     const { globalConfirm } = await import('../ConfirmDialog')
     const confirmed = await globalConfirm({
       title: language === 'zh' ? '恢复检查点' : 'Restore Checkpoint',
@@ -445,7 +515,6 @@ export default function ChatPanel() {
     const result = await restoreToCheckpoint(checkpoint.id)
     if (result.success) {
       toast.success(`Restored ${result.restoredFiles.length} file(s)`)
-      // 关闭 Diff 预览
       setActiveDiff(null)
     } else if (result.errors.length > 0) {
       toast.error(`Restore failed: ${result.errors[0]}`)
@@ -456,26 +525,27 @@ export default function ChatPanel() {
   const renderMessage = useCallback((msg: ChatMessageType) => {
     if (!isUserMessage(msg) && !isAssistantMessage(msg)) return null
 
-    // 检查是否有关联的检查点
     const hasCheckpoint = isUserMessage(msg) && messageCheckpoints.some(cp => cp.messageId === msg.id)
 
     return (
-      <ChatMessageUI
-        key={msg.id}
-        message={msg}
-        onEdit={handleEditMessage}
-        onRegenerate={handleRegenerate}
-        onRestore={handleRestore}
-        onApproveTool={approveCurrentTool}
-        onRejectTool={rejectCurrentTool}
-        onOpenDiff={handleShowDiff}
-        pendingToolId={pendingToolCall?.id}
-        hasCheckpoint={hasCheckpoint}
-      />
+      <div className="px-4 py-2">
+        <ChatMessageUI
+          key={msg.id}
+          message={msg}
+          onEdit={handleEditMessage}
+          onRegenerate={handleRegenerate}
+          onRestore={handleRestore}
+          onApproveTool={approveCurrentTool}
+          onRejectTool={rejectCurrentTool}
+          onApproveAll={approveAllCurrentTool}
+          onOpenDiff={handleShowDiff}
+          pendingToolId={pendingToolCall?.id}
+          hasCheckpoint={hasCheckpoint}
+        />
+      </div>
     )
-  }, [handleEditMessage, handleRegenerate, handleRestore, approveCurrentTool, rejectCurrentTool, handleShowDiff, pendingToolCall, messageCheckpoints])
+  }, [handleEditMessage, handleRegenerate, handleRestore, approveCurrentTool, rejectCurrentTool, approveAllCurrentTool, handleShowDiff, pendingToolCall, messageCheckpoints])
 
-  // 获取流式状态文本
   const getStreamingStatus = useCallback(() => {
     if (streamState.phase === 'streaming') return 'Thinking...'
     if (streamState.phase === 'tool_running') return `Running ${streamState.currentToolCall?.name || 'tool'}...`
@@ -490,13 +560,74 @@ export default function ChatPanel() {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Background Decoration - Consistent with Editor */}
+      {/* Context Length Warning Modal */}
+      {showContextWarning && (
+        <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center animate-fade-in">
+          <div className="max-w-md p-6 rounded-2xl border border-warning/20 bg-surface/95 shadow-2xl shadow-warning/10 animate-scale-in">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="p-2 rounded-full bg-warning/10 border border-warning/20">
+                <AlertTriangle className="w-5 h-5 text-warning" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-text-primary mb-1">
+                  {language === 'zh' ? '对话较长' : 'Long Conversation'}
+                </h3>
+                <p className="text-sm text-text-muted leading-relaxed">
+                  {language === 'zh'
+                    ? '当前对话已较长，继续可能影响响应质量。建议开始新对话以获得最佳效果。'
+                    : 'This conversation is getting long. Starting a new chat may improve response quality.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setShowContextWarning(false)
+                  const submitWithoutCheck = async () => {
+                    let userMessage: string | Array<{ type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }> = input.trim()
+                    if (images.length > 0) {
+                      const readyImages = images.filter(img => img.base64)
+                      userMessage = [
+                        { type: 'text' as const, text: input.trim() },
+                        ...readyImages.map(img => ({
+                          type: 'image' as const,
+                          source: { type: 'base64' as const, media_type: img.file.type, data: img.base64! },
+                        })),
+                      ]
+                    }
+                    setInput('')
+                    setImages([])
+                    await sendMessage(userMessage)
+                  }
+                  submitWithoutCheck()
+                }}
+              >
+                {language === 'zh' ? '继续发送' : 'Continue Anyway'}
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setShowContextWarning(false)
+                  createThread()
+                  toast.success(language === 'zh' ? '已创建新对话' : 'New chat created')
+                }}
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                {language === 'zh' ? '开始新对话' : 'Start New Chat'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Background Decoration */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-purple-500/5 rounded-full blur-[100px] opacity-20" />
         <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-blue-500/5 rounded-full blur-[100px] opacity-20" />
       </div>
 
-      {/* Header - Minimal & Glassmorphic */}
+      {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3 bg-background/60 backdrop-blur-md border-b border-white/5 select-none">
         <div className="flex items-center gap-1 bg-surface/30 rounded-lg p-0.5 border border-white/5">
           <Button
@@ -526,6 +657,17 @@ export default function ChatPanel() {
         </div>
 
         <div className="flex items-center gap-1">
+          {plan && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowPlan(!showPlan)}
+              className={`h-7 px-2 text-xs font-medium transition-colors ${showPlan ? 'text-accent bg-accent/10' : 'text-text-muted hover:text-text-primary'}`}
+              title={showPlan ? 'Hide Plan' : 'Show Plan'}
+            >
+              Plan
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -618,14 +760,23 @@ export default function ChatPanel() {
       )}
 
       {/* Messages Area */}
-      <div
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        className="absolute inset-0 overflow-y-auto custom-scrollbar bg-transparent pt-16 pb-48 z-0"
-      >
+      <div className="absolute inset-0 overflow-hidden bg-transparent pt-16 pb-48 z-0 flex flex-col">
+        {/* Plan View */}
+        {plan && showPlan && (
+          <div className="h-1/3 min-h-[200px] border-b border-[#333] shrink-0">
+            <PlanList
+              plan={plan}
+              onUpdateStatus={handleStartPlan}
+              onUpdateItem={updatePlanItem}
+              onAddItem={addPlanItem}
+              onDeleteItem={deletePlanItem}
+              onSetStep={handleExecutePlanStep}
+            />
+          </div>
+        )}
         {/* API Key Warning */}
         {!hasApiKey && (
-          <div className="m-4 p-4 border border-warning/20 bg-warning/5 rounded-xl flex gap-3 backdrop-blur-sm">
+          <div className="m-4 p-4 border border-warning/20 bg-warning/5 rounded-xl flex gap-3 backdrop-blur-sm relative z-10">
             <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0" />
             <div>
               <span className="font-medium text-sm text-warning block mb-1">{t('setupRequired', language)}</span>
@@ -635,7 +786,7 @@ export default function ChatPanel() {
         )}
 
         {/* Empty State */}
-        {messages.length === 0 && hasApiKey && (
+        {messages.length === 0 && hasApiKey ? (
           <div className="h-full flex flex-col items-center justify-center gap-8 pb-20 opacity-60 animate-fade-in">
             <div className="relative group">
               <div className="absolute inset-0 bg-accent/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
@@ -648,27 +799,32 @@ export default function ChatPanel() {
               <p className="text-sm text-text-muted max-w-xs mx-auto leading-relaxed">{t('howCanIHelp', language)}</p>
             </div>
           </div>
+        ) : (
+          <Virtuoso
+            ref={virtuosoRef}
+            data={messages}
+            atBottomStateChange={setAtBottom}
+            initialTopMostItemIndex={messages.length - 1}
+            followOutput={isStreaming ? 'smooth' : false}
+            itemContent={(_, message) => renderMessage(message)}
+            className="flex-1 custom-scrollbar"
+          />
         )}
-
-        {/* Messages List */}
-        <div ref={messagesListRef} className="flex flex-col pb-32">
-          {messages.map((msg: ChatMessageType) => renderMessage(msg))}
-        </div>
-
-        <div ref={messagesEndRef} />
       </div>
 
       {/* File Mention Popup */}
       {showFileMention && (
-        <FileMentionPopup
+        <MentionPopup
           position={mentionPosition}
-          searchQuery={mentionQuery}
-          onSelect={handleSelectFile}
+          query={mentionQuery}
+          candidates={mentionCandidates}
+          loading={mentionLoading}
+          onSelect={handleSelectMention}
           onClose={() => { setShowFileMention(false); setMentionQuery('') }}
         />
       )}
 
-      {/* Bottom Input Area - Enhanced Glassmorphism */}
+      {/* Bottom Input Area */}
       <div className="absolute bottom-0 left-0 right-0 z-20 bg-background/80 backdrop-blur-xl border-t border-white/5 shadow-2xl shadow-black/50">
 
         {/* Status Bar */}
@@ -728,7 +884,6 @@ export default function ChatPanel() {
             toast.success('Changes accepted')
           }}
         />
-
 
         {/* Context Items */}
         <ContextPanel

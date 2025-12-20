@@ -5,7 +5,7 @@
 
 import { useStore } from '../../store'
 import { t } from '../../i18n'
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, memo } from 'react'
 import {
   Check, X, ChevronDown, ChevronRight, Loader2,
   Terminal, Search, FolderOpen, FileText, Edit3,
@@ -21,6 +21,7 @@ interface ToolCallCardProps {
   isAwaitingApproval?: boolean
   onApprove?: () => void
   onReject?: () => void
+  onApproveAll?: () => void  // 批量审批：本次会话自动批准同类工具
 }
 
 // 工具图标映射
@@ -71,11 +72,13 @@ const TOOL_COLORS: Record<string, string> = {
   ask_user: 'text-pink-400',
 }
 
-export default function ToolCallCard({
+// 使用 memo 优化，避免不必要的重渲染
+const ToolCallCard = memo(function ToolCallCard({
   toolCall,
   isAwaitingApproval,
   onApprove,
   onReject,
+  onApproveAll,
 }: ToolCallCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const { language } = useStore()
@@ -355,6 +358,15 @@ export default function ToolCallCard({
             >
               {t('toolReject', language)}
             </button>
+            {onApproveAll && (
+              <button
+                onClick={onApproveAll}
+                className="px-3 py-1 text-[11px] font-medium text-text-muted hover:text-accent hover:bg-accent/10 rounded-md transition-colors"
+                title="Approve all similar tools in this session"
+              >
+                {t('toolApproveAll', language)}
+              </button>
+            )}
             <button
               onClick={onApprove}
               className="px-3 py-1 text-[11px] font-medium bg-accent text-white hover:bg-accent-hover rounded-md transition-colors shadow-sm shadow-accent/20"
@@ -366,4 +378,16 @@ export default function ToolCallCard({
       )}
     </div>
   )
-}
+}, (prevProps, nextProps) => {
+  // 自定义比较函数：只在关键属性变化时重渲染
+  return (
+    prevProps.toolCall.id === nextProps.toolCall.id &&
+    prevProps.toolCall.status === nextProps.toolCall.status &&
+    prevProps.toolCall.name === nextProps.toolCall.name &&
+    prevProps.isAwaitingApproval === nextProps.isAwaitingApproval &&
+    JSON.stringify(prevProps.toolCall.arguments) === JSON.stringify(nextProps.toolCall.arguments) &&
+    prevProps.toolCall.result === nextProps.toolCall.result
+  )
+})
+
+export default ToolCallCard

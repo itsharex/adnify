@@ -51,6 +51,8 @@ function findModulePath(moduleName: string, subPath: string): string | null {
 function getTypeScriptServerCommand(): { command: string; args: string[] } | null {
   const serverPath = findModulePath('typescript-language-server', 'lib/cli.mjs')
     || findModulePath('typescript-language-server', 'lib/cli.js')
+  console.log('[LSP Manager] TypeScript server path:', serverPath)
+  // 使用 process.execPath 配合 ELECTRON_RUN_AS_NODE=1 环境变量
   if (serverPath) return { command: process.execPath, args: [serverPath, '--stdio'] }
   return null
 }
@@ -152,9 +154,10 @@ class LspManager {
     const { command, args } = cmdInfo
     const key = this.getInstanceKey(config.name, workspacePath)
 
+    // 使用 ELECTRON_RUN_AS_NODE=1 让 Electron 作为纯 Node.js 运行时工作
     const proc = spawn(command, args, {
       cwd: workspacePath,
-      env: { ...process.env },
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
       stdio: ['pipe', 'pipe', 'pipe'],
     })
 
@@ -173,14 +176,23 @@ class LspManager {
 
     this.servers.set(key, instance)
 
+    console.log(`[LSP ${key}] Starting process: ${command} ${args.join(' ')}`)
+
+    proc.on('error', (err) => {
+      console.error(`[LSP ${key}] Process spawn error:`, err.message)
+    })
+
     proc.stdout.on('data', (data: Buffer) => this.handleServerOutput(key, data))
     proc.stderr?.on('data', (data: Buffer) => {
       const msg = data.toString().trim()
-      if (msg && !msg.includes('Unexpected resource')) console.warn(`[LSP ${key}]`, msg)
+      if (msg) console.warn(`[LSP ${key}] STDERR:`, msg)
     })
 
     proc.on('close', (code) => {
       console.log(`[LSP ${key}] Closed with code: ${code}`)
+      if (code !== 0 && code !== null) {
+        console.warn(`[LSP ${key}] Server crashed. Check if project has package.json/tsconfig.json`)
+      }
       this.servers.delete(key)
     })
 
@@ -189,6 +201,7 @@ class LspManager {
     try {
       await this.initializeServer(key, workspacePath)
       instance.initialized = true
+      console.log(`[LSP ${key}] Initialized successfully`)
       return true
     } catch (error: any) {
       console.error(`[LSP ${key}] Init failed:`, error.message)

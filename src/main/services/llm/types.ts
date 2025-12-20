@@ -13,6 +13,9 @@ export interface LLMConfig {
   maxTokens?: number
   temperature?: number
   timeout?: number
+  // Thinking 模式配置
+  thinkingEnabled?: boolean
+  thinkingBudget?: number
 }
 
 export interface TextContent {
@@ -87,6 +90,9 @@ export interface ChatParams {
   systemPrompt?: string
   maxTokens?: number
   signal?: AbortSignal
+  // Thinking 模式配置
+  thinkingEnabled?: boolean
+  thinkingBudget?: number
   onStream: (chunk: StreamChunk) => void
   onToolCall: (toolCall: ToolCall) => void
   onComplete: (result: ChatResult) => void

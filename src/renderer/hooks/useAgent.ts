@@ -35,7 +35,8 @@ export function useAgent() {
   // 获取线程相关状态
   const threads = useAgentStore(state => state.threads)
   const currentThreadId = useAgentStore(state => state.currentThreadId)
-  
+  const plan = useAgentStore(state => state.plan)
+
   // 确保有一个默认线程（首次加载时）
   const createThreadAction = useAgentStore(state => state.createThread)
   useEffect(() => {
@@ -54,21 +55,30 @@ export function useAgent() {
   const addContextItem = useAgentStore(state => state.addContextItem)
   const removeContextItem = useAgentStore(state => state.removeContextItem)
   const clearContextItems = useAgentStore(state => state.clearContextItems)
-  
+
   // 待确认更改操作
   const acceptAllChanges = useAgentStore(state => state.acceptAllChanges)
   const undoAllChanges = useAgentStore(state => state.undoAllChanges)
   const acceptChange = useAgentStore(state => state.acceptChange)
   const undoChange = useAgentStore(state => state.undoChange)
-  
+
   // 消息检查点操作
   const restoreToCheckpoint = useAgentStore(state => state.restoreToCheckpoint)
   const getCheckpointForMessage = useAgentStore(state => state.getCheckpointForMessage)
 
+  // Plan 操作
+  const createPlan = useAgentStore(state => state.createPlan)
+  const updatePlanStatus = useAgentStore(state => state.updatePlanStatus)
+  const updatePlanItem = useAgentStore(state => state.updatePlanItem)
+  const addPlanItem = useAgentStore(state => state.addPlanItem)
+  const deletePlanItem = useAgentStore(state => state.deletePlanItem)
+  const setPlanStep = useAgentStore(state => state.setPlanStep)
+  const clearPlan = useAgentStore(state => state.clearPlan)
+
   // 发送消息
   const sendMessage = useCallback(async (content: MessageContent) => {
     const systemPrompt = await buildSystemPrompt(chatMode, workspacePath)
-    
+
     await AgentService.sendMessage(
       content,
       {
@@ -76,11 +86,44 @@ export function useAgent() {
         model: llmConfig.model,
         apiKey: llmConfig.apiKey,
         baseUrl: llmConfig.baseUrl,
+        thinkingEnabled: llmConfig.thinkingEnabled,
+        thinkingBudget: llmConfig.thinkingBudget,
       },
       workspacePath,
       systemPrompt
     )
   }, [llmConfig, workspacePath, chatMode])
+
+  // 检测上下文是否过长（在用户发送消息前调用）
+  const checkContextLength = useCallback((): { needsCompact: boolean; messageCount: number; charCount: number } => {
+    const messages = useAgentStore.getState().getMessages()
+    const filteredMessages = messages.filter(m => m.role !== 'checkpoint')
+
+    // 计算字符数
+    let charCount = 0
+    for (const msg of filteredMessages) {
+      if ('content' in msg) {
+        const content = msg.content
+        if (typeof content === 'string') {
+          charCount += content.length
+        } else if (Array.isArray(content)) {
+          for (const part of content) {
+            if (part.type === 'text') charCount += part.text.length
+          }
+        }
+      }
+    }
+
+    // 安全阈值：在达到真正阈值的 80% 时提醒
+    const WARN_MESSAGE_THRESHOLD = 24  // 30 * 0.8
+    const WARN_CHAR_THRESHOLD = 32000  // 40000 * 0.8
+
+    return {
+      needsCompact: filteredMessages.length > WARN_MESSAGE_THRESHOLD || charCount > WARN_CHAR_THRESHOLD,
+      messageCount: filteredMessages.length,
+      charCount,
+    }
+  }, [])
 
   // 中止
   const abort = useCallback(() => {
@@ -95,6 +138,11 @@ export function useAgent() {
   // 拒绝当前工具
   const rejectCurrentTool = useCallback(() => {
     AgentService.reject()
+  }, [])
+
+  // 批准当前工具并开启会话级自动审批（批准全部）
+  const approveAllCurrentTool = useCallback(() => {
+    AgentService.approveAndEnableAuto()
   }, [])
 
   // 获取当前等待审批的工具调用
@@ -120,37 +168,49 @@ export function useAgent() {
     pendingToolCall,
     pendingChanges,
     messageCheckpoints,
-    
+
     // 线程
     allThreads,
     currentThreadId,
     createThread,
     switchThread,
     deleteThread,
-    
+
     // 消息操作
     sendMessage,
     abort,
     clearMessages,
     deleteMessagesAfter,
-    
+    checkContextLength,  // 上下文长度检测
+
     // 工具审批
     approveCurrentTool,
     rejectCurrentTool,
-    
+    approveAllCurrentTool,  // 批准全部
+
     // 待确认更改操作
     acceptAllChanges,
     undoAllChanges,
     acceptChange,
     undoChange,
-    
+
     // 消息检查点操作
     restoreToCheckpoint,
     getCheckpointForMessage,
-    
+
     // 上下文操作
     addContextItem,
     removeContextItem,
     clearContextItems,
+    // Plan
+    plan,
+    createPlan,
+    updatePlanStatus,
+
+    updatePlanItem,
+    addPlanItem,
+    deletePlanItem,
+    setPlanStep,
+    clearPlan,
   }
 }
