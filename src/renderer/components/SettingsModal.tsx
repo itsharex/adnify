@@ -15,7 +15,7 @@ import { BUILTIN_PROVIDERS, BuiltinProviderName, ProviderModelConfig } from '../
 import { getEditorConfig, saveEditorConfig, EditorConfig } from '../config/editorConfig'
 import { themes } from './ThemeManager'
 import { toast } from './ToastProvider'
-import { getPromptTemplates } from '../agent/promptTemplates'
+import { getPromptTemplates, getPromptTemplateById, getPromptTemplatePreview, getPromptTemplateSummary } from '../agent/promptTemplates'
 import { completionService } from '../services/completionService'
 import KeybindingPanel from './KeybindingPanel'
 import { Button, Input, Modal, Select, Switch } from './ui'
@@ -766,6 +766,13 @@ function AgentSettings({
   autoApprove, setAutoApprove, aiInstructions, setAiInstructions, promptTemplateId, setPromptTemplateId, llmConfig, setLLMConfig, agentConfig, setAgentConfig, language
 }: AgentSettingsProps) {
   const templates = getPromptTemplates()
+  const [showPreview, setShowPreview] = useState(false)
+  const [selectedTemplateForPreview, setSelectedTemplateForPreview] = useState<string | null>(null)
+
+  const handlePreviewTemplate = (templateId: string) => {
+    setSelectedTemplateForPreview(templateId)
+    setShowPreview(true)
+  }
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -834,15 +841,85 @@ function AgentSettings({
         <h4 className="text-sm font-medium text-text-secondary uppercase tracking-wider text-xs mb-2">
           {language === 'zh' ? 'Prompt 模板' : 'Prompt Template'}
         </h4>
-        <Select
-          value={promptTemplateId}
-          onChange={(value) => setPromptTemplateId(value)}
-          options={templates.map(t => ({ value: t.id, label: t.name }))}
-          className="w-full"
-        />
-        <p className="text-xs text-text-muted bg-surface/50 p-3 rounded-lg border border-white/5">
-          {templates.find(t => t.id === promptTemplateId)?.description}
-        </p>
+        <div className="space-y-3">
+          <Select
+            value={promptTemplateId}
+            onChange={(value) => setPromptTemplateId(value)}
+            options={templates.map(t => ({
+              value: t.id,
+              label: `${t.name} ${t.isDefault ? '(默认)' : ''} [P${t.priority}]`
+            }))}
+            className="w-full"
+          />
+
+          {/* 模板描述和预览按钮 */}
+          <div className="bg-surface/30 p-4 rounded-lg border border-white/5 space-y-2">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-medium text-text-primary">
+                    {templates.find(t => t.id === promptTemplateId)?.name}
+                  </span>
+                  <span className="text-xs text-text-muted px-2 py-0.5 bg-surface rounded border border-white/10">
+                    P{templates.find(t => t.id === promptTemplateId)?.priority}
+                  </span>
+                  {templates.find(t => t.id === promptTemplateId)?.tags?.map(tag => (
+                    <span key={tag} className="text-xs text-accent px-1.5 py-0.5 bg-accent/10 rounded">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-sm text-text-secondary">
+                  {language === 'zh'
+                    ? templates.find(t => t.id === promptTemplateId)?.descriptionZh
+                    : templates.find(t => t.id === promptTemplateId)?.description}
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handlePreviewTemplate(promptTemplateId)}
+                className="shrink-0"
+              >
+                {language === 'zh' ? '预览完整提示词' : 'Preview Full Prompt'}
+              </Button>
+            </div>
+          </div>
+
+          {/* 模板列表概览 */}
+          <div className="mt-4">
+            <details className="group">
+              <summary className="flex items-center gap-2 text-xs font-medium text-text-muted cursor-pointer hover:text-text-primary transition-colors select-none">
+                <span className="group-open:rotate-90 transition-transform">▶</span>
+                {language === 'zh' ? '查看所有模板概览' : 'View All Templates Overview'}
+              </summary>
+              <div className="mt-3 space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                {getPromptTemplateSummary().map(t => (
+                  <div
+                    key={t.id}
+                    className="flex items-center justify-between p-2 rounded hover:bg-white/5 transition-colors border border-transparent hover:border-white/10"
+                  >
+                    <div className="flex items-center gap-3 flex-1">
+                      <span className="font-medium text-sm text-text-primary w-24">{t.name}</span>
+                      <span className="text-xs text-text-muted px-1.5 py-0.5 bg-surface rounded">P{t.priority}</span>
+                      <span className="text-xs text-text-secondary flex-1">
+                        {language === 'zh' ? t.descriptionZh : t.description}
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handlePreviewTemplate(t.id)}
+                      className="text-xs px-2 py-1"
+                    >
+                      {language === 'zh' ? '预览' : 'Preview'}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </details>
+          </div>
+        </div>
       </section>
 
       <section className="space-y-4">
@@ -941,6 +1018,80 @@ function AgentSettings({
           </div>
         </div>
       </section>
+
+      {/* 预览模态框 */}
+      {showPreview && selectedTemplateForPreview && (
+        <PromptPreviewModal
+          templateId={selectedTemplateForPreview}
+          language={language}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// Prompt 预览模态框组件
+interface PromptPreviewModalProps {
+  templateId: string
+  language: Language
+  onClose: () => void
+}
+
+function PromptPreviewModal({ templateId, language, onClose }: PromptPreviewModalProps) {
+  const template = getPromptTemplateById(templateId)
+  const previewContent = template ? getPromptTemplatePreview(templateId) : ''
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(previewContent)
+      toast.success(language === 'zh' ? '已复制到剪贴板' : 'Copied to clipboard')
+    } catch (error) {
+      toast.error(language === 'zh' ? '复制失败' : 'Copy failed')
+    }
+  }
+
+  if (!template) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-background border border-white/10 rounded-xl shadow-2xl max-w-4xl w-full max-h-[85vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-surface/30">
+          <div>
+            <h3 className="text-lg font-semibold text-text-primary">
+              {language === 'zh' ? '完整提示词预览' : 'Full Prompt Preview'}
+            </h3>
+            <p className="text-xs text-text-muted mt-1">
+              {template.name} - {language === 'zh' ? template.descriptionZh : template.description}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={handleCopy}>
+              {language === 'zh' ? '复制' : 'Copy'}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              ✕
+            </Button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="bg-surface/50 border border-white/5 rounded-lg p-4">
+            <pre className="text-xs font-mono text-text-primary whitespace-pre-wrap leading-relaxed">
+              {previewContent}
+            </pre>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 border-t border-white/5 bg-surface/30 text-xs text-text-muted">
+          {language === 'zh'
+            ? '提示词包含：核心身份、沟通风格、代码质量标准、工具定义、工作流规范和环境信息'
+            : 'Prompt includes: Core identity, communication style, code quality standards, tool definitions, workflow guidelines, and environment info'}
+        </div>
+      </div>
     </div>
   )
 }

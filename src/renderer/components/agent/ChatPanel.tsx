@@ -35,6 +35,7 @@ import PlanList from './PlanList'
 import { keybindingService } from '@/renderer/services/keybindingService'
 import SlashCommandPopup from './SlashCommandPopup'
 import { slashCommandService, SlashCommand } from '@/renderer/services/slashCommandService'
+import { AgentService } from '@/renderer/agent/core/AgentService'
 import { Button } from '../ui'
 import { useToast } from '@/renderer/components/ToastProvider'
 
@@ -137,6 +138,15 @@ export default function ChatPanel() {
       setInputPrompt('')
     }
   }, [inputPrompt, setInputPrompt])
+
+  // 实时更新上下文统计
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      AgentService.calculateContextStats(contextItems, input)
+    }, 500) // 500ms 防抖
+
+    return () => clearTimeout(timer)
+  }, [contextItems, messages, input])
 
   // 处理文件点击
   const handleFileClick = useCallback(async (filePath: string) => {

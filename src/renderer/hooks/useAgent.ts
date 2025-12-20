@@ -3,7 +3,7 @@
  * 提供 Agent 功能的 React Hook 接口
  */
 
-import { useCallback, useMemo, useEffect } from 'react'
+import { useCallback, useMemo, useEffect, useState } from 'react'
 import { useStore } from '@/renderer/store'
 import {
   useAgentStore,
@@ -21,7 +21,17 @@ import { buildSystemPrompt } from '@/renderer/agent/prompts'
 
 export function useAgent() {
   // 从主 store 获取配置
-  const { llmConfig, workspacePath, chatMode } = useStore()
+  const { llmConfig, workspacePath, chatMode, promptTemplateId, openFiles, activeFilePath } = useStore()
+
+  // 本地状态：aiInstructions（从 electron settings 获取）
+  const [aiInstructions, setAiInstructions] = useState<string>('')
+
+  // 加载 aiInstructions
+  useEffect(() => {
+    window.electronAPI.getSetting('aiInstructions').then(s => {
+      if (s) setAiInstructions(s as string)
+    })
+  }, [])
 
   // 从 Agent store 获取状态（使用选择器避免不必要的重渲染）
   const messages = useAgentStore(selectMessages)
@@ -77,7 +87,16 @@ export function useAgent() {
 
   // 发送消息
   const sendMessage = useCallback(async (content: MessageContent) => {
-    const systemPrompt = await buildSystemPrompt(chatMode, workspacePath)
+    // 类型转换：OpenFile[] -> string[], string | null -> string | undefined
+    const openFilePaths = openFiles.map(f => f.path)
+    const activeFile = activeFilePath || undefined
+
+    const systemPrompt = await buildSystemPrompt(chatMode, workspacePath, {
+      openFiles: openFilePaths,
+      activeFile,
+      customInstructions: aiInstructions,
+      promptTemplateId,
+    })
 
     await AgentService.sendMessage(
       content,
@@ -92,7 +111,7 @@ export function useAgent() {
       workspacePath,
       systemPrompt
     )
-  }, [llmConfig, workspacePath, chatMode])
+  }, [llmConfig, workspacePath, chatMode, promptTemplateId, aiInstructions, openFiles, activeFilePath])
 
   // 检测上下文是否过长（在用户发送消息前调用）
   const checkContextLength = useCallback((): { needsCompact: boolean; messageCount: number; charCount: number } => {

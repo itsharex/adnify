@@ -14,7 +14,7 @@ import { useAgentStore } from './AgentStore'
 import { useStore } from '../../store'  // 用于读取 autoApprove 配置
 import { executeTool, getToolDefinitions, getToolApprovalType, WRITE_TOOLS } from './ToolExecutor'
 import { buildOpenAIMessages, validateOpenAIMessages, OpenAIMessage } from './MessageConverter'
-import { MessageContent, ToolStatus, ContextItem, TextContent } from './types'
+import { MessageContent, ToolStatus, ContextItem, TextContent, UserMessage, AssistantMessage, ToolResultMessage } from './types'
 import { LLMStreamChunk, LLMToolCall } from '@/renderer/types/electron'
 import { parsePartialJson, truncateToolResult } from '@/renderer/utils/partialJson'
 
@@ -100,6 +100,72 @@ class AgentServiceClass {
   clearSession(): void {
     this.readFilesInSession.clear()
     console.log('[Agent] Session cleared')
+  }
+
+  /**
+   * 计算并更新当前上下文统计信息
+   */
+  async calculateContextStats(contextItems: ContextItem[], currentInput: string): Promise<void> {
+    const state = useStore.getState()
+    const agentStore = useAgentStore.getState()
+    const messages = agentStore.getMessages()
+    const filteredMessages = messages.filter(m => m.role !== 'checkpoint')
+
+    let totalChars = 0
+    let fileCount = 0
+    let semanticResultCount = 0
+
+    // 1. 计算消息历史长度
+    for (const msg of filteredMessages) {
+      if (msg.role === 'user' || msg.role === 'assistant') {
+        const content = (msg as UserMessage | AssistantMessage).content
+        if (typeof content === 'string') {
+          totalChars += content.length
+        } else if (Array.isArray(content)) {
+          for (const part of content) {
+            if (part.type === 'text') totalChars += part.text.length
+          }
+        }
+      } else if (msg.role === 'tool') {
+        totalChars += (msg as ToolResultMessage).content.length
+      }
+    }
+
+    // 2. 计算当前输入长度
+    totalChars += currentInput.length
+
+    // 3. 计算上下文项长度
+    for (const item of contextItems) {
+      if (item.type === 'File') {
+        fileCount++
+        const filePath = (item as any).uri
+        if (filePath) {
+          try {
+            // 注意：这里频繁读取文件可能有性能影响，后续可考虑缓存
+            const content = await window.electronAPI.readFile(filePath)
+            if (content) {
+              totalChars += Math.min(content.length, CONFIG.maxFileContentChars)
+            }
+          } catch (e) { }
+        }
+      } else if (item.type === 'Codebase') {
+        semanticResultCount++
+        // 预估搜索结果长度
+        totalChars += 2000
+      }
+    }
+
+    // 更新全局 Store 中的统计信息
+    state.setContextStats({
+      totalChars,
+      maxChars: CONFIG.maxTotalContextChars,
+      fileCount,
+      maxFiles: 10,
+      messageCount: filteredMessages.length,
+      maxMessages: CONFIG.maxHistoryMessages,
+      semanticResultCount,
+      terminalChars: 0
+    })
   }
 
   // ===== 公共方法 =====
