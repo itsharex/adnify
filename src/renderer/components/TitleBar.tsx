@@ -10,20 +10,22 @@ export default function TitleBar() {
     <div className="h-9 flex items-center justify-between px-3 drag-region select-none border-b border-border-subtle z-50 bg-background-secondary">
 
       {/* Left - Logo + Workspace Dropdown */}
-      <div className="flex items-center gap-2 no-drag w-1/3">
+      <div className="flex items-center gap-2 w-1/3">
         <div className="flex items-center gap-2 pl-2 opacity-80 hover:opacity-100 transition-opacity cursor-default">
           <Logo className="w-4 h-4 text-accent" glow />
           <span className="text-xs font-bold text-text-primary tracking-widest font-sans">ADNIFY</span>
         </div>
         <div className="h-4 w-[1px] bg-border-subtle mx-1" />
-        <WorkspaceDropdown />
+        <div className="no-drag">
+          <WorkspaceDropdown />
+        </div>
       </div>
 
       {/* Center - Command Palette Trigger */}
-      <div className="flex-1 flex justify-center no-drag">
+      <div className="flex-1 flex justify-center">
         <div
           onClick={() => setShowQuickOpen(true)}
-          className="flex items-center justify-center gap-2 px-3 py-1 rounded-md bg-surface/50 border border-white/5 hover:border-accent/30 hover:bg-surface hover:shadow-glow-sm transition-all cursor-pointer group w-96 text-xs backdrop-blur-sm"
+          className="no-drag flex items-center justify-center gap-2 px-3 py-1 rounded-md bg-surface/50 border border-white/5 hover:border-accent/30 hover:bg-surface hover:shadow-glow-sm transition-all cursor-pointer group w-96 text-xs backdrop-blur-sm"
         >
           <Search className="w-3 h-3 text-text-muted group-hover:text-accent transition-colors" />
           <span className="text-text-muted group-hover:text-text-primary transition-colors">Search files...</span>
@@ -34,43 +36,45 @@ export default function TitleBar() {
       </div>
 
       {/* Right Controls - 仅保留帮助和窗口控制 */}
-      <div className="flex items-center justify-end gap-1 no-drag w-1/3">
-        <Button
-          variant="icon"
-          size="icon"
-          onClick={() => setShowAbout(true)}
-          className="mr-1 w-7 h-7"
-          title="About Adnify"
-        >
-          <HelpCircle className="w-3.5 h-3.5" />
-        </Button>
+      <div className="flex items-center justify-end gap-1 w-1/3 pr-1">
+        <div className="no-drag flex items-center gap-1">
+          <Button
+            variant="icon"
+            size="icon"
+            onClick={() => setShowAbout(true)}
+            className="mr-1 w-7 h-7"
+            title="About Adnify"
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+          </Button>
 
-        <div className="h-4 w-[1px] bg-border-subtle mx-1" />
+          <div className="h-4 w-[1px] bg-border-subtle mx-1" />
 
-        <Button
-          variant="icon"
-          size="icon"
-          onClick={() => window.electronAPI.minimize()}
-          className="w-7 h-7"
-        >
-          <Minus className="w-3.5 h-3.5" />
-        </Button>
-        <Button
-          variant="icon"
-          size="icon"
-          onClick={() => window.electronAPI.maximize()}
-          className="w-7 h-7"
-        >
-          <Square className="w-3 h-3" />
-        </Button>
-        <Button
-          variant="icon"
-          size="icon"
-          onClick={() => window.electronAPI.close()}
-          className="w-7 h-7 hover:bg-status-error hover:text-white"
-        >
-          <X className="w-3.5 h-3.5" />
-        </Button>
+          <Button
+            variant="icon"
+            size="icon"
+            onClick={() => window.electronAPI.minimize()}
+            className="w-7 h-7"
+          >
+            <Minus className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            variant="icon"
+            size="icon"
+            onClick={() => window.electronAPI.maximize()}
+            className="w-7 h-7"
+          >
+            <Square className="w-3 h-3" />
+          </Button>
+          <Button
+            variant="icon"
+            size="icon"
+            onClick={() => window.electronAPI.close()}
+            className="w-7 h-7 hover:bg-status-error hover:text-white"
+          >
+            <X className="w-3.5 h-3.5" />
+          </Button>
+        </div>
       </div>
     </div>
   )

@@ -304,7 +304,6 @@ export function registerSecureTerminalHandlers(
     }
 
     const gitSubCommand = args[0].toLowerCase()
-    console.log('[Git] Executing:', gitSubCommand, 'Whitelist:', Array.from(WHITELIST.git))
     const whitelistCheck = SecureCommandParser.validateCommand(gitSubCommand, 'git')
 
     if (!whitelistCheck.safe) {
