@@ -19,7 +19,7 @@ import {
 import { useStore, ChatMode } from '../../store'
 import { t } from '../../i18n'
 import { Button } from '../ui'
-import { useModeStore } from '@/renderer/modes'
+
 import { ContextItem, FileContext } from '@/renderer/agent/core/types'
 
 export interface PendingImage {
@@ -304,7 +304,14 @@ export default function ChatInput({
             <Sparkles className="w-3 h-3" />
             AGENT
           </ModeButton>
-          <PlanModeButton chatMode={chatMode} />
+          <ModeButton
+            active={chatMode === 'plan'}
+            onClick={() => setChatMode('plan')}
+            accent
+          >
+            <ClipboardList className="w-3 h-3" />
+            PLAN
+          </ModeButton>
         </div>
         <span className="text-[10px] text-text-muted opacity-40 font-mono">
           {t('returnToSend', language)}
@@ -338,41 +345,6 @@ function ModeButton({
         }`}
     >
       {children}
-    </button>
-  )
-}
-
-// Plan Mode 按钮 (Agent 模式的子开关)
-function PlanModeButton({ chatMode }: { chatMode: 'chat' | 'agent' }) {
-  const { currentMode, setMode } = useModeStore()
-  const isPlan = currentMode === 'plan'
-  const isAgentMode = chatMode === 'agent'
-
-  // Chat 模式下禁用 Plan
-  if (!isAgentMode) {
-    return (
-      <button
-        disabled
-        className="h-6 px-3 gap-1.5 text-[10px] font-bold rounded-full flex items-center text-text-muted/30 cursor-not-allowed"
-        title="切换到 Agent 模式后可开启"
-      >
-        <ClipboardList className="w-3 h-3" />
-        PLAN
-      </button>
-    )
-  }
-
-  return (
-    <button
-      onClick={() => setMode(isPlan ? 'agent' : 'plan')}
-      className={`h-6 px-3 gap-1.5 text-[10px] font-bold transition-all duration-200 rounded-full flex items-center
-        ${isPlan
-          ? 'bg-purple-500/10 text-purple-400 shadow-sm shadow-purple-500/5 ring-1 ring-purple-500/20'
-          : 'text-text-muted hover:text-text-secondary hover:bg-white/5'
-        }`}
-    >
-      <ClipboardList className="w-3 h-3" />
-      PLAN
     </button>
   )
 }

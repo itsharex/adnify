@@ -27,21 +27,19 @@ export default function ChatHeader({
       <div className="flex bg-surface rounded-lg p-0.5 border border-border-subtle">
         <button
           onClick={() => setChatMode('chat')}
-          className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-            chatMode === 'chat'
+          className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${chatMode === 'chat'
               ? 'bg-background text-text-primary shadow-sm'
               : 'text-text-muted hover:text-text-primary'
-          }`}
+            }`}
         >
           Chat
         </button>
         <button
           onClick={() => setChatMode('agent')}
-          className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-            chatMode === 'agent'
+          className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${chatMode === 'agent' || chatMode === 'plan'
               ? 'text-accent bg-accent/10 shadow-sm'
               : 'text-text-muted hover:text-text-primary'
-          }`}
+            }`}
         >
           Agent
         </button>
@@ -50,9 +48,8 @@ export default function ChatHeader({
       <div className="flex items-center gap-1">
         <button
           onClick={() => setShowSessions(!showSessions)}
-          className={`p-1.5 rounded-md hover:bg-surface-hover transition-colors ${
-            showSessions ? 'text-accent' : 'text-text-muted'
-          }`}
+          className={`p-1.5 rounded-md hover:bg-surface-hover transition-colors ${showSessions ? 'text-accent' : 'text-text-muted'
+            }`}
           title={t('history', language)}
         >
           <History className="w-4 h-4" />

@@ -53,7 +53,7 @@ export type {
 export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'custom'
 
 // 聊天模式
-export type ChatMode = 'chat' | 'agent'
+export type ChatMode = 'chat' | 'agent' | 'plan'
 
 // 打开的文件
 export interface OpenFile {

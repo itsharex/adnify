@@ -24,17 +24,17 @@ const CHAT_CONFIG = {
   storageKey: 'adnify_chat_history',
 } as const
 
-export type ChatMode = 'chat' | 'agent'
+export type ChatMode = 'chat' | 'agent' | 'plan'
 
 export interface Message {
   id: string
   role: 'user' | 'assistant' | 'tool'
   content:
-    | string
-    | Array<
-        | { type: 'text'; text: string }
-        | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
-      >
+  | string
+  | Array<
+    | { type: 'text'; text: string }
+    | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+  >
   toolCallId?: string
   toolName?: string
   toolResult?: string
@@ -114,7 +114,16 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set)
   inputPrompt: '',
   contextStats: null,
 
-  setChatMode: (mode) => set({ chatMode: mode }),
+  setChatMode: (mode) => {
+    set({ chatMode: mode })
+    // 同步更新全局模式状态
+    try {
+      const { useModeStore } = require('../../modes/modeStore')
+      useModeStore.getState().setMode(mode)
+    } catch (e) {
+      console.warn('[ChatSlice] Failed to sync modeStore:', e)
+    }
+  },
 
   addMessage: (message) =>
     set((state) => {
@@ -123,14 +132,14 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set)
       if (typeof content === 'string' && content.length > CHAT_CONFIG.maxMessageLength) {
         content = content.slice(0, CHAT_CONFIG.maxMessageLength) + '\n...(truncated)'
       }
-      
-      const newMessage = { 
-        ...message, 
+
+      const newMessage = {
+        ...message,
         content,
-        id: crypto.randomUUID(), 
-        timestamp: Date.now() 
+        id: crypto.randomUUID(),
+        timestamp: Date.now()
       }
-      
+
       // 限制消息数量，保留最新的消息
       let messages = [...state.messages, newMessage]
       if (messages.length > CHAT_CONFIG.maxMessages) {
@@ -138,7 +147,7 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set)
         const excess = messages.length - CHAT_CONFIG.maxMessages
         messages = messages.slice(excess)
       }
-      
+
       return { messages }
     }),
 

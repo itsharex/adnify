@@ -12,7 +12,7 @@
 
 import { useAgentStore } from './AgentStore'
 import { useModeStore } from '@/renderer/modes'
-import { useStore } from '../../store'  // 用于读取 autoApprove 配置和记录日志
+import { useStore, ChatMode } from '../../store'  // 用于读取 autoApprove 配置和记录日志
 import { executeTool, getToolDefinitions, getToolApprovalType } from './ToolExecutor'
 import { buildOpenAIMessages, validateOpenAIMessages, OpenAIMessage } from './MessageConverter'
 import {
@@ -259,7 +259,7 @@ class AgentServiceClass {
     },
     workspacePath: string | null,
     systemPrompt: string,
-    chatMode: 'chat' | 'agent' = 'agent'
+    chatMode: ChatMode = 'agent'
   ): Promise<void> {
     // 防止重复执行
     if (this.isRunning) {
@@ -457,7 +457,7 @@ class AgentServiceClass {
     config: { provider: string; model: string; apiKey: string; baseUrl?: string },
     llmMessages: OpenAIMessage[],
     workspacePath: string | null,
-    chatMode: 'chat' | 'agent'
+    chatMode: ChatMode
   ): Promise<void> {
     const store = useAgentStore.getState()
     let loopCount = 0
@@ -675,7 +675,7 @@ class AgentServiceClass {
   private async callLLMWithRetry(
     config: { provider: string; model: string; apiKey: string; baseUrl?: string },
     messages: OpenAIMessage[],
-    chatMode: 'chat' | 'agent'
+    chatMode: ChatMode
   ): Promise<{ content?: string; toolCalls?: LLMToolCall[]; error?: string }> {
     let lastError: string | undefined
     let delay = CONFIG.retryDelayMs
@@ -709,7 +709,7 @@ class AgentServiceClass {
   private async callLLM(
     config: { provider: string; model: string; apiKey: string; baseUrl?: string },
     messages: OpenAIMessage[],
-    chatMode: 'chat' | 'agent'
+    chatMode: ChatMode
   ): Promise<{ content?: string; toolCalls?: LLMToolCall[]; error?: string }> {
     const store = useAgentStore.getState()
 
@@ -904,7 +904,7 @@ class AgentServiceClass {
       window.electronAPI.sendMessage({
         config,
         messages: messages as any,
-        tools: chatMode === 'chat' ? [] : getToolDefinitions(),
+        tools: chatMode === 'chat' ? [] : getToolDefinitions(chatMode === 'plan'),
         systemPrompt: '',
       }).catch((err) => {
         cleanupListeners()
