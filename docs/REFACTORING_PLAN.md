@@ -376,26 +376,27 @@ AgentService.ts (~1656 行) 拆分完成：
 - 移除了流式事件处理逻辑（移至 LLMStreamHandler.ts）
 - 移除了上下文构建逻辑（移至 ContextBuilder.ts）
 
-### Phase 6: 清理与优化 (可选)
-1. ✅ 删除 AgentService.ts 中重复的 compressMessages 函数
-2. 统一日志格式
-3. 添加更多类型注解
+### Phase 6: 清理与优化 ✅ 已完成
 
-### Phase 4: 目录重组 (2-3 天)
-1. 创建新目录结构
-2. 移动文件到新位置
-3. 更新所有导入路径
-4. 创建 index.ts 导出文件
+**TypeScript 错误修复：**
+- ✅ 修复 `index.ts` 类型导出（使用 `export type`）
+- ✅ 修复 `createPlanSlice.ts` 缺少的 `PlanStatus`/`PlanItemStatus` 导出
+- ✅ 在 `types.ts` 中添加 `PlanStatus` 和 `PlanItemStatus` 枚举
+- ✅ 修复 `AgentStore.ts` 类型推断问题（添加类型断言）
+- ✅ 移除 `promptTemplates.ts` 未使用的 logger 导入
+- ✅ 移除 `ChatPanel.tsx` 未使用的变量（clearContextItems, handleSlashCommand）
+- ✅ 移除 `PlanPreview.tsx` 未使用的 id 变量
+- ✅ 移除 `ToolCallGroup.tsx` 未使用的 CheckCircle2 导入
 
-### Phase 5: 日志迁移 (1-2 天)
-1. 替换所有 console.* 为 logger.*
-2. 添加适当的日志分类
-3. 配置日志级别
+**冗余代码清理：**
+- ✅ 删除 `MessageBuilder.ts`（与 ContextBuilder.ts 功能重复）
+- ✅ 移除 `enums.ts` 中重复的 PlanStatus/PlanItemStatus（已在 types.ts 定义）
 
-### Phase 6: 测试与文档 (1-2 天)
-1. 运行所有测试
-2. 手动测试关键功能
-3. 更新文档
+**未使用但保留的文件（作为未来扩展点）：**
+- `ElectronEnvironment.ts` + `interfaces.ts` - Electron API 抽象层
+- `PlanManager.ts` - Plan 模式管理器
+- `UndoService.ts` - 撤销服务
+- `toolRegistry.ts` - 高级工具注册系统
 
 ---
 
@@ -414,6 +415,8 @@ AgentService.ts (~1656 行) 拆分完成：
 | 原 SettingsModal.tsx 行数 | 1936 → 180 |
 | AgentService 新增模块 | 3 |
 | 原 AgentService.ts 行数 | 1656 → 705 |
+| TypeScript 错误修复 | 12 |
+| 删除冗余文件 | 1 |
 
 ## 五、路径别名配置
 
@@ -446,7 +449,11 @@ AgentService.ts (~1656 行) 拆分完成：
 
 - [x] 所有测试通过
 - [x] 构建成功
+- [x] TypeScript 无错误 (`npx tsc --noEmit` 通过)
 - [x] 所有导入使用路径别名
 - [x] Sidebar.tsx 拆分完成 (1938 → 30 行)
+- [x] SettingsModal.tsx 拆分完成 (1936 → 180 行)
+- [x] AgentService.ts 拆分完成 (1656 → 705 行)
+- [x] 冗余代码清理完成
 - [x] SettingsModal.tsx 拆分完成 (1936 → 170 行)
 - [x] AgentService.ts 拆分完成 (1656 → 705 行，新增 3 个模块)

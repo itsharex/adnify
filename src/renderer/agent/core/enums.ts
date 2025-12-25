@@ -35,20 +35,7 @@ export enum ToolResultType {
     Rejected = 'rejected',       // 用户拒绝
 }
 
-export enum PlanStatus {
-    Draft = 'draft',
-    Active = 'active',
-    Completed = 'completed',
-    Failed = 'failed',
-}
-
-export enum PlanItemStatus {
-    Pending = 'pending',
-    InProgress = 'in_progress',
-    Completed = 'completed',
-    Failed = 'failed',
-    Skipped = 'skipped',
-}
+// PlanStatus 和 PlanItemStatus 已移至 types.ts
 
 export enum ContextItemType {
     File = 'File',

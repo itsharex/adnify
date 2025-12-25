@@ -28,6 +28,8 @@ import {
   isTextPart,
   Plan,
   PlanItem,
+  PlanStatus,
+  PlanItemStatus,
 } from './types'
 
 // ===== Store 类型 =====
@@ -410,7 +412,8 @@ export const useAgentStore = create<AgentStore>()(
 
           const messages = thread.messages.map(msg => {
             if (msg.id === messageId) {
-              return { ...msg, ...updates }
+              // 使用类型断言确保类型正确
+              return { ...msg, ...updates } as ChatMessage
             }
             return msg
           })
@@ -1046,9 +1049,9 @@ export const useAgentStore = create<AgentStore>()(
               id: generateShortId(),
               title: item.title,
               description: item.description,
-              status: 'pending'
+              status: PlanItemStatus.Pending
             })),
-            status: 'draft',
+            status: PlanStatus.Draft,
             currentStepId: null,
             createdAt: Date.now(),
             updatedAt: Date.now()
@@ -1091,7 +1094,7 @@ export const useAgentStore = create<AgentStore>()(
             id: generateShortId(),
             title: item.title,
             description: item.description,
-            status: 'pending',
+            status: PlanItemStatus.Pending,
           }
           return {
             plan: {
