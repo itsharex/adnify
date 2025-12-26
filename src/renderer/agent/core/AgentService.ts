@@ -11,28 +11,25 @@
  */
 
 import { logger } from '@utils/Logger'
+import { performanceMonitor } from '@shared/utils/PerformanceMonitor'
 import { useAgentStore } from './AgentStore'
 import { useStore } from '@store'
 import { WorkMode } from '@/renderer/modes/types'
-import { executeTool, getToolDefinitions, getToolApprovalType } from './ToolExecutor'
-import { buildOpenAIMessages, validateOpenAIMessages, OpenAIMessage } from './MessageConverter'
+import { executeTool, getToolDefinitions } from './ToolExecutor'
+import { OpenAIMessage } from './MessageConverter'
 import {
   ContextItem,
   MessageContent,
-  ToolExecutionResult,
   TextContent,
-  ToolStatus,
 } from './types'
 import { LLMStreamChunk, LLMToolCall } from '@/renderer/types/electron'
-import { truncateToolResult } from '@/renderer/utils/partialJson'
-import { READ_ONLY_TOOLS, isFileModifyingTool } from '@/shared/constants'
+import { READ_ONLY_TOOLS } from '@/shared/constants'
 
 // 导入拆分的模块
 import {
   getAgentConfig,
   READ_TOOLS,
   RETRYABLE_ERROR_CODES,
-  isRetryableError,
   LoopDetector,
 } from './AgentConfig'
 import {
@@ -51,9 +48,12 @@ import {
 } from './LLMStreamHandler'
 import {
   buildContextContent,
-  buildUserContent,
   calculateContextStats,
 } from './ContextBuilder'
+
+// 导入新的服务模块
+import { toolExecutionService } from './ToolExecutionService'
+import { buildLLMMessages, compressContext } from './MessageBuilder'
 
 export interface LLMCallConfig {
   provider: string
@@ -70,7 +70,6 @@ export interface LLMCallConfig {
 
 class AgentServiceClass {
   private abortController: AbortController | null = null
-  private approvalResolver: ((approved: boolean) => void) | null = null
   private currentAssistantId: string | null = null
   private isRunning = false
   private unsubscribers: (() => void)[] = []
@@ -138,7 +137,7 @@ class AgentServiceClass {
         : 'User message'
       await store.createMessageCheckpoint(userMessageId, messageText)
 
-      const llmMessages = await this.buildLLMMessages(userMessage, contextContent, systemPrompt)
+      const llmMessages = await buildLLMMessages(userMessage, contextContent, systemPrompt)
       this.currentAssistantId = store.addAssistantMessage()
       store.setStreamPhase('streaming')
 
@@ -151,30 +150,18 @@ class AgentServiceClass {
     }
   }
 
+  // 委托给 ToolExecutionService 处理审批
   approve(): void {
-    if (this.approvalResolver) {
-      this.approvalResolver(true)
-      this.approvalResolver = null
-    }
+    toolExecutionService.approve()
   }
 
   reject(): void {
-    if (this.approvalResolver) {
-      this.approvalResolver(false)
-      this.approvalResolver = null
-    }
+    toolExecutionService.reject()
   }
 
   approveAndEnableAuto(): void {
     const streamState = useAgentStore.getState().streamState
-    if (streamState.currentToolCall) {
-      const approvalType = getToolApprovalType(streamState.currentToolCall.name)
-      if (approvalType) {
-        useStore.getState().setAutoApprove({ [approvalType]: true })
-        logger.agent.info(`[Agent] Auto-approve enabled for type: ${approvalType}`)
-      }
-    }
-    this.approve()
+    toolExecutionService.approveAndEnableAuto(streamState.currentToolCall || undefined)
   }
 
   abort(): void {
@@ -183,10 +170,8 @@ class AgentServiceClass {
     }
     window.electronAPI.abortMessage()
 
-    if (this.approvalResolver) {
-      this.approvalResolver(false)
-      this.approvalResolver = null
-    }
+    // 通知 ToolExecutionService 拒绝当前等待的审批
+    toolExecutionService.reject()
 
     const store = useAgentStore.getState()
     if (this.currentAssistantId) {
@@ -213,51 +198,6 @@ class AgentServiceClass {
 
   // ===== 私有方法：核心逻辑 =====
 
-  private async compressContext(messages: OpenAIMessage[]): Promise<void> {
-    const config = getAgentConfig()
-    const MAX_CHARS = config.contextCompressThreshold
-    let totalChars = 0
-
-    for (const msg of messages) {
-      if (typeof msg.content === 'string') {
-        totalChars += msg.content.length
-      } else if (Array.isArray(msg.content)) {
-        totalChars += 1000
-      }
-    }
-
-    if (totalChars <= MAX_CHARS) return
-
-    logger.agent.info(`[Agent] Context size ${totalChars} exceeds limit ${MAX_CHARS}, compressing...`)
-
-    let userCount = 0
-    let cutOffIndex = messages.length
-
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === 'user') {
-        userCount++
-        if (userCount === 3) {
-          cutOffIndex = i
-          break
-        }
-      }
-    }
-
-    for (let i = 0; i < cutOffIndex; i++) {
-      const msg = messages[i]
-
-      if (msg.role === 'tool' && typeof msg.content === 'string' && msg.content.length > 100) {
-        msg.content = '[Tool output removed to save context]'
-      }
-
-      if (msg.role === 'assistant' && typeof msg.content === 'string' && msg.content.length > 500) {
-        if (!msg.tool_calls || msg.tool_calls.length === 0) {
-          msg.content = msg.content.slice(0, 200) + '\n...[Content truncated]...\n' + msg.content.slice(-200)
-        }
-      }
-    }
-  }
-
   private async runAgentLoop(
     config: LLMCallConfig,
     llmMessages: OpenAIMessage[],
@@ -279,7 +219,8 @@ class AgentServiceClass {
 
       logger.agent.info(`[Agent] Loop iteration ${loopCount}`)
 
-      await this.compressContext(llmMessages)
+      // 使用 MessageBuilder 的 compressContext
+      await compressContext(llmMessages, agentLoopConfig.contextCompressThreshold)
 
       const result = await this.callLLMWithRetry(config, llmMessages, chatMode)
 
@@ -378,7 +319,11 @@ class AgentServiceClass {
           readToolCalls.map(async (toolCall) => {
             logger.agent.info(`[Agent] Executing read tool: ${toolCall.name}`, toolCall.arguments)
             try {
-              const toolResult = await this.executeToolCall(toolCall, workspacePath)
+              // 使用 ToolExecutionService 执行工具
+              const toolResult = await toolExecutionService.executeToolCall(toolCall, {
+                workspacePath,
+                currentAssistantId: this.currentAssistantId,
+              })
               return { toolCall, toolResult }
             } catch (error: any) {
               logger.agent.error(`[Agent] Error executing read tool ${toolCall.name}:`, error)
@@ -408,7 +353,11 @@ class AgentServiceClass {
         logger.agent.info(`[Agent] Executing write tool: ${toolCall.name}`, toolCall.arguments)
         let toolResult
         try {
-          toolResult = await this.executeToolCall(toolCall, workspacePath)
+          // 使用 ToolExecutionService 执行工具
+          toolResult = await toolExecutionService.executeToolCall(toolCall, {
+            workspacePath,
+            currentAssistantId: this.currentAssistantId,
+          })
         } catch (error: any) {
           logger.agent.error(`[Agent] Error executing write tool ${toolCall.name}:`, error)
           toolResult = { success: false, content: `Error executing tool: ${error.message}`, rejected: false }
@@ -492,6 +441,12 @@ class AgentServiceClass {
     messages: OpenAIMessage[],
     chatMode: WorkMode
   ): Promise<{ content?: string; toolCalls?: LLMToolCall[]; reasoning?: string; reasoningStartTime?: number; usage?: { promptTokens: number; completionTokens: number; totalTokens: number }; error?: string }> {
+    // 开始性能监控
+    performanceMonitor.start(`llm:${config.model}`, 'llm', {
+      provider: config.provider,
+      messageCount: messages.length,
+    })
+
     return new Promise((resolve) => {
       // 重置流式状态
       this.streamState = createStreamHandlerState()
@@ -534,6 +489,9 @@ class AgentServiceClass {
       // 监听完成
       this.unsubscribers.push(
         window.electronAPI.onLLMDone((result) => {
+          // 结束性能监控
+          performanceMonitor.end(`llm:${config.model}`, true)
+          
           cleanupListeners()
           const finalResult = handleLLMDone(result, this.streamState, this.currentAssistantId)
           // 更新 store 中的 usage 信息
@@ -549,6 +507,9 @@ class AgentServiceClass {
       // 监听错误
       this.unsubscribers.push(
         window.electronAPI.onLLMError((error) => {
+          // 结束性能监控（失败）
+          performanceMonitor.end(`llm:${config.model}`, false, { error: error.message })
+          
           closeReasoningIfNeeded(this.streamState, this.currentAssistantId)
           cleanupListeners()
           resolve({ error: error.message })
@@ -568,219 +529,6 @@ class AgentServiceClass {
     })
   }
 
-
-  private async executeToolCall(
-    toolCall: LLMToolCall,
-    workspacePath: string | null
-  ): Promise<{ success: boolean; content: string; rejected?: boolean }> {
-    const store = useAgentStore.getState()
-    const { id, name, arguments: args } = toolCall
-
-    const approvalType = getToolApprovalType(name)
-    const { autoApprove } = useStore.getState()
-    const needsApproval = approvalType && !(autoApprove as any)[approvalType]
-
-    if (this.currentAssistantId) {
-      store.updateToolCall(this.currentAssistantId, id, {
-        status: needsApproval ? 'awaiting' : 'running',
-      })
-    }
-
-    if (needsApproval) {
-      store.setStreamPhase('tool_pending', { id, name, arguments: args, status: 'awaiting' })
-      const approved = await this.waitForApproval()
-
-      if (!approved) {
-        if (this.currentAssistantId) {
-          store.updateToolCall(this.currentAssistantId, id, { status: 'rejected', error: 'Rejected by user' })
-        }
-        store.addToolResult(id, name, 'Tool call was rejected by the user.', 'rejected', args as Record<string, unknown>)
-        return { success: false, content: 'Tool call was rejected by the user.', rejected: true }
-      }
-
-      if (this.currentAssistantId) {
-        store.updateToolCall(this.currentAssistantId, id, { status: 'running' })
-      }
-    }
-
-    store.setStreamPhase('tool_running', { id, name, arguments: args, status: 'running' })
-
-    const startTime = Date.now()
-    useStore.getState().addToolCallLog({ type: 'request', toolName: name, data: { name, arguments: args } })
-
-    let originalContent: string | null = null
-    let fullPath: string | null = null
-
-    if (isFileModifyingTool(name)) {
-      const filePath = args.path as string
-      if (filePath && workspacePath) {
-        fullPath = filePath.startsWith(workspacePath) ? filePath : `${workspacePath}/${filePath}`
-        originalContent = await window.electronAPI.readFile(fullPath)
-        store.addSnapshotToCurrentCheckpoint(fullPath, originalContent)
-      }
-    }
-
-    const config = getAgentConfig()
-    const timeoutMs = config.toolTimeoutMs
-    const maxRetries = config.maxRetries
-    const retryDelayMs = config.retryDelayMs
-
-    const executeWithTimeout = () => Promise.race([
-      executeTool(name, args, workspacePath || undefined),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Tool execution timed out after ${timeoutMs / 1000}s`)), timeoutMs)
-      )
-    ])
-
-    let result: ToolExecutionResult | undefined
-    let lastError: string = ''
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        result = await executeWithTimeout()
-        if (result.success) break
-        lastError = result.error || 'Unknown error'
-
-        if (attempt < maxRetries && isRetryableError(lastError)) {
-          logger.agent.info(`[AgentService] Tool ${name} failed (attempt ${attempt}/${maxRetries}), retrying...`)
-          await new Promise(resolve => setTimeout(resolve, retryDelayMs * attempt))
-        } else {
-          break
-        }
-      } catch (error: any) {
-        lastError = error.message
-        if (attempt < maxRetries && isRetryableError(lastError)) {
-          logger.agent.info(`[AgentService] Tool ${name} error (attempt ${attempt}/${maxRetries}): ${lastError}, retrying...`)
-          await new Promise(resolve => setTimeout(resolve, retryDelayMs * attempt))
-        } else {
-          result = { success: false, result: '', error: lastError }
-          break
-        }
-      }
-    }
-
-    if (!result) {
-      result = { success: false, result: '', error: lastError || 'Tool execution failed' }
-    }
-
-    useStore.getState().addToolCallLog({
-      type: 'response',
-      toolName: name,
-      data: { success: result.success, result: result.result?.slice?.(0, 500), error: result.error },
-      duration: Date.now() - startTime
-    })
-
-    const status: ToolStatus = result.success ? 'success' : 'error'
-    if (this.currentAssistantId) {
-      store.updateToolCall(this.currentAssistantId, id, {
-        status,
-        result: result.result,
-        error: result.error,
-        arguments: { ...args, _meta: result.meta },
-      })
-    }
-
-    if (result.success && fullPath && isFileModifyingTool(name)) {
-      const meta = result.meta as { linesAdded?: number; linesRemoved?: number; newContent?: string; isNewFile?: boolean } | undefined
-      store.addPendingChange({
-        filePath: fullPath,
-        toolCallId: id,
-        toolName: name,
-        snapshot: { fsPath: fullPath, content: originalContent },
-        linesAdded: meta?.linesAdded || 0,
-        linesRemoved: meta?.linesRemoved || 0,
-      })
-
-      try {
-        const { composerService } = await import('../composerService')
-        const relativePath = workspacePath ? fullPath.replace(workspacePath, '').replace(/^[\\/]/, '') : fullPath
-        composerService.addChange({
-          filePath: fullPath,
-          relativePath,
-          oldContent: originalContent,
-          newContent: meta?.newContent || null,
-          changeType: name === 'delete_file_or_folder' ? 'delete' : (meta?.isNewFile ? 'create' : 'modify'),
-          linesAdded: meta?.linesAdded || 0,
-          linesRemoved: meta?.linesRemoved || 0,
-          toolCallId: id,
-        })
-      } catch (e) {
-        logger.agent.warn('[Agent] Failed to add to composer:', e)
-      }
-    }
-
-    const resultConfig = getAgentConfig()
-    const resultContent = result.success ? (result.result || '') : `Error: ${result.error || 'Unknown error'}`
-    const truncatedContent = truncateToolResult(resultContent, name, resultConfig.maxToolResultChars)
-    const resultType = result.success ? 'success' : 'tool_error'
-    store.addToolResult(id, name, truncatedContent, resultType, args as Record<string, unknown>)
-
-    return { success: result.success, content: truncatedContent, rejected: false }
-  }
-
-  // ===== 私有方法：消息构建 =====
-
-  private async buildLLMMessages(
-    currentMessage: MessageContent,
-    contextContent: string,
-    systemPrompt: string
-  ): Promise<OpenAIMessage[]> {
-    const store = useAgentStore.getState()
-    const historyMessages = store.getMessages()
-
-    const { shouldCompactContext, prepareMessagesForCompact, createCompactedSystemMessage } = await import('./ContextCompressor')
-
-    type NonCheckpointMessage = Exclude<typeof historyMessages[number], { role: 'checkpoint' }>
-    let filteredMessages: NonCheckpointMessage[] = historyMessages.filter(
-      (m): m is NonCheckpointMessage => m.role !== 'checkpoint'
-    )
-    let compactedSummary: string | null = null
-
-    const llmConfig = getAgentConfig()
-
-    if (shouldCompactContext(filteredMessages)) {
-      logger.agent.info('[Agent] Context exceeds threshold, compacting...')
-
-      const existingSummary = (store as any).contextSummary
-      if (existingSummary) {
-        compactedSummary = existingSummary
-        const { recentMessages } = prepareMessagesForCompact(filteredMessages as any)
-        filteredMessages = recentMessages as NonCheckpointMessage[]
-      } else {
-        filteredMessages = filteredMessages.slice(-llmConfig.maxHistoryMessages)
-      }
-    } else {
-      filteredMessages = filteredMessages.slice(-llmConfig.maxHistoryMessages)
-    }
-
-    const effectiveSystemPrompt = compactedSummary
-      ? `${systemPrompt}\n\n${createCompactedSystemMessage(compactedSummary)}`
-      : systemPrompt
-
-    const openaiMessages = buildOpenAIMessages(filteredMessages as any, effectiveSystemPrompt)
-
-    for (const msg of openaiMessages) {
-      if (msg.role === 'tool' && typeof msg.content === 'string') {
-        if (msg.content.length > llmConfig.maxToolResultChars) {
-          msg.content = truncateToolResult(msg.content, 'default', llmConfig.maxToolResultChars)
-        }
-      }
-    }
-
-    const userContent = buildUserContent(currentMessage, contextContent)
-    openaiMessages.push({ role: 'user', content: userContent })
-
-    const validation = validateOpenAIMessages(openaiMessages)
-    if (!validation.valid) logger.agent.warn('[Agent] Message validation warning:', validation.error)
-
-    return openaiMessages
-  }
-
-  private waitForApproval(): Promise<boolean> {
-    return new Promise((resolve) => {
-      this.approvalResolver = resolve
-    })
-  }
 
   private showError(message: string): void {
     const store = useAgentStore.getState()

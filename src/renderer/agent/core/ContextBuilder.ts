@@ -9,6 +9,7 @@ import { useAgentStore } from './AgentStore'
 import { executeTool } from './ToolExecutor'
 import { getAgentConfig } from './AgentConfig'
 import { ContextItem, MessageContent, TextContent } from './types'
+import { fileContentCache, searchResultCache } from '@shared/utils/CacheService'
 
 /**
  * 构建上下文内容
@@ -78,7 +79,7 @@ async function processContextItem(
 }
 
 /**
- * 处理文件上下文
+ * 处理文件上下文（带缓存）
  */
 async function processFileContext(
   item: { uri: string },
@@ -86,7 +87,16 @@ async function processFileContext(
 ): Promise<string | null> {
   const filePath = item.uri
   try {
-    const content = await window.electronAPI.readFile(filePath)
+    // 使用缓存服务
+    const content = await fileContentCache.getOrSet(
+      filePath,
+      async () => {
+        const fileContent = await window.electronAPI.readFile(filePath)
+        return fileContent || ''
+      },
+      2 * 60 * 1000 // 2 分钟 TTL
+    )
+    
     if (content) {
       const truncated = content.length > config.maxFileContentChars
         ? content.slice(0, config.maxFileContentChars) + '\n...(file truncated)'
@@ -100,7 +110,7 @@ async function processFileContext(
 }
 
 /**
- * 处理代码库搜索上下文
+ * 处理代码库搜索上下文（带缓存）
  */
 async function processCodebaseContext(
   userQuery: string | undefined,
@@ -110,7 +120,17 @@ async function processCodebaseContext(
 
   try {
     const cleanQuery = userQuery.replace(/@codebase\s*/i, '').trim() || userQuery
-    const results = await window.electronAPI.indexSearch(workspacePath, cleanQuery, 20)
+    const cacheKey = `${workspacePath}:${cleanQuery}`
+    
+    // 使用缓存服务
+    const results = await searchResultCache.getOrSet(
+      cacheKey,
+      async () => {
+        const searchResults = await window.electronAPI.indexSearch(workspacePath, cleanQuery, 20)
+        return searchResults || []
+      },
+      60 * 1000 // 1 分钟 TTL（搜索结果变化较快）
+    ) as Array<{ relativePath: string; score: number; language: string; content: string }>
 
     if (results && results.length > 0) {
       return `\n### Codebase Search Results for "${cleanQuery}":\n` +

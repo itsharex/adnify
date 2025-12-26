@@ -15,6 +15,7 @@ interface ProviderCacheEntry {
   provider: LLMProvider
   lastUsed: number
   useCount: number
+  configHash: string  // 用于检测配置变更
 }
 
 // 缓存配置
@@ -74,13 +75,30 @@ export class LLMService {
   }
 
   /**
+   * 生成配置哈希（用于检测配置变更）
+   */
+  private generateConfigHash(config: LLMConfig): string {
+    const relevantConfig = {
+      apiKey: config.apiKey,
+      baseUrl: config.baseUrl,
+      timeout: config.timeout,
+      adapterId: config.adapterId,
+      adapterConfig: config.adapterConfig ? {
+        id: config.adapterConfig.id,
+        isBuiltin: config.adapterConfig.isBuiltin,
+      } : null,
+    }
+    return JSON.stringify(relevantConfig)
+  }
+
+  /**
    * 生成 Provider 缓存 key
    */
   private getProviderKey(config: LLMConfig): string {
     // 根据 adapterConfig.isBuiltin 和 id 生成唯一 key
     const adapterKey = config.adapterConfig?.id || config.adapterId || config.provider
     const isCustom = config.adapterConfig?.isBuiltin === false
-    return `${isCustom ? 'custom:' : ''}${adapterKey}:${config.baseUrl || 'default'}:${config.apiKey?.slice(-8) || 'nokey'}`
+    return `${isCustom ? 'custom:' : ''}${adapterKey}:${config.baseUrl || 'default'}`
   }
 
   /**
@@ -94,12 +112,20 @@ export class LLMService {
    */
   private getProvider(config: LLMConfig): LLMProvider {
     const key = this.getProviderKey(config)
+    const configHash = this.generateConfigHash(config)
     const cached = this.providerCache.get(key)
 
-    if (cached) {
+    // 检查缓存是否有效（配置未变更）
+    if (cached && cached.configHash === configHash) {
       cached.lastUsed = Date.now()
       cached.useCount++
       return cached.provider
+    }
+
+    // 配置变更或缓存不存在，创建新 Provider
+    if (cached && cached.configHash !== configHash) {
+      logger.system.info('[LLMService] Config changed, recreating provider:', key)
+      this.providerCache.delete(key)
     }
 
     let provider: LLMProvider
@@ -137,9 +163,35 @@ export class LLMService {
       provider,
       lastUsed: Date.now(),
       useCount: 1,
+      configHash,
     })
 
     return provider
+  }
+
+  /**
+   * 使指定 Provider 的缓存失效
+   */
+  invalidateProvider(providerId: string): void {
+    const keysToDelete: string[] = []
+    for (const key of this.providerCache.keys()) {
+      if (key.includes(providerId)) {
+        keysToDelete.push(key)
+      }
+    }
+    for (const key of keysToDelete) {
+      this.providerCache.delete(key)
+      logger.system.info('[LLMService] Provider invalidated:', key)
+    }
+  }
+
+  /**
+   * 使所有 Provider 缓存失效（API Key 变更时调用）
+   */
+  invalidateAllProviders(): void {
+    const count = this.providerCache.size
+    this.providerCache.clear()
+    logger.system.info(`[LLMService] All ${count} providers invalidated`)
   }
 
   /**

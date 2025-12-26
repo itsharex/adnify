@@ -97,7 +97,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
 
   const handleComplete = async () => {
     // 使用统一的 settingsService 保存
-    const { settingsService, defaultAgentConfig, defaultEditorSettings } = await import('@services/settingsService')
+    const { settingsService, defaultAgentConfig } = await import('@services/settingsService')
 
     // 更新 Store 状态
     setLanguage(selectedLanguage)
@@ -111,16 +111,15 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
     }
 
     // 使用 settingsService 统一保存（自动清理冗余数据）
+    // 注意：不再保存 editorSettings，编辑器配置由 editorConfig.ts 独立管理
     await settingsService.saveAll({
       llmConfig: providerConfig as any,
       language: selectedLanguage,
       autoApprove: localAutoApprove,
       agentConfig: defaultAgentConfig,
       providerConfigs: {},
-      editorSettings: defaultEditorSettings,
       aiInstructions: '',
       onboardingCompleted: true,
-      securitySettings: localSecurity as any,
     })
 
     onComplete()

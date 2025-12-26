@@ -1,11 +1,17 @@
 /**
  * 统一设置服务
  * 集中管理所有应用设置的加载、保存和清理
+ * 
+ * 设计原则：
+ * 1. 只保存用户修改过的配置，内置默认值不保存
+ * 2. 内置 Provider 的 adapterConfig 不保存（代码已定义）
+ * 3. 自定义 Provider 的完整配置需要保存
+ * 4. editorSettings 已废弃，使用独立的 editorConfig
  */
 
 import { logger } from '@utils/Logger'
 import { LLM_DEFAULTS } from '@/shared/constants'
-import { PROVIDERS, getAdapterConfig, type LLMAdapterConfig } from '@/shared/config/providers'
+import { PROVIDERS, getAdapterConfig, getBuiltinAdapter, type LLMAdapterConfig } from '@/shared/config/providers'
 
 // ============ 类型定义 ============
 
@@ -32,14 +38,14 @@ export interface LLMConfig {
     thinkingBudget?: number
 }
 
-/** Provider 配置 */
+/** Provider 配置 - 只保存用户修改的部分 */
 export interface ProviderConfig {
     apiKey?: string
     baseUrl?: string
     model?: string
     timeout?: number
     adapterId?: string
-    adapterConfig?: LLMAdapterConfig
+    adapterConfig?: LLMAdapterConfig  // 只有自定义 Provider 才保存
     customModels?: string[]
 }
 
@@ -63,37 +69,7 @@ export interface AgentConfig {
     maxSingleFileChars: number
 }
 
-/** 编辑器设置 */
-export interface EditorSettings {
-    fontSize: number
-    tabSize: number
-    wordWrap: string
-    lineNumbers: string
-    minimap: boolean
-    bracketPairColorization: boolean
-    formatOnSave: boolean
-    autoSave: string
-    theme: string
-    completionEnabled: boolean
-    completionDebounceMs: number
-    completionMaxTokens: number
-}
-
-/** 安全设置 */
-export interface SecuritySettings {
-    strictWorkspaceMode: boolean
-    enableAuditLog: boolean
-    allowedPaths: string[]
-    blockedCommands: string[]
-}
-
-/** 嵌入配置 */
-export interface EmbeddingConfig {
-    provider: string
-    apiKey?: string
-}
-
-/** 完整的应用设置 */
+/** 完整的应用设置（不再包含 editorSettings） */
 export interface AppSettings {
     llmConfig: LLMConfig
     language: string
@@ -101,10 +77,16 @@ export interface AppSettings {
     promptTemplateId?: string
     agentConfig: AgentConfig
     providerConfigs: Record<string, ProviderConfig>
-    editorSettings: EditorSettings
     aiInstructions: string
     onboardingCompleted: boolean
-    securitySettings?: SecuritySettings
+}
+
+// ============ 内置 Provider ID 列表 ============
+const BUILTIN_PROVIDER_IDS = ['openai', 'anthropic', 'gemini', 'custom']
+
+/** 判断是否为内置 Provider */
+function isBuiltinProvider(providerId: string): boolean {
+    return BUILTIN_PROVIDER_IDS.includes(providerId)
 }
 
 // ============ 默认值 ============
@@ -140,22 +122,7 @@ const defaultAgentConfig: AgentConfig = {
     maxSingleFileChars: 6000,
 }
 
-const defaultEditorSettings: EditorSettings = {
-    fontSize: 13,
-    tabSize: 2,
-    wordWrap: 'on',
-    lineNumbers: 'on',
-    minimap: true,
-    bracketPairColorization: true,
-    formatOnSave: true,
-    autoSave: 'off',
-    theme: 'adnify-dark',
-    completionEnabled: true,
-    completionDebounceMs: 300,
-    completionMaxTokens: 256,
-}
-
-// 生成所有 Provider 的默认配置
+// 生成所有内置 Provider 的默认配置（运行时使用，不保存）
 const generateDefaultProviderConfigs = (): Record<string, ProviderConfig> => {
     const configs: Record<string, ProviderConfig> = {}
     for (const provider of Object.values(PROVIDERS)) {
@@ -171,49 +138,90 @@ const generateDefaultProviderConfigs = (): Record<string, ProviderConfig> => {
 
 // ============ 清理工具函数 ============
 
-/** 移除对象中的空值 */
-function cleanObject<T extends Record<string, unknown>>(obj: T): Partial<T> {
-    const cleaned: Partial<T> = {}
-    for (const [key, value] of Object.entries(obj)) {
-        if (value === undefined || value === null || value === '') continue
-        if (typeof value === 'object' && value !== null && !Array.isArray(value) && Object.keys(value).length === 0) continue
-        if (Array.isArray(value) && value.length === 0) continue
-        cleaned[key as keyof T] = value as T[keyof T]
-    }
-    return cleaned
+/** 判断 LLM 参数是否为默认值 */
+function isDefaultParameters(params?: LLMParameters): boolean {
+    if (!params) return true
+    return (
+        params.temperature === LLM_DEFAULTS.TEMPERATURE &&
+        params.topP === LLM_DEFAULTS.TOP_P &&
+        params.maxTokens === LLM_DEFAULTS.MAX_TOKENS &&
+        !params.frequencyPenalty &&
+        !params.presencePenalty
+    )
 }
 
-/** 清理 Provider 配置 */
-function cleanProviderConfig(config: ProviderConfig): Partial<ProviderConfig> {
-    const cleaned = cleanObject(config as Record<string, unknown>) as Partial<ProviderConfig>
-    // 移除默认超时值
-    if (cleaned.timeout === 120000) delete cleaned.timeout
-    // 移除空的 customModels
-    if (Array.isArray(cleaned.customModels) && cleaned.customModels.length === 0) {
-        delete cleaned.customModels
-    }
-    return cleaned
+/** 判断 baseUrl 是否为默认值 */
+function isDefaultBaseUrl(providerId: string, baseUrl?: string): boolean {
+    if (!baseUrl) return true
+    const provider = PROVIDERS[providerId]
+    return provider?.endpoint.default === baseUrl
 }
 
-/** 清理 LLM 配置 */
-function cleanLLMConfig(config: LLMConfig): LLMConfig {
-    const cleaned = { ...config }
-    if (!cleaned.baseUrl) delete cleaned.baseUrl
-    if (cleaned.timeout === 120000) delete cleaned.timeout
-    // parameters 保留，但清理默认值
-    if (cleaned.parameters) {
-        const { temperature, topP, maxTokens, ...rest } = cleaned.parameters
-        cleaned.parameters = {
-            ...rest,
-            temperature: temperature ?? LLM_DEFAULTS.TEMPERATURE,
-            topP: topP ?? LLM_DEFAULTS.TOP_P,
-            maxTokens: maxTokens ?? LLM_DEFAULTS.MAX_TOKENS,
+/** 清理 LLM 配置 - 简化版：只保存 provider 和 model */
+function cleanLLMConfig(config: LLMConfig): Partial<LLMConfig> {
+    // llmConfig 只保存当前选中的 provider 和 model
+    // 其他配置（apiKey、baseUrl、adapterConfig）保存在 providerConfigs 中
+    return {
+        provider: config.provider,
+        model: config.model,
+    }
+}
+
+/** 清理单个 Provider 配置 - 保存完整的 Provider 配置 */
+function cleanProviderConfig(
+    providerId: string,
+    config: ProviderConfig,
+    isCurrentProvider: boolean
+): Partial<ProviderConfig> | null {
+    const isBuiltin = isBuiltinProvider(providerId)
+    const cleaned: Partial<ProviderConfig> = {}
+
+    // apiKey 始终保存（如果有）
+    if (config.apiKey) {
+        cleaned.apiKey = config.apiKey
+    }
+
+    // baseUrl: 只保存非默认值
+    if (config.baseUrl && !isDefaultBaseUrl(providerId, config.baseUrl)) {
+        cleaned.baseUrl = config.baseUrl
+    }
+
+    // model: 当前 Provider 保存
+    if (isCurrentProvider && config.model) {
+        cleaned.model = config.model
+    }
+
+    // timeout: 只保存非默认值
+    if (config.timeout && config.timeout !== 120000) {
+        cleaned.timeout = config.timeout
+    }
+
+    // customModels: 只保存非空数组
+    if (config.customModels && config.customModels.length > 0) {
+        cleaned.customModels = config.customModels
+    }
+
+    // adapterId 和 adapterConfig: 
+    // - 内置 Provider: 不保存 adapterConfig（代码已定义）
+    // - 自定义 Provider: 保存完整配置
+    if (!isBuiltin) {
+        if (config.adapterId) {
+            cleaned.adapterId = config.adapterId
+        }
+        if (config.adapterConfig) {
+            cleaned.adapterConfig = config.adapterConfig
         }
     }
+
+    // 如果清理后没有任何有意义的数据，返回 null
+    if (Object.keys(cleaned).length === 0) {
+        return null
+    }
+
     return cleaned
 }
 
-/** 清理所有 Provider 配置，只保留有意义的数据 */
+/** 清理所有 Provider 配置 */
 function cleanProviderConfigs(
     configs: Record<string, ProviderConfig>,
     currentProvider: string
@@ -221,19 +229,11 @@ function cleanProviderConfigs(
     const cleaned: Record<string, ProviderConfig> = {}
 
     for (const [id, config] of Object.entries(configs)) {
-        const cleanedConfig = cleanProviderConfig(config)
+        const isCurrentProvider = id === currentProvider
+        const cleanedConfig = cleanProviderConfig(id, config, isCurrentProvider)
 
-        // 当前 Provider 始终保留
-        if (id === currentProvider) {
-            if (Object.keys(cleanedConfig).length > 0) {
-                cleaned[id] = cleanedConfig as ProviderConfig
-            }
-        } else {
-            // 其他 Provider：只有有实质性配置时才保存
-            if (cleanedConfig.apiKey || cleanedConfig.baseUrl ||
-                (cleanedConfig.customModels && cleanedConfig.customModels.length > 0)) {
-                cleaned[id] = cleanedConfig as ProviderConfig
-            }
+        if (cleanedConfig) {
+            cleaned[id] = cleanedConfig as ProviderConfig
         }
     }
 
@@ -254,18 +254,22 @@ class SettingsService {
                 return this.getDefaultSettings()
             }
 
-            // 合并默认值
+            // 1. 先合并 providerConfigs（因为 llmConfig 需要从中获取配置）
+            const mergedProviderConfigs = this.mergeProviderConfigs(settings.providerConfigs)
+
+            // 2. 合并 llmConfig，从 providerConfigs 获取完整配置
+            const llmConfig = this.mergeLLMConfig(settings.llmConfig, mergedProviderConfigs)
+
+            // 3. 合并其他配置
             const merged: AppSettings = {
-                llmConfig: this.mergeLLMConfig(settings.llmConfig),
+                llmConfig,
                 language: settings.language || 'en',
                 autoApprove: { ...defaultAutoApprove, ...settings.autoApprove },
                 promptTemplateId: settings.promptTemplateId,
                 agentConfig: { ...defaultAgentConfig, ...settings.agentConfig },
-                providerConfigs: this.mergeProviderConfigs(settings.providerConfigs),
-                editorSettings: { ...defaultEditorSettings, ...settings.editorSettings },
+                providerConfigs: mergedProviderConfigs,
                 aiInstructions: settings.aiInstructions || '',
                 onboardingCompleted: settings.onboardingCompleted ?? false,
-                securitySettings: settings.securitySettings,
             }
 
             this.cache = merged
@@ -279,20 +283,31 @@ class SettingsService {
     /** 保存所有设置 */
     async saveAll(settings: AppSettings): Promise<void> {
         try {
-            // 清理数据
-            const cleaned: AppSettings = {
-                ...settings,
-                llmConfig: cleanLLMConfig(settings.llmConfig),
-                providerConfigs: cleanProviderConfigs(
-                    settings.providerConfigs,
-                    settings.llmConfig.provider
-                ),
+            // 清理数据，只保存用户修改的部分
+            const cleanedLLMConfig = cleanLLMConfig(settings.llmConfig)
+            const cleanedProviderConfigs = cleanProviderConfigs(
+                settings.providerConfigs,
+                settings.llmConfig.provider
+            )
+
+            const cleaned = {
+                llmConfig: cleanedLLMConfig,
+                language: settings.language,
+                autoApprove: settings.autoApprove,
+                promptTemplateId: settings.promptTemplateId,
+                agentConfig: settings.agentConfig,
+                providerConfigs: cleanedProviderConfigs,
+                aiInstructions: settings.aiInstructions,
+                onboardingCompleted: settings.onboardingCompleted,
             }
 
             await window.electronAPI.setSetting('app-settings', cleaned)
-            this.cache = cleaned
+            this.cache = settings  // 缓存完整的合并后配置
 
-            logger.settings.info('[SettingsService] Settings saved successfully')
+            logger.settings.info('[SettingsService] Settings saved (cleaned)', {
+                providerCount: Object.keys(cleanedProviderConfigs).length,
+                hasAdapterConfig: !!cleanedLLMConfig.adapterConfig,
+            })
         } catch (e) {
             logger.settings.error('[SettingsService] Failed to save settings:', e)
             throw e
@@ -325,30 +340,48 @@ class SettingsService {
             autoApprove: defaultAutoApprove,
             agentConfig: defaultAgentConfig,
             providerConfigs: generateDefaultProviderConfigs(),
-            editorSettings: defaultEditorSettings,
             aiInstructions: '',
             onboardingCompleted: false,
         }
     }
 
-    /** 合并 LLM 配置 */
-    private mergeLLMConfig(saved?: Partial<LLMConfig>): LLMConfig {
+    /** 
+     * 合并 LLM 配置 
+     * 新设计：llmConfig 只保存 provider 和 model，其他配置从 providerConfigs 获取
+     */
+    private mergeLLMConfig(
+        saved?: Partial<LLMConfig>,
+        providerConfigs?: Record<string, ProviderConfig>
+    ): LLMConfig {
         if (!saved) return defaultLLMConfig
 
+        const providerId = saved.provider || 'openai'
+        const providerConfig = providerConfigs?.[providerId] || {}
+
+        // 从 providerConfigs 获取完整配置
         const merged: LLMConfig = {
             ...defaultLLMConfig,
-            ...saved,
+            provider: providerId,
+            model: saved.model || providerConfig.model || defaultLLMConfig.model,
+            apiKey: providerConfig.apiKey || '',
+            baseUrl: providerConfig.baseUrl,
+            timeout: providerConfig.timeout,
+            adapterId: providerConfig.adapterId || providerId,
+            adapterConfig: providerConfig.adapterConfig,
             parameters: {
                 ...defaultLLMParameters,
                 ...saved.parameters,
             },
         }
 
-        // 如果没有 adapterConfig 但有 adapterId，使用内置预设
-        if (!merged.adapterConfig && merged.adapterId) {
-            const preset = getAdapterConfig(merged.adapterId)
-            if (preset) {
-                merged.adapterConfig = preset
+        // 如果没有 adapterConfig，从内置适配器获取
+        if (!merged.adapterConfig) {
+            const adapterId = merged.adapterId || merged.provider
+            const builtinAdapter = getBuiltinAdapter(adapterId)
+            if (builtinAdapter) {
+                merged.adapterConfig = builtinAdapter
+            } else {
+                merged.adapterConfig = getAdapterConfig('openai')
             }
         }
 
@@ -362,10 +395,25 @@ class SettingsService {
         if (!saved) return defaults
 
         const merged: Record<string, ProviderConfig> = { ...defaults }
+        
         for (const [id, config] of Object.entries(saved)) {
-            merged[id] = {
-                ...defaults[id],
-                ...config,
+            const isBuiltin = isBuiltinProvider(id)
+            
+            if (isBuiltin) {
+                // 内置 Provider: 合并用户配置，但 adapterConfig 使用代码定义的
+                merged[id] = {
+                    ...defaults[id],
+                    ...config,
+                    // 强制使用内置的 adapterConfig
+                    adapterConfig: defaults[id]?.adapterConfig || getAdapterConfig(id),
+                }
+            } else {
+                // 自定义 Provider: 使用保存的完整配置
+                merged[id] = {
+                    ...config,
+                    // 确保有 adapterConfig
+                    adapterConfig: config.adapterConfig || getAdapterConfig('openai'),
+                }
             }
         }
 
@@ -387,6 +435,6 @@ export {
     defaultLLMParameters,
     defaultAutoApprove,
     defaultAgentConfig,
-    defaultEditorSettings,
     generateDefaultProviderConfigs,
+    isBuiltinProvider,
 }

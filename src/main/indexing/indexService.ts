@@ -232,6 +232,49 @@ export class CodebaseIndexService {
   }
 
   /**
+   * 批量增量更新文件
+   * 用于文件监听器批量触发的场景
+   */
+  async updateFiles(filePaths: string[]): Promise<void> {
+    if (!this.vectorStore.isInitialized() || filePaths.length === 0) {
+      return
+    }
+
+    if (!this.worker) {
+      this.initWorker()
+    }
+
+    // 过滤有效文件
+    const validFiles = filePaths.filter(filePath => {
+      const ext = path.extname(filePath).toLowerCase()
+      return this.config.includedExts.includes(ext)
+    })
+
+    if (validFiles.length === 0) return
+
+    logger.index.info(`[IndexService] Batch updating ${validFiles.length} files`)
+
+    this.worker?.postMessage({
+      type: 'batch_update',
+      workspacePath: this.workspacePath,
+      files: validFiles,
+      config: this.config
+    })
+  }
+
+  /**
+   * 删除文件索引
+   */
+  async deleteFileIndex(filePath: string): Promise<void> {
+    if (!this.vectorStore.isInitialized()) {
+      return
+    }
+
+    await this.vectorStore.deleteFile(filePath)
+    logger.index.info(`[IndexService] Deleted index for: ${filePath}`)
+  }
+
+  /**
    * 语义搜索
    */
   async search(query: string, topK: number = 10): Promise<SearchResult[]> {

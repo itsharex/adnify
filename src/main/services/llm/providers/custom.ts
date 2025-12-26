@@ -19,6 +19,11 @@ interface RequestData {
     body: Record<string, unknown>
 }
 
+/** 扩展的 ToolCall 类型，用于累加参数 */
+interface ToolCallWithBuffer extends ToolCall {
+    _argsBuffer?: string
+}
+
 export class CustomProvider extends BaseProvider {
     private adapterConfig: LLMAdapterConfig
     private apiKey: string
@@ -239,7 +244,7 @@ export class CustomProvider extends BaseProvider {
         let buffer = ''
         let fullContent = ''
         let fullReasoning = ''
-        const toolCalls: Map<number, ToolCall> = new Map()
+        const toolCalls: Map<number, ToolCallWithBuffer> = new Map()
 
         const doneMarker = responseConfig.doneMarker || '[DONE]'
         const contentField = responseConfig.contentField || 'delta.content'
@@ -331,12 +336,15 @@ export class CustomProvider extends BaseProvider {
                                 if (argsIsObject) {
                                     existing.arguments = argsData as Record<string, unknown>
                                 } else if (typeof argsData === 'string') {
-                                    // 累加 JSON 字符串
-                                    const currentArgs = JSON.stringify(existing.arguments)
+                                    // 累加 JSON 字符串片段
+                                    if (!existing._argsBuffer) {
+                                        existing._argsBuffer = ''
+                                    }
+                                    existing._argsBuffer += argsData
                                     try {
-                                        existing.arguments = JSON.parse(currentArgs === '{}' ? argsData : currentArgs + argsData)
+                                        existing.arguments = JSON.parse(existing._argsBuffer)
                                     } catch {
-                                        // 继续累加
+                                        // JSON 不完整，继续累加
                                     }
                                 }
                             }

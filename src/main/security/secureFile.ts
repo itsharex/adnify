@@ -1,104 +1,45 @@
+/**
+ * 安全文件操作模块
+ * 整合文件操作、工作区管理和文件监听功能
+ */
+
 import { logger } from '@shared/utils/Logger'
 import { ipcMain, dialog, shell } from 'electron'
-
 import * as path from 'path'
 import { promises as fsPromises } from 'fs'
 import Store from 'electron-store'
 import { securityManager, OperationType } from './securityModule'
 
-let watcherSubscription: any = null
+// 导入拆分的模块
+import { readFileWithEncoding, readLargeFile } from './fileUtils'
+import {
+  setupFileWatcher,
+  cleanupFileWatcher,
+  FileWatcherEvent,
+} from './fileWatcher'
+import {
+  registerWorkspaceHandlers,
+  WindowManagerContext,
+} from './workspaceHandlers'
 
-interface FileWatcherEvent {
-  event: 'create' | 'update' | 'delete'
-  path: string
-}
-
-
-
-// 读取带编码检测的文件
-async function readFileWithEncoding(filePath: string): Promise<string | null> {
-  try {
-    const buffer = await fsPromises.readFile(filePath)
-    if (buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) {
-      return buffer.toString('utf-8').substring(3)
-    }
-    if (buffer.includes(0)) {
-      return '[binary file]'
-    }
-    return buffer.toString('utf-8')
-  } catch {
-    return null
-  }
-}
-
-// 读取大文件片段
-async function readLargeFile(filePath: string, start: number, maxLength: number): Promise<string | null> {
-  try {
-    const fd = await fsPromises.open(filePath, 'r')
-    const buffer = Buffer.alloc(maxLength)
-    const { bytesRead } = await fd.read(buffer, 0, maxLength, start)
-    await fd.close()
-    return buffer.toString('utf-8', 0, bytesRead)
-  } catch {
-    return null
-  }
-}
-
-
-// 文件监听
-function setupFileWatcher(
-  getWorkspaceSessionFn: () => { roots: string[] } | null,
-  callback: (data: FileWatcherEvent) => void
-) {
-  const workspace = getWorkspaceSessionFn()
-  if (!workspace || workspace.roots.length === 0) return
-
-  const chokidar = require('chokidar')
-  const watcher = chokidar.watch(workspace.roots, {
-    ignored: [/node_modules/, /\.git/, /dist/, /build/, /\.adnify/, '**/*.tmp', '**/*.temp'],
-    persistent: true,
-    ignoreInitial: true,
-  })
-
-  watcherSubscription = watcher
-    .on('add', (path: string) => callback({ event: 'create', path }))
-    .on('change', (path: string) => callback({ event: 'update', path }))
-    .on('unlink', (path: string) => callback({ event: 'delete', path }))
-    .on('error', (error: Error) => logger.security.error('[Watcher] Error:', error))
-
-    ; (global as any).fileWatcher = watcher
-}
-
-// 窗口管理上下文类型
-interface WindowManagerContext {
-  findWindowByWorkspace?: (roots: string[]) => any
-  setWindowWorkspace?: (windowId: number, roots: string[]) => void
-}
-
-// 注册所有 IPC Handlers
+/**
+ * 注册所有安全文件 IPC Handlers
+ * 整合文件操作和工作区管理
+ */
 export function registerSecureFileHandlers(
   getMainWindowFn: () => any,
   store: any,
   getWorkspaceSessionFn: () => { roots: string[] } | null,
   windowManager?: WindowManagerContext
 ) {
-  ; (global as any).mainWindow = getMainWindowFn()
+  ;(global as any).mainWindow = getMainWindowFn()
 
-  // 辅助函数：添加到最近工作区列表（存储到config store，支持自定义路径）
-  function addRecentWorkspace(path: string) {
-    const recent = store.get('recentWorkspaces', []) as string[]
-
-    // 移除重复项，添加到开头，最多保留10个
-    const filtered = recent.filter((p: string) => p.toLowerCase() !== path.toLowerCase())
-    const updated = [path, ...filtered].slice(0, 10)
-
-    store.set('recentWorkspaces', updated)
-    logger.security.info('[SecureFile] Updated recent workspaces:', updated.length, 'items')
-  }
+  // 注册工作区相关处理器（从 workspaceHandlers.ts 导入）
+  registerWorkspaceHandlers(getMainWindowFn, store, getWorkspaceSessionFn, windowManager)
 
   // ========== 文件操作处理器 ==========
 
-  // 打开文件
+  // 打开文件（带对话框）
   ipcMain.handle('file:open', async () => {
     const mainWindow = getMainWindowFn()
     if (!mainWindow) return null
@@ -118,222 +59,11 @@ export function registerSecureFileHandlers(
       const content = await fsPromises.readFile(filePath, 'utf-8')
       securityManager.logOperation(OperationType.FILE_READ, filePath, true, {
         userAction: true,
-        size: content.length
+        size: content.length,
       })
       return { path: filePath, content }
     }
     return null
-  })
-
-  // 打开文件夹
-  ipcMain.handle('file:openFolder', async (event) => {
-    const mainWindow = getMainWindowFn()
-    if (!mainWindow) return null
-
-    const result = await dialog.showOpenDialog(mainWindow, {
-      properties: ['openDirectory'],
-    })
-
-    if (!result.canceled && result.filePaths[0]) {
-      const folderPath = result.filePaths[0]
-
-      // 检查是否已有窗口打开了该项目（单项目单窗口模式）
-      if (windowManager?.findWindowByWorkspace) {
-        const existingWindow = windowManager.findWindowByWorkspace([folderPath])
-        if (existingWindow && existingWindow !== mainWindow) {
-          // 聚焦已有窗口
-          if (existingWindow.isMinimized()) {
-            existingWindow.restore()
-          }
-          existingWindow.focus()
-          logger.security.info('[SecureFile] Project already open in another window, focusing:', folderPath)
-          // 返回特殊标记，告诉渲染进程项目已在其他窗口打开
-          return { redirected: true, path: folderPath }
-        }
-      }
-
-      // 记录当前窗口的工作区
-      const webContentsId = event.sender.id
-      if (windowManager?.setWindowWorkspace) {
-        windowManager.setWindowWorkspace(webContentsId, [folderPath])
-      }
-
-      // 保存到 config store（支持自定义路径）
-      store.set('lastWorkspacePath', folderPath)
-      store.set('lastWorkspaceSession', { configPath: null, roots: [folderPath] })
-      // 添加到最近工作区
-      addRecentWorkspace(folderPath)
-      return folderPath
-    }
-    return null
-  })
-
-  // 打开工作区 (多根支持)
-  ipcMain.handle('workspace:open', async (event) => {
-    const mainWindow = getMainWindowFn()
-    if (!mainWindow) return null
-
-    const result = await dialog.showOpenDialog(mainWindow, {
-      properties: ['openFile', 'openDirectory'],
-      filters: [
-        { name: 'Adnify Workspace', extensions: ['adnify-workspace'] },
-        { name: 'All Files', extensions: ['*'] }
-      ]
-    })
-
-    if (!result.canceled && result.filePaths[0]) {
-      const targetPath = result.filePaths[0]
-
-      let roots: string[] = []
-
-      // Check if it's a workspace file
-      if (targetPath.endsWith('.adnify-workspace')) {
-        try {
-          const content = await fsPromises.readFile(targetPath, 'utf-8')
-          const config = JSON.parse(content)
-          roots = config.folders.map((f: any) => f.path)
-        } catch (e) {
-          logger.security.error('Failed to parse workspace file', e)
-          return null
-        }
-      } else {
-        // It's a folder
-        roots = [targetPath]
-      }
-
-      // 检查是否已有窗口打开了该项目（单项目单窗口模式）
-      if (windowManager?.findWindowByWorkspace && roots.length > 0) {
-        const existingWindow = windowManager.findWindowByWorkspace(roots)
-        if (existingWindow && existingWindow !== mainWindow) {
-          // 聚焦已有窗口
-          if (existingWindow.isMinimized()) {
-            existingWindow.restore()
-          }
-          existingWindow.focus()
-          logger.security.info('[SecureFile] Workspace already open in another window, focusing:', roots)
-          return { redirected: true, roots }
-        }
-      }
-
-      // 记录当前窗口的工作区
-      const webContentsId = event.sender.id
-      if (windowManager?.setWindowWorkspace) {
-        windowManager.setWindowWorkspace(webContentsId, roots)
-      }
-
-      const session = { configPath: targetPath.endsWith('.adnify-workspace') ? targetPath : null, roots }
-      store.set('lastWorkspaceSession', session)
-      store.set('lastWorkspacePath', roots[0]) // Legacy fallback
-      // 添加到最近工作区
-      roots.forEach(r => addRecentWorkspace(r))
-      return session
-    }
-    return null
-  })
-
-  // 添加文件夹到工作区
-  ipcMain.handle('workspace:addFolder', async () => {
-    const mainWindow = getMainWindowFn()
-    if (!mainWindow) return null
-
-    const result = await dialog.showOpenDialog(mainWindow, {
-      properties: ['openDirectory']
-    })
-
-    if (!result.canceled && result.filePaths[0]) {
-      return result.filePaths[0]
-    }
-    return null
-  })
-
-  // 保存工作区
-  ipcMain.handle('workspace:save', async (_, configPath: string, roots: string[]) => {
-    if (!configPath || !roots) return false
-
-    // If no config path, ask user to save
-    let targetPath = configPath
-    if (!targetPath) {
-      const mainWindow = getMainWindowFn()
-      const result = await dialog.showSaveDialog(mainWindow!, {
-        filters: [{ name: 'Adnify Workspace', extensions: ['adnify-workspace'] }]
-      })
-      if (result.canceled || !result.filePath) return false
-      targetPath = result.filePath
-    }
-
-    const content = JSON.stringify({
-      folders: roots.map(path => ({ path }))
-    }, null, 2)
-
-    try {
-      await fsPromises.writeFile(targetPath, content, 'utf-8')
-      return true
-    } catch (e) {
-      logger.security.error('Failed to save workspace', e)
-      return false
-    }
-  })
-
-  // 恢复工作区
-  ipcMain.handle('workspace:restore', async (event) => {
-    const session = store.get('lastWorkspaceSession') as { configPath: string | null; roots: string[] } | null
-
-    if (session) {
-      // 设置窗口工作区映射
-      const webContentsId = event.sender.id
-      if (windowManager?.setWindowWorkspace && session.roots.length > 0) {
-        windowManager.setWindowWorkspace(webContentsId, session.roots)
-      }
-      // 自动启动文件监听
-      setupFileWatcher(getWorkspaceSessionFn, (data: FileWatcherEvent) => {
-        const win = getMainWindowFn()
-        if (win) {
-          win.webContents.send('file:changed', data)
-        }
-      })
-      return session
-    }
-
-    // Fallback to legacy
-    const legacyPath = store.get('lastWorkspacePath') as string | null
-    if (legacyPath) {
-      // 设置窗口工作区映射
-      const webContentsId = event.sender.id
-      if (windowManager?.setWindowWorkspace) {
-        windowManager.setWindowWorkspace(webContentsId, [legacyPath])
-      }
-      // 自动启动文件监听
-      setupFileWatcher(getWorkspaceSessionFn, (data: FileWatcherEvent) => {
-        const win = getMainWindowFn()
-        if (win) {
-          win.webContents.send('file:changed', data)
-        }
-      })
-      return { configPath: null, roots: [legacyPath] }
-    }
-
-    return null
-  })
-
-  // 设置活动工作区（渲染进程打开最近工作区时调用）
-  ipcMain.handle('workspace:setActive', async (event, roots: string[]) => {
-    if (!roots || roots.length === 0) return false
-
-    // 设置窗口工作区映射
-    const webContentsId = event.sender.id
-    if (windowManager?.setWindowWorkspace) {
-      windowManager.setWindowWorkspace(webContentsId, roots)
-    }
-
-    // 保存到 config store
-    store.set('lastWorkspacePath', roots[0])
-    store.set('lastWorkspaceSession', { configPath: null, roots })
-
-    // 添加到最近工作区
-    roots.forEach(r => addRecentWorkspace(r))
-
-    logger.security.info('[SecureFile] Active workspace set:', roots)
-    return true
   })
 
   // 读取目录
@@ -343,7 +73,7 @@ export function registerSecureFileHandlers(
 
     try {
       const items = await fsPromises.readdir(dirPath, { withFileTypes: true })
-      return items.map(item => ({
+      return items.map((item) => ({
         name: item.name,
         path: path.join(dirPath, item.name),
         isDirectory: item.isDirectory(),
@@ -381,7 +111,7 @@ export function registerSecureFileHandlers(
     return await buildTree(dirPath, 0)
   })
 
-  // 读取文件 - 无弹窗
+  // 读取文件（无弹窗，使用拆分的 fileUtils）
   ipcMain.handle('file:read', async (_, filePath: string) => {
     if (!filePath) return null
     const workspace = getWorkspaceSessionFn()
@@ -403,13 +133,15 @@ export function registerSecureFileHandlers(
 
     try {
       const stats = await fsPromises.stat(filePath)
-      const content = stats.size > 5 * 1024 * 1024
-        ? await readLargeFile(filePath, 0, 10000)
-        : await readFileWithEncoding(filePath)
+      // 使用拆分的 fileUtils 函数
+      const content =
+        stats.size > 5 * 1024 * 1024
+          ? await readLargeFile(filePath, 0, 10000)
+          : await readFileWithEncoding(filePath)
 
       securityManager.logOperation(OperationType.FILE_READ, filePath, true, {
         size: stats.size,
-        bypass: true
+        bypass: true,
       })
       return content
     } catch (e: any) {
@@ -418,12 +150,11 @@ export function registerSecureFileHandlers(
     }
   })
 
-  // 读取二进制文件为 base64 - 用于图片预览
+  // 读取二进制文件为 base64
   ipcMain.handle('file:readBinary', async (_, filePath: string) => {
     if (!filePath) return null
     const workspace = getWorkspaceSessionFn()
 
-    // 强制工作区边界
     if (workspace && !securityManager.validateWorkspacePath(filePath, workspace.roots)) {
       securityManager.logOperation(OperationType.FILE_READ, filePath, false, {
         reason: '安全底线：超出工作区边界',
@@ -440,7 +171,6 @@ export function registerSecureFileHandlers(
 
     try {
       const stats = await fsPromises.stat(filePath)
-      // 限制文件大小为 50MB
       if (stats.size > 50 * 1024 * 1024) {
         return null
       }
@@ -450,7 +180,7 @@ export function registerSecureFileHandlers(
 
       securityManager.logOperation(OperationType.FILE_READ, filePath, true, {
         size: stats.size,
-        binary: true
+        binary: true,
       })
       return base64
     } catch (e: any) {
@@ -459,14 +189,13 @@ export function registerSecureFileHandlers(
     }
   })
 
-  // 写入文件 - 无弹窗
+  // 写入文件（无弹窗）
   ipcMain.handle('file:write', async (_, filePath: string, content: string) => {
     if (!filePath || typeof filePath !== 'string') return false
     if (content === undefined || content === null) return false
 
     const workspace = getWorkspaceSessionFn()
 
-    // 强制工作区边界
     if (workspace && !securityManager.validateWorkspacePath(filePath, workspace.roots)) {
       securityManager.logOperation(OperationType.FILE_WRITE, filePath, false, {
         reason: '安全底线：超出工作区边界',
@@ -474,7 +203,6 @@ export function registerSecureFileHandlers(
       return false
     }
 
-    // 底线：敏感路径
     if (securityManager.isSensitivePath(filePath)) {
       securityManager.logOperation(OperationType.FILE_WRITE, filePath, false, {
         reason: '安全底线：敏感路径',
@@ -482,11 +210,8 @@ export function registerSecureFileHandlers(
       return false
     }
 
-    // 底线：禁止类型
-    const forbiddenPatterns = [
-      /\.exe$/i, /\.dll$/i, /\.sys$/i,
-      /\.tmp$/i, /\.temp$/i,
-    ]
+    // 禁止类型检查
+    const forbiddenPatterns = [/\.exe$/i, /\.dll$/i, /\.sys$/i, /\.tmp$/i, /\.temp$/i]
     for (const pattern of forbiddenPatterns) {
       if (pattern.test(filePath)) {
         securityManager.logOperation(OperationType.FILE_WRITE, filePath, false, {
@@ -502,7 +227,7 @@ export function registerSecureFileHandlers(
       await fsPromises.writeFile(filePath, content, 'utf-8')
       securityManager.logOperation(OperationType.FILE_WRITE, filePath, true, {
         size: content.length,
-        bypass: true
+        bypass: true,
       })
       return true
     } catch (e: any) {
@@ -523,7 +248,7 @@ export function registerSecureFileHandlers(
     }
   })
 
-  // 保存文件 - 无弹窗（已有路径）
+  // 保存文件（带对话框支持）
   ipcMain.handle('file:save', async (_, content: string, currentPath?: string) => {
     if (currentPath) {
       if (securityManager.isSensitivePath(currentPath)) return null
@@ -532,7 +257,7 @@ export function registerSecureFileHandlers(
         await fsPromises.mkdir(dir, { recursive: true })
         await fsPromises.writeFile(currentPath, content, 'utf-8')
         securityManager.logOperation(OperationType.FILE_WRITE, currentPath, true, {
-          bypass: true
+          bypass: true,
         })
         return currentPath
       } catch {
@@ -540,12 +265,13 @@ export function registerSecureFileHandlers(
       }
     }
 
-    // 新建文件：需要选择路径（用户操作，允许弹窗）
+    // 新建文件：需要选择路径
     const mainWindow = getMainWindowFn()
     if (!mainWindow) return null
 
     const workspace = getWorkspaceSessionFn()
-    const defaultPath = (workspace && workspace.roots.length > 0) ? workspace.roots[0] : require('os').homedir()
+    const defaultPath =
+      workspace && workspace.roots.length > 0 ? workspace.roots[0] : require('os').homedir()
 
     const result = await dialog.showSaveDialog(mainWindow, {
       defaultPath,
@@ -563,7 +289,7 @@ export function registerSecureFileHandlers(
         await fsPromises.writeFile(savePath, content, 'utf-8')
         securityManager.logOperation(OperationType.FILE_WRITE, savePath, true, {
           isNewFile: true,
-          bypass: true
+          bypass: true,
         })
         return savePath
       } catch {
@@ -583,7 +309,7 @@ export function registerSecureFileHandlers(
     }
   })
 
-  // 创建目录 - 无弹窗
+  // 创建目录（无弹窗）
   ipcMain.handle('file:mkdir', async (_, dirPath: string) => {
     if (!dirPath || typeof dirPath !== 'string') return false
     if (securityManager.isSensitivePath(dirPath)) return false
@@ -592,7 +318,7 @@ export function registerSecureFileHandlers(
       await fsPromises.mkdir(dirPath, { recursive: true })
       securityManager.logOperation(OperationType.FILE_WRITE, dirPath, true, {
         isDirectory: true,
-        bypass: true
+        bypass: true,
       })
       return true
     } catch (e: any) {
@@ -601,9 +327,8 @@ export function registerSecureFileHandlers(
     }
   })
 
-  // 删除文件/目录 - 无弹窗，仅底线检查
+  // 删除文件/目录（无弹窗，仅底线检查）
   ipcMain.handle('file:delete', async (_, filePath: string) => {
-    // 底线：敏感路径
     if (securityManager.isSensitivePath(filePath)) {
       securityManager.logOperation(OperationType.FILE_DELETE, filePath, false, {
         reason: '安全底线：敏感路径',
@@ -611,13 +336,8 @@ export function registerSecureFileHandlers(
       return false
     }
 
-    // 底线：关键配置文件
-    const criticalFiles = [
-      /\.env$/i,
-      /package-lock\.json$/i,
-      /yarn\.lock$/i,
-      /pnpm-lock\.yaml$/i,
-    ]
+    // 关键配置文件保护
+    const criticalFiles = [/\.env$/i, /package-lock\.json$/i, /yarn\.lock$/i, /pnpm-lock\.yaml$/i]
     for (const pattern of criticalFiles) {
       if (pattern.test(filePath)) {
         securityManager.logOperation(OperationType.FILE_DELETE, filePath, false, {
@@ -627,7 +347,7 @@ export function registerSecureFileHandlers(
       }
     }
 
-    // 底线：大目录保护
+    // 大目录保护
     try {
       const stat = await fsPromises.stat(filePath)
       if (stat.isDirectory() && stat.size > 100 * 1024 * 1024) {
@@ -640,7 +360,6 @@ export function registerSecureFileHandlers(
       return false
     }
 
-    // 执行删除（信任 Agent 层）
     try {
       const stat = await fsPromises.stat(filePath)
       if (stat.isDirectory()) {
@@ -650,7 +369,7 @@ export function registerSecureFileHandlers(
       }
       securityManager.logOperation(OperationType.FILE_DELETE, filePath, true, {
         size: stat.size,
-        bypass: true
+        bypass: true,
       })
       return true
     } catch (e: any) {
@@ -659,11 +378,10 @@ export function registerSecureFileHandlers(
     }
   })
 
-  // 重命名文件 - 无弹窗
+  // 重命名文件（无弹窗）
   ipcMain.handle('file:rename', async (_, oldPath: string, newPath: string) => {
     if (!oldPath || !newPath) return false
 
-    // 敏感路径检查
     if (securityManager.isSensitivePath(oldPath) || securityManager.isSensitivePath(newPath)) {
       securityManager.logOperation(OperationType.FILE_RENAME, oldPath, false, {
         reason: '安全底线：敏感路径',
@@ -676,7 +394,7 @@ export function registerSecureFileHandlers(
       await fsPromises.rename(oldPath, newPath)
       securityManager.logOperation(OperationType.FILE_RENAME, oldPath, true, {
         newPath,
-        bypass: true
+        bypass: true,
       })
       return true
     } catch (e: any) {
@@ -695,7 +413,7 @@ export function registerSecureFileHandlers(
     }
   })
 
-  // 文件监听
+  // 文件监听（使用拆分的 fileWatcher）
   ipcMain.handle('file:watch', (_, action: string) => {
     if (action === 'start') {
       setupFileWatcher(getWorkspaceSessionFn, (data: FileWatcherEvent) => {
@@ -705,50 +423,41 @@ export function registerSecureFileHandlers(
         }
       })
     } else if (action === 'stop') {
-      cleanupSecureFileWatcher()
+      cleanupFileWatcher()
     }
   })
 
-  // 审计功能
+  // ========== 安全审计功能 ==========
+
   ipcMain.handle('security:getAuditLogs', (_, limit = 100) => {
     return securityManager.getAuditLogs(limit)
   })
 
   ipcMain.handle('security:getPermissions', () => {
-    const store = new Store({ name: 'security' })
-    return store.get('permissions', {})
+    const securityStore = new Store({ name: 'security' })
+    return securityStore.get('permissions', {})
   })
 
   ipcMain.handle('security:resetPermissions', () => {
-    const store = new Store({ name: 'security' })
-    store.delete('permissions')
-    store.delete('audit')
-    return true
-  })
-
-  // ========== 最近工作区管理 ==========
-
-  // 获取最近打开的工作区列表（从config store读取，支持自定义路径）
-  ipcMain.handle('workspace:getRecent', () => {
-    return store.get('recentWorkspaces', []) as string[]
-  })
-
-  // 清除最近工作区
-  ipcMain.handle('workspace:clearRecent', () => {
-    store.set('recentWorkspaces', [])
+    const securityStore = new Store({ name: 'security' })
+    securityStore.delete('permissions')
+    securityStore.delete('audit')
     return true
   })
 }
 
+/**
+ * 清理安全文件监听器
+ * 导出以便外部调用
+ */
 export function cleanupSecureFileWatcher() {
-  if (watcherSubscription) {
-    logger.security.info('[Watcher] 清理文件监听器...')
-    const subscription = watcherSubscription
-    watcherSubscription = null
-    subscription.close().catch((e: any) => {
-      logger.security.info('[Watcher] 清理完成 (已忽略错误):', e.message)
-    })
-  }
+  cleanupFileWatcher()
 }
 
+// 导出安全管理器
 export { securityManager }
+
+// 重新导出拆分模块的类型和函数，方便外部使用
+export type { FileWatcherEvent, WindowManagerContext }
+export { setupFileWatcher, cleanupFileWatcher } from './fileWatcher'
+export { readFileWithEncoding, readLargeFile } from './fileUtils'

@@ -1,0 +1,289 @@
+/**
+ * English translations
+ */
+
+export const en = {
+  // Title bar
+  'app.name': 'Adnify',
+  'settings': 'Settings',
+
+  // Sidebar
+  'explorer': 'Explorer',
+  'openFolder': 'Open Folder',
+  'refresh': 'Refresh',
+  'noFolderOpened': 'No folder opened',
+
+  // Editor
+  'welcome': 'Welcome to Adnify',
+  'welcomeDesc': 'Open a file from the sidebar or use the AI assistant',
+
+  // Chat
+  'aiAssistant': 'AI Assistant',
+  'chat': 'Chat',
+  'agent': 'Agent',
+  'clearChat': 'Clear chat',
+  'chatMode': 'Chat Mode',
+  'agentMode': 'Agent Mode',
+  'chatModeDesc': 'Ask me anything about your code',
+  'agentModeDesc': 'I can read, edit files, and run commands for you',
+  'askAnything': 'Ask me anything...',
+  'configureApiKey': 'Configure API key first...',
+  'apiKeyWarning': 'Please configure your API key in Settings to start chatting',
+  'chatModeHint': '💬 Chat mode: Conversation only',
+  'agentModeHint': '⚡ Agent mode: Can execute tools',
+
+  // Settings
+  'provider': 'Provider',
+  'model': 'Model',
+  'apiKey': 'API Key',
+  'baseUrl': 'Base URL (Optional)',
+  'baseUrlHint': 'Use custom endpoint for OpenAI-compatible APIs (e.g., Azure, local models)',
+  'enterApiKey': 'Enter your {provider} API key',
+  'cancel': 'Cancel',
+  'saveSettings': 'Save Settings',
+  'saved': 'Saved!',
+  'language': 'Language',
+
+  // Terminal
+  'terminal': 'Terminal',
+  'newTerminal': 'New Terminal',
+  'clearTerminal': 'Clear',
+  'closeTerminal': 'Close',
+
+  // Tools
+  'toolResultFor': 'Tool result for',
+
+  // Diff viewer
+  'acceptChanges': 'Accept Changes',
+  'rejectChanges': 'Reject Changes',
+  'splitView': 'Split View',
+  'unifiedView': 'Unified View',
+  'linesAdded': 'lines added',
+  'linesRemoved': 'lines removed',
+
+  // Code preview
+  'copyCode': 'Copy code',
+  'applyCode': 'Apply',
+  'runCode': 'Run',
+
+  // Auth
+  'login': 'Login',
+  'logout': 'Logout',
+  'register': 'Register',
+  'email': 'Email',
+  'password': 'Password',
+  'forgotPassword': 'Forgot password?',
+  'noAccount': "Don't have an account?",
+  'hasAccount': 'Already have an account?',
+  'profile': 'Profile',
+
+  // Status
+  'loading': 'Loading...',
+  'error': 'Error',
+  'success': 'Success',
+  'saving': 'Saving...',
+
+  // Search
+  'search': 'Search',
+  'replace': 'Replace',
+  'matchCase': 'Match Case',
+  'matchWholeWord': 'Match Whole Word',
+  'useRegex': 'Use Regular Expression',
+  'filesToInclude': 'Files to include',
+  'filesToExclude': 'Files to exclude',
+  'noResults': 'No results found',
+  'textResults': 'Text Results',
+  'askAiSearch': 'Ask AI to find',
+  'searchPlaceholder': 'Search',
+  'replacePlaceholder': 'Replace',
+  'excludePlaceholder': 'e.g. *.test.ts, node_modules',
+  'searchInOpenFiles': 'Search in Open Files',
+  'replaceInSelection': 'Replace in Selection',
+  'openFilesOnly': 'Open Files Only',
+  'inSelection': 'In Selection',
+
+  // File Management
+  'newFile': 'New File',
+  'newFolder': 'New Folder',
+  'rename': 'Rename',
+  'delete': 'Delete',
+  'confirmDelete': 'Are you sure you want to delete {name}?',
+  'confirmRemoveRoot': 'Are you sure you want to remove folder "{name}" from workspace?',
+  'create': 'Create',
+  'searchFile': 'Search files (Ctrl+P)',
+  'gitControl': 'Git Control',
+
+  // Tool Calls
+  'needConfirmation': 'Needs your confirmation',
+  'reject': 'Reject',
+  'allowExecute': 'Allow',
+  'readFile': 'Read File',
+  'writeFile': 'Write File',
+  'createFile': 'Create File',
+  'editFile': 'Edit File',
+  'deleteFile': 'Delete File',
+  'listDirectory': 'List Directory',
+  'createDirectory': 'Create Directory',
+  'searchFiles': 'Search Files',
+  'runCommand': 'Run Command',
+  'executeCommand': 'Execute Command',
+  'codePreview': 'Code Preview',
+  'writing': 'Writing...',
+  'receivingData': 'Receiving data...',
+  'rawArguments': 'Raw Arguments',
+  'proposedChanges': 'Proposed Changes',
+
+  // Composer
+  'composer': 'Composer',
+  'multiFileEdit': 'Multi-file Edit',
+  'filesToEdit': 'Files to edit',
+  'addFile': 'Add File',
+  'noFilesSelected': 'No files selected',
+  'noOpenFiles': 'No open files',
+  'describeChanges': 'Describe the changes you want to make...',
+  'filesSelected': '{count} file(s) selected',
+  'ctrlEnterGenerate': 'Ctrl+Enter to generate',
+  'generating': 'Generating...',
+  'generateEdits': 'Generate Edits',
+  'filesModified': '{count} file(s) modified',
+  'applyAll': 'Apply All',
+  'apply': 'Apply',
+  'applied': 'Applied',
+  'rejected': 'Rejected',
+
+  // Context Menu
+  'codebaseSearch': 'Semantic search codebase',
+  'currentFileSymbols': 'Functions and classes in current file',
+  'gitChanges': 'Git changes and history',
+  'terminalOutput': 'Terminal output',
+  'selectFileToReference': 'Select a file to reference',
+  'searching': 'Searching',
+  'noResultsFound': 'No results found',
+  'noFilesInWorkspace': 'No files in workspace',
+  'navigate': 'navigate',
+  'selectItem': 'select',
+  'closeMenu': 'close',
+
+  // Chat Panel
+  'history': 'History',
+  'setupRequired': 'Setup Required',
+  'setupRequiredDesc': 'Please configure your LLM provider settings (API Key) to start using the assistant.',
+  'howCanIHelp': 'How can I help you build today?',
+  'pasteImagesHint': 'Paste images, Type @ to context',
+  'uploadImage': 'Upload image',
+  'returnToSend': 'RETURN to send',
+  'editMessage': 'Edit message',
+  'regenerateResponse': 'Regenerate response',
+  'saveAndResend': 'Save & Resend',
+
+  // Sessions
+  'sessions': 'Sessions',
+  'noSessions': 'No saved sessions',
+  'deleteSession': 'Delete session',
+  'loadSession': 'Load session',
+  'newSession': 'New',
+  'saveSession': 'Save',
+  'exportSession': 'Export',
+  'emptySession': 'Empty session',
+  'messagesCount': '{count} messages',
+  'confirmDeleteSession': 'Delete this session?',
+  'justNow': 'Just now',
+  'minutesAgo': '{count}m ago',
+  'hoursAgo': '{count}h ago',
+  'daysAgo': '{count}d ago',
+
+  // DiffViewer
+  'original': 'Original',
+  'modified': 'Modified',
+  'streaming': 'Streaming...',
+  'virtualized': 'Virtualized',
+  'fullRender': 'Full render',
+  'lines': 'lines',
+  'copyModified': 'Copy modified content',
+
+  // InlineEdit
+  'inlineAiEdit': 'Inline AI Edit',
+  'describeChangesInline': 'Describe changes (e.g. "Fix typo", "Add error handling")...',
+  'diffPreview': 'Diff Preview',
+  'retry': 'Retry',
+  'generate': 'Generate',
+  'pressEnterApply': 'Press ↵ to apply, Esc to cancel',
+  'pressEnterGenerate': 'Press ↵ to generate',
+  'requestTimeout': 'Request timeout',
+
+  // Editor
+  'commandPalette': 'Command Palette',
+
+  // StatusBar
+  'codebaseIndex': 'Codebase Index',
+  'indexing': 'Indexing',
+  'chunks': 'chunks',
+  'notIndexed': 'Not indexed',
+  'aiProcessing': 'AI Processing...',
+
+  // CommandPalette
+  'typeCommandOrSearch': 'Type a command or search...',
+  'noCommandsFound': 'No commands found',
+
+  // QuickOpen
+  'searchFilesPlaceholder': 'Search files by name...',
+  'loadingFiles': 'Loading files...',
+  'noFilesFound': 'No files found',
+  'filesCount': '{count} files',
+  'open': 'open',
+
+  // Search Results
+  'searchResultsCount': '{results} results in {files} files',
+  'replaceAll': 'Replace All',
+
+  // Editor Context Menu
+  'ctxGotoDefinition': 'Go to Definition',
+  'ctxFindReferences': 'Find All References',
+  'ctxGotoSymbol': 'Go to Symbol...',
+  'ctxRename': 'Rename Symbol',
+  'ctxChangeAll': 'Change All Occurrences',
+  'ctxFormat': 'Format Document',
+  'ctxCut': 'Cut',
+  'ctxCopy': 'Copy',
+  'ctxPaste': 'Paste',
+  'ctxFind': 'Find',
+  'ctxReplace': 'Replace',
+  'ctxToggleComment': 'Toggle Line Comment',
+  'ctxDeleteLine': 'Delete Line',
+  'ctxSelectNext': 'Select Next Occurrence',
+
+  // ToolCallCard
+  'toolArguments': 'Arguments',
+  'toolResult': 'Result',
+  'toolError': 'Error',
+  'toolStreaming': 'Streaming',
+  'toolWaitingApproval': 'Waiting for approval',
+  'toolApprove': 'Approve',
+  'toolApproveAll': 'Approve All',
+  'toolReject': 'Reject',
+  'toolCopyResult': 'Copy result',
+  'toolTruncated': '... (truncated)',
+  'confirmLargeFile': 'This file is large ({size} MB) and may affect performance. Continue?',
+
+  // Confirm Dialogs
+  'confirmChangeDataDir': 'Changing the data directory will move your current configuration to the new location and may require a restart. Continue?',
+  'confirmClearIndex': 'Are you sure you want to clear the index?',
+  'confirmUnsavedChanges': '"{name}" has unsaved changes. Save?',
+  'confirmRestoreCheckpoint': 'This will restore all files to their state before this message and delete all messages after it. Continue?',
+
+  // Error Messages (新增)
+  'error.unknown': 'An unexpected error occurred',
+  'error.networkError': 'Network error. Please check your connection.',
+  'error.timeout': 'Operation timed out. Please try again.',
+  'error.apiKeyInvalid': 'Invalid API key. Please check your settings.',
+  'error.rateLimited': 'Rate limited. Please wait a moment.',
+  'error.quotaExceeded': 'API quota exceeded. Please check your billing.',
+  'error.fileNotFound': 'File not found: {path}',
+  'error.permissionDenied': 'Permission denied',
+  'error.whitelistBlocked': 'Command not in whitelist. Add it in Settings > Security.',
+
+  // Success Messages (新增)
+  'success.fileSaved': 'File saved successfully',
+  'success.settingsSaved': 'Settings saved',
+  'success.indexComplete': 'Indexing complete',
+} as const

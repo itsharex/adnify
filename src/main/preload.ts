@@ -176,6 +176,8 @@ export interface ElectronAPI {
   // LLM
   sendMessage: (params: LLMSendMessageParams) => Promise<void>
   abortMessage: () => void
+  invalidateProviders: () => Promise<void>
+  invalidateProvider: (providerId: string) => Promise<void>
   onLLMStream: (callback: (data: LLMStreamChunk) => void) => () => void
   onLLMToolCall: (callback: (toolCall: LLMToolCall) => void) => () => void
   onLLMError: (callback: (error: LLMError) => void) => () => void
@@ -331,6 +333,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   sendMessage: (params: LLMSendMessageParams) => ipcRenderer.invoke('llm:sendMessage', params),
   abortMessage: () => ipcRenderer.send('llm:abort'),
+  invalidateProviders: () => ipcRenderer.invoke('llm:invalidateProviders'),
+  invalidateProvider: (providerId: string) => ipcRenderer.invoke('llm:invalidateProvider', providerId),
   onLLMStream: (callback: (data: LLMStreamChunk) => void) => {
     const handler = (_: IpcRendererEvent, data: LLMStreamChunk) => callback(data)
     ipcRenderer.on('llm:stream', handler)

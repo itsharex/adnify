@@ -215,6 +215,8 @@ export interface ElectronAPI {
   // LLM
   sendMessage: (params: LLMSendMessageParams) => Promise<void>
   abortMessage: () => void
+  invalidateProviders: () => Promise<void>
+  invalidateProvider: (providerId: string) => Promise<void>
   onLLMStream: (callback: (chunk: LLMStreamChunk) => void) => () => void
   onLLMToolCall: (callback: (toolCall: LLMToolCall) => void) => () => void
   onLLMError: (callback: (error: LLMError) => void) => () => void

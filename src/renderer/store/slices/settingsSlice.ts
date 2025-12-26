@@ -138,9 +138,15 @@ export const createSettingsSlice: StateCreator<SettingsSlice, [], [], SettingsSl
   aiInstructions: '',
 
   setLLMConfig: (config) =>
-    set((state) => ({
-      llmConfig: { ...state.llmConfig, ...config },
-    })),
+    set((state) => {
+      // 如果 API Key 或 baseUrl 变更，使 Provider 缓存失效
+      if (config.apiKey !== undefined || config.baseUrl !== undefined) {
+        window.electronAPI?.invalidateProviders?.()
+      }
+      return {
+        llmConfig: { ...state.llmConfig, ...config },
+      }
+    }),
 
   setLanguage: (lang) => set({ language: lang }),
 
@@ -207,49 +213,29 @@ export const createSettingsSlice: StateCreator<SettingsSlice, [], [], SettingsSl
   loadSettings: async (isEmptyWindow = false) => {
     try {
       // 使用统一的 settingsService 加载设置
+      // settingsService 已经处理了从 providerConfigs 获取完整配置的逻辑
       const settings = await settingsService.loadAll()
 
-      // 确保 parameters 存在
-      const llmConfig: LLMConfig = {
-        ...defaultLLMConfig,
-        ...settings.llmConfig,
-        provider: (settings.llmConfig?.provider as ProviderType) || 'openai',
-        parameters: {
-          ...defaultLLMConfig.parameters,
-          ...settings.llmConfig?.parameters,
-        },
-      }
-
-      // 如果没有 adapterConfig 但有 adapterId，使用内置预设
-      if (!llmConfig.adapterConfig && llmConfig.adapterId) {
-        const preset = getAdapterConfig(llmConfig.adapterId)
-        if (preset) {
-          llmConfig.adapterConfig = preset
-        }
-      }
-
       logger.settings.info('[SettingsSlice] loadSettings via settingsService:', {
-        hasAdapterConfig: !!llmConfig.adapterConfig,
-        adapterId: llmConfig.adapterId,
-        provider: llmConfig.provider,
+        hasAdapterConfig: !!settings.llmConfig.adapterConfig,
+        adapterId: settings.llmConfig.adapterId,
+        provider: settings.llmConfig.provider,
       })
 
-      // 合并 Provider 配置
-      const mergedProviderConfigs = { ...defaultProviderConfigs }
-      if (settings.providerConfigs) {
-        for (const [id, config] of Object.entries(settings.providerConfigs)) {
-          mergedProviderConfigs[id] = {
-            ...defaultProviderConfigs[id],
-            ...config
-          }
+      // 转换 providerConfigs 类型，确保 customModels 是数组
+      const providerConfigs: Record<string, ProviderModelConfig> = {}
+      for (const [id, config] of Object.entries(settings.providerConfigs)) {
+        providerConfigs[id] = {
+          ...config,
+          customModels: config.customModels || [],
         }
       }
 
       set({
-        llmConfig,
+        llmConfig: settings.llmConfig as LLMConfig,
         language: (settings.language as 'en' | 'zh') || 'en',
         autoApprove: { ...defaultAutoApprove, ...settings.autoApprove },
-        providerConfigs: mergedProviderConfigs,
+        providerConfigs,
         agentConfig: { ...defaultAgentConfig, ...settings.agentConfig },
         promptTemplateId: settings.promptTemplateId || 'default',
         onboardingCompleted: settings.onboardingCompleted ?? !!settings.llmConfig?.apiKey,

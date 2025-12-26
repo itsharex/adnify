@@ -1,169 +1,190 @@
 /**
- * 错误边界组件
- * 捕获 React 组件树中的错误并显示友好的错误界面
+ * React Error Boundary 组件
+ * 统一捕获和处理 UI 渲染错误
  */
 
-import { logger } from '@utils/Logger'
-import { Component, ReactNode } from 'react'
-import { AlertTriangle, RefreshCw, Bug } from 'lucide-react'
+import React, { Component, ErrorInfo, ReactNode } from 'react'
+import { AlertTriangle, RefreshCw, Home } from 'lucide-react'
+import { AppError, formatErrorMessage } from '@/shared/errors'
 
 interface Props {
-	children: ReactNode
-	fallback?: ReactNode
+  children: ReactNode
+  fallback?: ReactNode
+  onError?: (error: Error, errorInfo: ErrorInfo) => void
+  showDetails?: boolean
 }
 
 interface State {
-	hasError: boolean
-	error: Error | null
-	errorInfo: React.ErrorInfo | null
+  hasError: boolean
+  error: Error | null
+  errorInfo: ErrorInfo | null
 }
 
 export class ErrorBoundary extends Component<Props, State> {
-	constructor(props: Props) {
-		super(props)
-		this.state = { hasError: false, error: null, errorInfo: null }
-	}
+  constructor(props: Props) {
+    super(props)
+    this.state = {
+      hasError: false,
+      error: null,
+      errorInfo: null,
+    }
+  }
 
-	static getDerivedStateFromError(error: Error): Partial<State> {
-		return { hasError: true, error }
-	}
+  static getDerivedStateFromError(error: Error): Partial<State> {
+    return { hasError: true, error }
+  }
 
-	componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-		logger.ui.error('ErrorBoundary caught an error:', error, errorInfo)
-		this.setState({ errorInfo })
-	}
+  componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    this.setState({ errorInfo })
 
-	handleReset = () => {
-		this.setState({ hasError: false, error: null, errorInfo: null })
-	}
+    // 调用外部错误处理器
+    this.props.onError?.(error, errorInfo)
 
-	render() {
-		if (this.state.hasError) {
-			if (this.props.fallback) {
-				return this.props.fallback
-			}
+    // 记录错误日志
+    console.error('[ErrorBoundary] Caught error:', error)
+    console.error('[ErrorBoundary] Component stack:', errorInfo.componentStack)
+  }
 
-			return (
-				<div className="flex flex-col items-center justify-center h-full p-8 bg-background">
-					<div className="max-w-md w-full bg-surface border border-border-subtle rounded-xl p-6 shadow-lg">
-						<div className="flex items-center gap-3 mb-4">
-							<div className="p-2 rounded-lg bg-status-error/10">
-								<AlertTriangle className="w-6 h-6 text-status-error" />
-							</div>
-							<div>
-								<h2 className="text-lg font-semibold text-text-primary">Something went wrong</h2>
-								<p className="text-sm text-text-muted">An unexpected error occurred</p>
-							</div>
-						</div>
+  handleRetry = (): void => {
+    this.setState({ hasError: false, error: null, errorInfo: null })
+  }
 
-						{this.state.error && (
-							<div className="mb-4 p-3 bg-background rounded-lg border border-border-subtle">
-								<p className="text-sm font-mono text-status-error break-all">
-									{this.state.error.message}
-								</p>
-							</div>
-						)}
+  handleGoHome = (): void => {
+    window.location.reload()
+  }
 
-						<div className="flex gap-2">
-							<button
-								onClick={this.handleReset}
-								className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors"
-							>
-								<RefreshCw className="w-4 h-4" />
-								Try Again
-							</button>
-							<button
-								onClick={() => window.location.reload()}
-								className="px-4 py-2 rounded-lg bg-surface-hover text-text-primary hover:bg-surface-active transition-colors"
-							>
-								Reload
-							</button>
-						</div>
+  render(): ReactNode {
+    if (this.state.hasError) {
+      // 如果提供了自定义 fallback，使用它
+      if (this.props.fallback) {
+        return this.props.fallback
+      }
 
-						{this.state.errorInfo && (
-							<details className="mt-4">
-								<summary className="text-xs text-text-muted cursor-pointer hover:text-text-secondary flex items-center gap-1">
-									<Bug className="w-3 h-3" />
-									Technical Details
-								</summary>
-								<pre className="mt-2 p-2 bg-background rounded text-[10px] font-mono text-text-muted overflow-auto max-h-32">
-									{this.state.errorInfo.componentStack}
-								</pre>
-							</details>
-						)}
-					</div>
-				</div>
-			)
-		}
+      const { error, errorInfo } = this.state
+      const appError = error ? AppError.fromError(error) : null
+      const { title, description, suggestion } = appError?.getUserMessage() || {
+        title: 'Something went wrong',
+        description: 'An unexpected error occurred.',
+        suggestion: 'Try refreshing the page.',
+      }
 
-		return this.props.children
-	}
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[300px] p-8 bg-[var(--bg-primary)] text-[var(--text-primary)]">
+          <div className="flex flex-col items-center max-w-md text-center">
+            {/* 错误图标 */}
+            <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
+              <AlertTriangle className="w-8 h-8 text-red-500" />
+            </div>
+
+            {/* 错误标题 */}
+            <h2 className="text-xl font-semibold mb-2">{title}</h2>
+
+            {/* 错误描述 */}
+            <p className="text-[var(--text-secondary)] mb-4">{description}</p>
+
+            {/* 建议 */}
+            {suggestion && (
+              <p className="text-sm text-[var(--text-tertiary)] mb-6">
+                💡 {suggestion}
+              </p>
+            )}
+
+            {/* 操作按钮 */}
+            <div className="flex gap-3">
+              <button
+                onClick={this.handleRetry}
+                className="flex items-center gap-2 px-4 py-2 bg-[var(--accent-primary)] text-white rounded-lg hover:bg-[var(--accent-primary-hover)] transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Try Again
+              </button>
+              <button
+                onClick={this.handleGoHome}
+                className="flex items-center gap-2 px-4 py-2 bg-[var(--bg-secondary)] text-[var(--text-primary)] rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors"
+              >
+                <Home className="w-4 h-4" />
+                Reload App
+              </button>
+            </div>
+
+            {/* 详细错误信息（开发模式） */}
+            {this.props.showDetails && error && (
+              <details className="mt-6 w-full text-left">
+                <summary className="cursor-pointer text-sm text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">
+                  Show error details
+                </summary>
+                <div className="mt-2 p-4 bg-[var(--bg-secondary)] rounded-lg overflow-auto max-h-[200px]">
+                  <pre className="text-xs text-red-400 whitespace-pre-wrap">
+                    {error.message}
+                    {errorInfo?.componentStack && (
+                      <>
+                        {'\n\nComponent Stack:'}
+                        {errorInfo.componentStack}
+                      </>
+                    )}
+                  </pre>
+                </div>
+              </details>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
 }
 
 /**
- * 错误提示组件
- * 用于显示非致命错误
+ * 带有错误边界的高阶组件
  */
-export function ErrorAlert({
-	message,
-	details,
-	onRetry,
-	onDismiss,
-}: {
-	message: string
-	details?: string
-	onRetry?: () => void
-	onDismiss?: () => void
-}) {
-	return (
-		<div className="p-4 bg-status-error/10 border border-status-error/20 rounded-lg animate-fade-in">
-			<div className="flex items-start gap-3">
-				<AlertTriangle className="w-5 h-5 text-status-error flex-shrink-0 mt-0.5" />
-				<div className="flex-1 min-w-0">
-					<p className="text-sm font-medium text-status-error">{message}</p>
-					{details && (
-						<p className="mt-1 text-xs text-text-muted">{details}</p>
-					)}
-					{(onRetry || onDismiss) && (
-						<div className="flex gap-2 mt-3">
-							{onRetry && (
-								<button
-									onClick={onRetry}
-									className="px-3 py-1 text-xs rounded bg-status-error/20 text-status-error hover:bg-status-error/30 transition-colors"
-								>
-									Retry
-								</button>
-							)}
-							{onDismiss && (
-								<button
-									onClick={onDismiss}
-									className="px-3 py-1 text-xs rounded bg-surface text-text-muted hover:text-text-primary transition-colors"
-								>
-									Dismiss
-								</button>
-							)}
-						</div>
-					)}
-				</div>
-			</div>
-		</div>
-	)
+export function withErrorBoundary<P extends object>(
+  WrappedComponent: React.ComponentType<P>,
+  options?: Omit<Props, 'children'>
+): React.FC<P> {
+  const displayName = WrappedComponent.displayName || WrappedComponent.name || 'Component'
+
+  const ComponentWithErrorBoundary: React.FC<P> = (props) => (
+    <ErrorBoundary {...options}>
+      <WrappedComponent {...props} />
+    </ErrorBoundary>
+  )
+
+  ComponentWithErrorBoundary.displayName = `withErrorBoundary(${displayName})`
+
+  return ComponentWithErrorBoundary
 }
 
 /**
- * 加载状态组件
+ * 错误提示组件（用于非致命错误）
  */
-export function LoadingSpinner({ size = 'md', text }: { size?: 'sm' | 'md' | 'lg'; text?: string }) {
-	const sizeClasses = {
-		sm: 'w-4 h-4 border-2',
-		md: 'w-6 h-6 border-2',
-		lg: 'w-8 h-8 border-3',
-	}
-
-	return (
-		<div className="flex flex-col items-center justify-center gap-2">
-			<div className={`${sizeClasses[size]} border-accent border-t-transparent rounded-full animate-spin`} />
-			{text && <span className="text-sm text-text-muted">{text}</span>}
-		</div>
-	)
+interface ErrorAlertProps {
+  error: Error | string | null
+  onDismiss?: () => void
+  className?: string
 }
+
+export const ErrorAlert: React.FC<ErrorAlertProps> = ({ error, onDismiss, className = '' }) => {
+  if (!error) return null
+
+  const message = typeof error === 'string' ? error : formatErrorMessage(error)
+
+  return (
+    <div className={`flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-lg ${className}`}>
+      <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-red-400 whitespace-pre-wrap">{message}</p>
+      </div>
+      {onDismiss && (
+        <button
+          onClick={onDismiss}
+          className="text-red-400 hover:text-red-300 transition-colors"
+        >
+          ×
+        </button>
+      )}
+    </div>
+  )
+}
+
+export default ErrorBoundary

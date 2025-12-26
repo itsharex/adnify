@@ -38,6 +38,26 @@ export function registerLLMHandlers(_getMainWindow: () => BrowserWindow | null) 
     const webContentsId = event.sender.id
     llmServices.get(webContentsId)?.abort()
   })
+
+  // 使所有 Provider 缓存失效（API Key 变更时调用）
+  ipcMain.handle('llm:invalidateProviders', (event) => {
+    const webContentsId = event.sender.id
+    const service = llmServices.get(webContentsId)
+    if (service) {
+      service.invalidateAllProviders()
+      logger.ipc.info('[LLMService] Providers invalidated for window:', webContentsId)
+    }
+  })
+
+  // 使指定 Provider 缓存失效
+  ipcMain.handle('llm:invalidateProvider', (event, providerId: string) => {
+    const webContentsId = event.sender.id
+    const service = llmServices.get(webContentsId)
+    if (service) {
+      service.invalidateProvider(providerId)
+      logger.ipc.info('[LLMService] Provider invalidated:', providerId, 'for window:', webContentsId)
+    }
+  })
 }
 
 // 清理指定窗口的 LLM 服务（窗口关闭时调用）

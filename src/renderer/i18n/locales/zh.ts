@@ -1,0 +1,289 @@
+/**
+ * Chinese translations
+ */
+
+export const zh = {
+  // Title bar
+  'app.name': 'Adnify',
+  'settings': '设置',
+
+  // Sidebar
+  'explorer': '资源管理器',
+  'openFolder': '打开文件夹',
+  'refresh': '刷新',
+  'noFolderOpened': '未打开文件夹',
+
+  // Editor
+  'welcome': '欢迎使用 Adnify',
+  'welcomeDesc': '从侧边栏打开文件或使用 AI 助手',
+
+  // Chat
+  'aiAssistant': 'AI 助手',
+  'chat': '对话',
+  'agent': '代理',
+  'clearChat': '清空对话',
+  'chatMode': '对话模式',
+  'agentMode': '代理模式',
+  'chatModeDesc': '问我任何关于代码的问题',
+  'agentModeDesc': '我可以帮你读取、编辑文件和执行命令',
+  'askAnything': '问我任何问题...',
+  'configureApiKey': '请先配置 API 密钥...',
+  'apiKeyWarning': '请在设置中配置 API 密钥以开始对话',
+  'chatModeHint': '💬 对话模式：仅对话',
+  'agentModeHint': '⚡ 代理模式：可执行工具',
+
+  // Settings
+  'provider': '服务商',
+  'model': '模型',
+  'apiKey': 'API 密钥',
+  'baseUrl': '自定义地址（可选）',
+  'baseUrlHint': '用于 OpenAI 兼容的 API（如 Azure、本地模型）',
+  'enterApiKey': '输入你的 {provider} API 密钥',
+  'cancel': '取消',
+  'saveSettings': '保存设置',
+  'saved': '已保存！',
+  'language': '语言',
+
+  // Terminal
+  'terminal': '终端',
+  'newTerminal': '新建终端',
+  'clearTerminal': '清空',
+  'closeTerminal': '关闭',
+
+  // Tools
+  'toolResultFor': '工具结果：',
+
+  // Diff viewer
+  'acceptChanges': '接受更改',
+  'rejectChanges': '拒绝更改',
+  'splitView': '分栏视图',
+  'unifiedView': '统一视图',
+  'linesAdded': '行添加',
+  'linesRemoved': '行删除',
+
+  // Code preview
+  'copyCode': '复制代码',
+  'applyCode': '应用',
+  'runCode': '运行',
+
+  // Auth
+  'login': '登录',
+  'logout': '退出登录',
+  'register': '注册',
+  'email': '邮箱',
+  'password': '密码',
+  'forgotPassword': '忘记密码？',
+  'noAccount': '还没有账号？',
+  'hasAccount': '已有账号？',
+  'profile': '个人资料',
+
+  // Status
+  'loading': '加载中...',
+  'error': '错误',
+  'success': '成功',
+  'saving': '保存中...',
+
+  // Search
+  'search': '搜索',
+  'replace': '替换',
+  'matchCase': '区分大小写',
+  'matchWholeWord': '全字匹配',
+  'useRegex': '使用正则表达式',
+  'filesToInclude': '包含的文件',
+  'filesToExclude': '排除的文件',
+  'noResults': '未找到结果',
+  'textResults': '文本搜索结果',
+  'askAiSearch': '让 AI 查找',
+  'searchPlaceholder': '搜索',
+  'replacePlaceholder': '替换',
+  'excludePlaceholder': '例如 *.test.ts, node_modules',
+  'searchInOpenFiles': '仅搜索打开的文件',
+  'replaceInSelection': '在选区中替换',
+  'openFilesOnly': '仅打开文件',
+  'inSelection': '仅选区',
+
+  // File Management
+  'newFile': '新建文件',
+  'newFolder': '新建文件夹',
+  'rename': '重命名',
+  'delete': '删除',
+  'confirmDelete': '确定要删除 {name} 吗？',
+  'confirmRemoveRoot': '确定要从工作区移除文件夹 "{name}" 吗？',
+  'create': '创建',
+  'searchFile': '搜索文件 (Ctrl+P)',
+  'gitControl': 'Git 控制',
+
+  // Tool Calls
+  'needConfirmation': '需要您的确认',
+  'reject': '拒绝',
+  'allowExecute': '允许',
+  'readFile': '读取文件',
+  'writeFile': '写入文件',
+  'createFile': '创建文件',
+  'editFile': '编辑文件',
+  'deleteFile': '删除文件',
+  'listDirectory': '列出目录',
+  'createDirectory': '创建目录',
+  'searchFiles': '搜索文件',
+  'runCommand': '运行命令',
+  'executeCommand': '执行命令',
+  'codePreview': '代码预览',
+  'writing': '写入中...',
+  'receivingData': '接收数据中...',
+  'rawArguments': '原始参数',
+  'proposedChanges': '建议的更改',
+
+  // Composer
+  'composer': '编排器',
+  'multiFileEdit': '多文件编辑',
+  'filesToEdit': '要编辑的文件',
+  'addFile': '添加文件',
+  'noFilesSelected': '未选择文件',
+  'noOpenFiles': '没有打开的文件',
+  'describeChanges': '描述你想要的更改...',
+  'filesSelected': '已选择 {count} 个文件',
+  'ctrlEnterGenerate': 'Ctrl+Enter 生成',
+  'generating': '生成中...',
+  'generateEdits': '生成编辑',
+  'filesModified': '已修改 {count} 个文件',
+  'applyAll': '全部应用',
+  'apply': '应用',
+  'applied': '已应用',
+  'rejected': '已拒绝',
+
+  // Context Menu
+  'codebaseSearch': '语义搜索代码库',
+  'currentFileSymbols': '当前文件的函数和类',
+  'gitChanges': 'Git 变更和历史',
+  'terminalOutput': '终端输出',
+  'selectFileToReference': '选择要引用的文件',
+  'searching': '搜索中',
+  'noResultsFound': '未找到结果',
+  'noFilesInWorkspace': '工作区中没有文件',
+  'navigate': '导航',
+  'selectItem': '选择',
+  'closeMenu': '关闭',
+
+  // Chat Panel
+  'history': '历史记录',
+  'setupRequired': '需要设置',
+  'setupRequiredDesc': '请在设置中配置 LLM 服务商（API 密钥）以开始使用助手。',
+  'howCanIHelp': '今天我能帮你构建什么？',
+  'pasteImagesHint': '粘贴图片，输入 @ 添加上下文',
+  'uploadImage': '上传图片',
+  'returnToSend': '回车发送',
+  'editMessage': '编辑消息',
+  'regenerateResponse': '重新生成',
+  'saveAndResend': '保存并重发',
+
+  // Sessions
+  'sessions': '会话',
+  'noSessions': '暂无保存的会话',
+  'deleteSession': '删除会话',
+  'loadSession': '加载会话',
+  'newSession': '新建',
+  'saveSession': '保存',
+  'exportSession': '导出',
+  'emptySession': '空会话',
+  'messagesCount': '{count} 条消息',
+  'confirmDeleteSession': '确定要删除这个会话吗？',
+  'justNow': '刚刚',
+  'minutesAgo': '{count}分钟前',
+  'hoursAgo': '{count}小时前',
+  'daysAgo': '{count}天前',
+
+  // DiffViewer
+  'original': '原始',
+  'modified': '修改后',
+  'streaming': '流式传输中...',
+  'virtualized': '虚拟化',
+  'fullRender': '完整渲染',
+  'lines': '行',
+  'copyModified': '复制修改后的内容',
+
+  // InlineEdit
+  'inlineAiEdit': '内联 AI 编辑',
+  'describeChangesInline': '描述更改（例如"修复拼写错误"、"添加错误处理"）...',
+  'diffPreview': '差异预览',
+  'retry': '重试',
+  'generate': '生成',
+  'pressEnterApply': '按 ↵ 应用，Esc 取消',
+  'pressEnterGenerate': '按 ↵ 生成',
+  'requestTimeout': '请求超时',
+
+  // Editor
+  'commandPalette': '命令面板',
+
+  // StatusBar
+  'codebaseIndex': '代码库索引',
+  'indexing': '索引中',
+  'chunks': '块',
+  'notIndexed': '未索引',
+  'aiProcessing': 'AI 处理中...',
+
+  // CommandPalette
+  'typeCommandOrSearch': '输入命令或搜索...',
+  'noCommandsFound': '未找到命令',
+
+  // QuickOpen
+  'searchFilesPlaceholder': '按名称搜索文件...',
+  'loadingFiles': '加载文件中...',
+  'noFilesFound': '未找到文件',
+  'filesCount': '{count} 个文件',
+  'open': '打开',
+
+  // Search Results
+  'searchResultsCount': '在 {files} 个文件中找到 {results} 个结果',
+  'replaceAll': '全部替换',
+
+  // Editor Context Menu
+  'ctxGotoDefinition': '跳转到定义',
+  'ctxFindReferences': '查找所有引用',
+  'ctxGotoSymbol': '跳转到符号...',
+  'ctxRename': '重命名符号',
+  'ctxChangeAll': '更改所有匹配项',
+  'ctxFormat': '格式化文档',
+  'ctxCut': '剪切',
+  'ctxCopy': '复制',
+  'ctxPaste': '粘贴',
+  'ctxFind': '查找',
+  'ctxReplace': '替换',
+  'ctxToggleComment': '切换行注释',
+  'ctxDeleteLine': '删除行',
+  'ctxSelectNext': '选择下一个匹配项',
+
+  // ToolCallCard
+  'toolArguments': '参数',
+  'toolResult': '结果',
+  'toolError': '错误',
+  'toolStreaming': '流式传输中',
+  'toolWaitingApproval': '等待确认',
+  'toolApprove': '批准',
+  'toolApproveAll': '批准所有',
+  'toolReject': '拒绝',
+  'toolCopyResult': '复制结果',
+  'toolTruncated': '... (已截断)',
+  'confirmLargeFile': '此文件较大（{size} MB），可能影响性能。是否继续？',
+
+  // Confirm Dialogs
+  'confirmChangeDataDir': '更改配置目录将把当前配置移动到新位置，并可能需要重启应用。确定继续吗？',
+  'confirmClearIndex': '确定要清空索引吗？',
+  'confirmUnsavedChanges': '"{name}" 有未保存的更改。是否保存？',
+  'confirmRestoreCheckpoint': '这将把所有文件恢复到此消息之前的状态，并删除之后的所有消息。确定继续吗？',
+
+  // Error Messages (新增)
+  'error.unknown': '发生未知错误',
+  'error.networkError': '网络错误，请检查网络连接',
+  'error.timeout': '操作超时，请重试',
+  'error.apiKeyInvalid': 'API 密钥无效，请检查设置',
+  'error.rateLimited': '请求过于频繁，请稍后再试',
+  'error.quotaExceeded': 'API 配额已用尽，请检查账单',
+  'error.fileNotFound': '文件未找到：{path}',
+  'error.permissionDenied': '权限被拒绝',
+  'error.whitelistBlocked': '命令不在白名单中，请在设置 > 安全中添加',
+
+  // Success Messages (新增)
+  'success.fileSaved': '文件保存成功',
+  'success.settingsSaved': '设置已保存',
+  'success.indexComplete': '索引完成',
+} as const

@@ -13,3 +13,8 @@ export { getAgentConfig, isRetryableError } from './AgentConfig'
 export type { AgentRuntimeConfig } from './AgentConfig'
 export { buildContextContent, buildUserContent, calculateContextStats } from './ContextBuilder'
 export { parseXMLToolCalls, parsePartialArgs, generateToolCallId } from './XMLToolParser'
+
+// 拆分的服务模块
+export { toolExecutionService, ToolExecutionService } from './ToolExecutionService'
+export type { ToolExecutionContext } from './ToolExecutionService'
+export { buildLLMMessages, compressContext } from './MessageBuilder'

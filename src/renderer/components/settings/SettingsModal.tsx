@@ -89,6 +89,7 @@ export default function SettingsModal() {
         setProviderConfig(localConfig.provider, updatedProviderConfigs[localConfig.provider])
 
         // 使用 settingsService 统一保存到 app-settings
+        // 注意：不再保存 editorSettings，编辑器配置由 editorConfig.ts 独立管理
         await settingsService.saveAll({
             llmConfig: localConfig as any,
             language: localLanguage,
@@ -98,23 +99,9 @@ export default function SettingsModal() {
             providerConfigs: updatedProviderConfigs as any,
             aiInstructions: localAiInstructions,
             onboardingCompleted: true,
-            editorSettings: {
-                fontSize: editorSettings.fontSize,
-                tabSize: editorSettings.tabSize,
-                wordWrap: editorSettings.wordWrap,
-                lineNumbers: 'on',
-                minimap: editorSettings.minimap,
-                bracketPairColorization: true,
-                formatOnSave: true,
-                autoSave: 'off',
-                theme: 'adnify-dark',
-                completionEnabled: editorSettings.completionEnabled,
-                completionDebounceMs: editorSettings.completionDebounceMs,
-                completionMaxTokens: editorSettings.completionMaxTokens,
-            },
         })
 
-        // Save editor settings
+        // 编辑器配置独立保存到 editorConfig（localStorage + 文件）
         const newEditorConfig = {
             ...getEditorConfig(),
             fontSize: editorSettings.fontSize,

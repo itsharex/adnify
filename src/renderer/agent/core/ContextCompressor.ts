@@ -4,7 +4,7 @@
  * 参考 Claude Code 的 PreCompact 机制
  */
 
-import { ChatMessage, isAssistantMessage, isTextPart, TextContent, ToolCallPart } from './types'
+import { ChatMessage, isAssistantMessage, TextContent, ToolCallPart } from './types'
 
 // 压缩配置
 export const COMPACT_CONFIG = {
@@ -12,10 +12,14 @@ export const COMPACT_CONFIG = {
     messageThreshold: 30,
     // 触发压缩的字符数阈值
     charThreshold: 40000,
+    // 触发压缩的 Token 数阈值（估算）
+    tokenThreshold: 10000,
     // 压缩后保留的最近消息数
     keepRecentMessages: 6,
     // 摘要最大字符数
     maxSummaryChars: 2000,
+    // 保留的关键工具调用类型
+    importantToolTypes: ['edit_file', 'write_file', 'create_file_or_folder', 'delete_file_or_folder', 'run_command'],
 } as const
 
 // 可压缩的消息类型（排除 checkpoint）
@@ -47,6 +51,13 @@ function getMessageTextContent(msg: CompactableMessage): string {
 }
 
 /**
+ * 估算 Token 数量（粗略估算：1 token ≈ 4 chars）
+ */
+function estimateTokens(text: string): number {
+    return Math.ceil(text.length / 4)
+}
+
+/**
  * 检查是否需要压缩上下文
  */
 export function shouldCompactContext(messages: ChatMessage[]): boolean {
@@ -58,12 +69,58 @@ export function shouldCompactContext(messages: ChatMessage[]): boolean {
         return true
     }
 
-    // 检查总字符数
-    const totalChars = compactable.reduce((sum, msg) => {
-        return sum + getMessageTextContent(msg).length
-    }, 0)
+    // 检查总字符数和估算 Token 数
+    let totalChars = 0
+    for (const msg of compactable) {
+        totalChars += getMessageTextContent(msg).length
+    }
 
-    return totalChars > COMPACT_CONFIG.charThreshold
+    if (totalChars > COMPACT_CONFIG.charThreshold) {
+        return true
+    }
+
+    const estimatedTokens = estimateTokens(compactable.map(getMessageTextContent).join(''))
+    return estimatedTokens > COMPACT_CONFIG.tokenThreshold
+}
+
+/**
+ * 提取消息中的关键信息
+ */
+interface MessageSummary {
+    role: string
+    content: string
+    toolCalls?: string[]
+    isImportant: boolean
+}
+
+function extractMessageSummary(msg: CompactableMessage): MessageSummary {
+    const content = getMessageTextContent(msg)
+    let toolCalls: string[] = []
+    let isImportant = false
+
+    // 检查助手消息中的工具调用
+    if (isAssistantMessage(msg) && msg.parts) {
+        toolCalls = msg.parts
+            .filter((p): p is ToolCallPart => p.type === 'tool_call')
+            .map(p => p.toolCall.name || 'tool')
+
+        // 检查是否包含重要工具调用
+        isImportant = toolCalls.some(tc => 
+            (COMPACT_CONFIG.importantToolTypes as readonly string[]).includes(tc)
+        )
+    }
+
+    // 用户消息通常都是重要的
+    if (msg.role === 'user') {
+        isImportant = true
+    }
+
+    return {
+        role: msg.role,
+        content,
+        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        isImportant,
+    }
 }
 
 /**
@@ -71,31 +128,23 @@ export function shouldCompactContext(messages: ChatMessage[]): boolean {
  */
 export function buildCompactPrompt(messages: ChatMessage[]): string {
     const compactable = messages.filter(isCompactableMessage)
+    const summaries = compactable.map(extractMessageSummary)
 
     // 构建对话历史摘要
-    const conversationHistory = compactable.map((msg) => {
-        const role = msg.role === 'user' ? 'User' : msg.role === 'assistant' ? 'Assistant' : 'Tool'
-        const content = getMessageTextContent(msg)
+    const conversationHistory = summaries.map((summary) => {
+        const role = summary.role === 'user' ? 'User' : summary.role === 'assistant' ? 'Assistant' : 'Tool'
+        const content = summary.content
 
         // 对于工具结果，只显示简短摘要
-        if (msg.role === 'tool') {
-            const toolName = msg.name || 'unknown'
+        if (summary.role === 'tool') {
             const truncated = content.length > 200 ? content.slice(0, 200) + '...' : content
-            return `[${role}] (${toolName}): ${truncated}`
+            return `[${role}]: ${truncated}`
         }
 
         // 对于助手消息，检查工具调用
-        if (isAssistantMessage(msg) && msg.parts) {
-            const toolCalls = msg.parts
-                .filter((p): p is ToolCallPart => p.type === 'tool_call')
-                .map(p => p.toolCall.name || 'tool')
-            if (toolCalls.length > 0) {
-                const textContent = msg.parts
-                    .filter(isTextPart)
-                    .map(p => p.content)
-                    .join('\n')
-                return `[${role}] Used tools: ${toolCalls.join(', ')}. ${textContent.slice(0, 300)}`
-            }
+        if (summary.toolCalls && summary.toolCalls.length > 0) {
+            const textContent = content.slice(0, 300)
+            return `[${role}] Used tools: ${summary.toolCalls.join(', ')}. ${textContent}`
         }
 
         // 普通消息截断
@@ -107,8 +156,9 @@ export function buildCompactPrompt(messages: ChatMessage[]): string {
 Focus on:
 1. The user's main requests and goals
 2. Key decisions made
-3. Files that were modified
+3. Files that were modified (list file paths)
 4. Important context that should be preserved
+5. Any errors or issues encountered
 
 Conversation History:
 ${conversationHistory}
@@ -127,10 +177,12 @@ export interface CompactedContext {
 
 /**
  * 准备待压缩的消息（不包括最近的消息）
+ * 改进：保留重要的工具调用结果
  */
 export function prepareMessagesForCompact(messages: ChatMessage[]): {
     messagesToCompact: ChatMessage[]
     recentMessages: ChatMessage[]
+    importantMessages: ChatMessage[]
 } {
     const keepCount = COMPACT_CONFIG.keepRecentMessages
 
@@ -138,26 +190,100 @@ export function prepareMessagesForCompact(messages: ChatMessage[]): {
         return {
             messagesToCompact: [],
             recentMessages: messages,
+            importantMessages: [],
+        }
+    }
+
+    const recentMessages = messages.slice(-keepCount)
+    const olderMessages = messages.slice(0, -keepCount)
+
+    // 从旧消息中提取重要消息
+    const importantMessages: ChatMessage[] = []
+    const messagesToCompact: ChatMessage[] = []
+
+    for (const msg of olderMessages) {
+        if (!isCompactableMessage(msg)) continue
+
+        const summary = extractMessageSummary(msg)
+        if (summary.isImportant) {
+            importantMessages.push(msg)
+        } else {
+            messagesToCompact.push(msg)
         }
     }
 
     return {
-        messagesToCompact: messages.slice(0, -keepCount),
-        recentMessages: messages.slice(-keepCount),
+        messagesToCompact,
+        recentMessages,
+        importantMessages,
     }
 }
 
 /**
  * 创建压缩后的系统消息
  */
-export function createCompactedSystemMessage(summary: string): string {
-    return `## Conversation Summary
+export function createCompactedSystemMessage(summary: string, importantContext?: string): string {
+    let message = `## Conversation Summary
 
 The following is a summary of the earlier conversation:
 
-${summary}
+${summary}`
+
+    if (importantContext) {
+        message += `
+
+## Important Context
+
+${importantContext}`
+    }
+
+    message += `
 
 ---
 
 Continue the conversation based on the above context.`
+
+    return message
+}
+
+/**
+ * 智能压缩工具结果
+ * 保留关键信息，移除冗余内容
+ */
+export function compressToolResult(content: string, toolName: string): string {
+    const maxLength = 500
+
+    // 对于读取类工具，保留文件路径和行数信息
+    if (['read_file', 'list_directory', 'search_files'].includes(toolName)) {
+        if (content.length <= maxLength) return content
+
+        // 保留前后部分
+        const head = content.slice(0, maxLength / 2)
+        const tail = content.slice(-maxLength / 4)
+        return `${head}\n...[${content.length - maxLength} chars truncated]...\n${tail}`
+    }
+
+    // 对于其他工具，简单截断
+    if (content.length <= maxLength) return content
+    return content.slice(0, maxLength) + '...[truncated]'
+}
+
+/**
+ * 计算压缩后节省的 Token 数
+ */
+export function calculateSavings(
+    originalMessages: ChatMessage[],
+    compactedSummary: string
+): { originalTokens: number; compactedTokens: number; savedTokens: number; savedPercent: number } {
+    const originalText = originalMessages
+        .filter(isCompactableMessage)
+        .map(getMessageTextContent)
+        .join('')
+
+    const originalTokens = estimateTokens(originalText)
+    const compactedTokens = estimateTokens(compactedSummary)
+    const savedTokens = originalTokens - compactedTokens
+    const savedPercent = Math.round((savedTokens / originalTokens) * 100)
+
+    return { originalTokens, compactedTokens, savedTokens, savedPercent }
 }
