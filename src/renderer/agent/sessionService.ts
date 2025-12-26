@@ -4,14 +4,16 @@
  * 使用 chatThreadService 的消息格式
  */
 
-import { ChatMode, LLMConfig } from '../store'
+import { logger } from '@utils/Logger'
+import { LLMConfig } from '@store'
+import { WorkMode } from '@/renderer/modes/types'
 import { ChatMessage, ChatThread, getMessageText as getMsgText, isUserMessage } from './core/types'
 import { useAgentStore } from './core/AgentStore'
 
 export interface ChatSession {
 	id: string
 	name: string
-	mode: ChatMode
+	mode: WorkMode
 	messages: ChatMessage[]
 	createdAt: number
 	updatedAt: number
@@ -21,7 +23,7 @@ export interface ChatSession {
 export interface SessionSummary {
 	id: string
 	name: string
-	mode: ChatMode
+	mode: WorkMode
 	messageCount: number
 	createdAt: number
 	updatedAt: number
@@ -111,7 +113,7 @@ class SessionService {
 	 * 保存当前线程为会话
 	 */
 	async saveCurrentThread(
-		mode: ChatMode,
+		mode: WorkMode,
 		existingId?: string,
 		config?: Partial<LLMConfig>
 	): Promise<string> {
@@ -127,7 +129,7 @@ class SessionService {
 	 */
 	async saveThread(
 		thread: ChatThread,
-		mode: ChatMode,
+		mode: WorkMode,
 		existingId?: string,
 		config?: Partial<LLMConfig>
 	): Promise<string> {
@@ -181,7 +183,7 @@ class SessionService {
 	 */
 	async saveSession(
 		messages: ChatMessage[],
-		mode: ChatMode,
+		mode: WorkMode,
 		existingId?: string,
 		config?: Partial<LLMConfig>
 	): Promise<string> {
@@ -347,7 +349,7 @@ class SessionService {
 			}
 		})
 		
-		console.log('[SessionService] Loaded session:', sessionId, 'messages:', session.messages.length)
+		logger.agent.info('[SessionService] Loaded session:', sessionId, 'messages:', session.messages.length)
 		return true
 	}
 }

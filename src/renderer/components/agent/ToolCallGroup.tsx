@@ -5,12 +5,12 @@
  */
 
 import { useState, useMemo } from 'react'
-import { ChevronDown, ChevronRight, Layers, CheckCircle2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Layers } from 'lucide-react'
 import { ToolCall } from '@/renderer/agent/core/types'
 import ToolCallCard from './ToolCallCard'
 import FileChangeCard from './FileChangeCard'
 import { WRITE_TOOLS } from '@/renderer/agent/core/ToolExecutor'
-import { useStore } from '../../store'
+import { useStore } from '@store'
 
 interface ToolCallGroupProps {
     toolCalls: ToolCall[]

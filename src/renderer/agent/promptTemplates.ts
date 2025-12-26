@@ -86,11 +86,11 @@ const CORE_TOOLS = `## Available Tools
    \`\`\`
    <<<<<<< SEARCH
    function hello() {
-     console.log("Hello");
+     logger.agent.info("Hello");
    }
    =======
    function hello() {
-     console.log("Hello World!");
+     logger.agent.info("Hello World!");
    }
    >>>>>>> REPLACE
    \`\`\`

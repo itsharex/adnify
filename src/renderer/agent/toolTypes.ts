@@ -69,13 +69,5 @@ export interface Checkpoint {
 }
 
 // ===== 工具状态类型 =====
-
-export type ToolStatus =
-  | 'pending'
-  | 'running'
-  | 'success'
-  | 'error'
-  | 'rejected'
-  | 'awaiting'
-
-export type ToolApprovalType = 'edits' | 'terminal' | 'dangerous'
+// 从 core/types.ts 重新导出，保持类型一致性
+export type { ToolStatus, ToolApprovalType } from './core/types'

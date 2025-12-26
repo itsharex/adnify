@@ -3,6 +3,7 @@
  * 参考 Cursor/Void 的架构设计
  */
 
+import { logger } from '@utils/Logger'
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { agentStorage } from './agentStorage'
@@ -22,11 +23,14 @@ import {
   AssistantPart,
   PendingChange,
   MessageCheckpoint,
+  ReasoningPart,
   // 类型守卫
   isAssistantMessage,
   isTextPart,
   Plan,
   PlanItem,
+  PlanStatus,
+  PlanItemStatus,
 } from './types'
 
 // ===== Store 类型 =====
@@ -76,6 +80,11 @@ interface AgentActions {
   // 工具调用操作（Cursor 风格：内联到 parts）
   addToolCallPart: (messageId: string, toolCall: Omit<ToolCall, 'status'>) => void
   updateToolCall: (messageId: string, toolCallId: string, updates: Partial<ToolCall>) => void
+
+  // Reasoning 操作（内联到 parts）
+  addReasoningPart: (messageId: string) => string  // 返回 reasoning part 的 id
+  updateReasoningPart: (messageId: string, partId: string, content: string, isStreaming?: boolean) => void
+  finalizeReasoningPart: (messageId: string, partId: string) => void
 
   // 上下文操作
   addContextItem: (item: ContextItem) => void
@@ -409,7 +418,8 @@ export const useAgentStore = create<AgentStore>()(
 
           const messages = thread.messages.map(msg => {
             if (msg.id === messageId) {
-              return { ...msg, ...updates }
+              // 使用类型断言确保类型正确
+              return { ...msg, ...updates } as ChatMessage
             }
             return msg
           })
@@ -617,6 +627,112 @@ export const useAgentStore = create<AgentStore>()(
                 parts: newParts,
                 toolCalls: newToolCalls,
               }
+            }
+            return msg
+          })
+
+          return {
+            threads: {
+              ...state.threads,
+              [threadId]: { ...thread, messages },
+            },
+          }
+        })
+      },
+
+      // Reasoning 操作
+      addReasoningPart: (messageId) => {
+        const state = get()
+        const threadId = state.currentThreadId
+        if (!threadId) return ''
+
+        const partId = `reasoning-${Date.now()}`
+
+        set(state => {
+          const thread = state.threads[threadId]
+          if (!thread) return state
+
+          const messages = thread.messages.map(msg => {
+            if (msg.id === messageId && msg.role === 'assistant') {
+              const assistantMsg = msg as AssistantMessage
+              const newPart: ReasoningPart = {
+                type: 'reasoning',
+                content: '',
+                startTime: Date.now(),
+                isStreaming: true,
+              }
+              // 给 part 添加 id 用于后续更新（通过扩展类型）
+              ;(newPart as any).id = partId
+              return {
+                ...assistantMsg,
+                parts: [...assistantMsg.parts, newPart],
+              }
+            }
+            return msg
+          })
+
+          return {
+            threads: {
+              ...state.threads,
+              [threadId]: { ...thread, messages },
+            },
+          }
+        })
+
+        return partId
+      },
+
+      updateReasoningPart: (messageId, partId, content, isStreaming = true) => {
+        const state = get()
+        const threadId = state.currentThreadId
+        if (!threadId) return
+
+        set(state => {
+          const thread = state.threads[threadId]
+          if (!thread) return state
+
+          const messages = thread.messages.map(msg => {
+            if (msg.id === messageId && msg.role === 'assistant') {
+              const assistantMsg = msg as AssistantMessage
+              const newParts = assistantMsg.parts.map(part => {
+                if (part.type === 'reasoning' && (part as any).id === partId) {
+                  return { ...part, content: (part as ReasoningPart).content + content, isStreaming }
+                }
+                return part
+              })
+              return { ...assistantMsg, parts: newParts }
+            }
+            return msg
+          })
+
+          return {
+            threads: {
+              ...state.threads,
+              [threadId]: { ...thread, messages },
+            },
+          }
+        })
+      },
+
+      finalizeReasoningPart: (messageId, partId) => {
+        const state = get()
+        const threadId = state.currentThreadId
+        if (!threadId) return
+
+        set(state => {
+          const thread = state.threads[threadId]
+          if (!thread) return state
+
+          const messages = thread.messages.map(msg => {
+            if (msg.id === messageId && msg.role === 'assistant') {
+              const assistantMsg = msg as AssistantMessage
+              const newParts = assistantMsg.parts.map(part => {
+                if (part.type === 'reasoning' && (part as any).id === partId) {
+                  return { ...part, isStreaming: false }
+                }
+                return part
+              })
+              return { ...assistantMsg, parts: newParts }
             }
             return msg
           })
@@ -858,7 +974,7 @@ export const useAgentStore = create<AgentStore>()(
           description,
         }
 
-        console.log('[Checkpoint] Created checkpoint:', checkpoint.id, 'for message:', messageId, 'with files:', Object.keys(fileSnapshots))
+        logger.agent.info('[Checkpoint] Created checkpoint:', checkpoint.id, 'for message:', messageId, 'with files:', Object.keys(fileSnapshots))
 
         set(state => ({
           messageCheckpoints: [...state.messageCheckpoints, checkpoint],
@@ -869,19 +985,19 @@ export const useAgentStore = create<AgentStore>()(
 
       // 添加文件快照到当前检查点（在文件修改前调用）
       addSnapshotToCurrentCheckpoint: (filePath: string, content: string | null) => {
-        console.log('[Checkpoint] Adding snapshot for:', filePath, 'content length:', content?.length ?? 'null')
+        logger.agent.info('[Checkpoint] Adding snapshot for:', filePath, 'content length:', content?.length ?? 'null')
 
         set(state => {
           // 找到最新的检查点
           if (state.messageCheckpoints.length === 0) {
-            console.log('[Checkpoint] No checkpoints exist, cannot add snapshot')
+            logger.agent.info('[Checkpoint] No checkpoints exist, cannot add snapshot')
             return state
           }
 
           const checkpoints = [...state.messageCheckpoints]
           const lastCheckpoint = checkpoints[checkpoints.length - 1]
 
-          console.log('[Checkpoint] Current checkpoint:', lastCheckpoint.id, 'existing files:', Object.keys(lastCheckpoint.fileSnapshots))
+          logger.agent.info('[Checkpoint] Current checkpoint:', lastCheckpoint.id, 'existing files:', Object.keys(lastCheckpoint.fileSnapshots))
 
           // 如果该文件还没有快照，添加它（只保留最早的快照）
           if (!(filePath in lastCheckpoint.fileSnapshots)) {
@@ -892,11 +1008,11 @@ export const useAgentStore = create<AgentStore>()(
                 [filePath]: { fsPath: filePath, content },
               },
             }
-            console.log('[Checkpoint] Added snapshot for:', filePath)
+            logger.agent.info('[Checkpoint] Added snapshot for:', filePath)
             return { messageCheckpoints: checkpoints }
           }
 
-          console.log('[Checkpoint] Snapshot already exists for:', filePath)
+          logger.agent.info('[Checkpoint] Snapshot already exists for:', filePath)
           return state
         })
       },
@@ -905,8 +1021,8 @@ export const useAgentStore = create<AgentStore>()(
         const state = get()
         const checkpointIdx = state.messageCheckpoints.findIndex(cp => cp.id === checkpointId)
 
-        console.log('[Restore] Looking for checkpoint:', checkpointId)
-        console.log('[Restore] All checkpoints:', state.messageCheckpoints.map(cp => ({
+        logger.agent.info('[Restore] Looking for checkpoint:', checkpointId)
+        logger.agent.info('[Restore] All checkpoints:', state.messageCheckpoints.map(cp => ({
           id: cp.id,
           messageId: cp.messageId,
           files: Object.keys(cp.fileSnapshots),
@@ -942,8 +1058,8 @@ export const useAgentStore = create<AgentStore>()(
           }
         }
 
-        console.log('[Restore] Files to restore:', Object.keys(filesToRestore))
-        console.log('[Restore] PendingChanges:', state.pendingChanges.map(c => c.filePath))
+        logger.agent.info('[Restore] Files to restore:', Object.keys(filesToRestore))
+        logger.agent.info('[Restore] PendingChanges:', state.pendingChanges.map(c => c.filePath))
 
         // 恢复所有文件
         for (const [filePath, snapshot] of Object.entries(filesToRestore)) {
@@ -1045,9 +1161,9 @@ export const useAgentStore = create<AgentStore>()(
               id: generateShortId(),
               title: item.title,
               description: item.description,
-              status: 'pending'
+              status: PlanItemStatus.Pending
             })),
-            status: 'draft',
+            status: PlanStatus.Draft,
             currentStepId: null,
             createdAt: Date.now(),
             updatedAt: Date.now()
@@ -1090,7 +1206,7 @@ export const useAgentStore = create<AgentStore>()(
             id: generateShortId(),
             title: item.title,
             description: item.description,
-            status: 'pending',
+            status: PlanItemStatus.Pending,
           }
           return {
             plan: {
@@ -1197,10 +1313,10 @@ export async function initializeAgentStore(): Promise<void> {
     const persistApi = (useAgentStore as any).persist
     if (persistApi) {
       await persistApi.rehydrate()
-      console.log('[AgentStore] Rehydrated from project storage:', STORE_NAME)
+      logger.agent.info('[AgentStore] Rehydrated from project storage:', STORE_NAME)
     }
   } catch (error) {
-    console.error('[AgentStore] Failed to initialize storage:', error)
+    logger.agent.error('[AgentStore] Failed to initialize storage:', error)
     // 降级到默认行为，不阻塞应用启动
   }
 }

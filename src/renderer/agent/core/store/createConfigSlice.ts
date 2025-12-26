@@ -10,7 +10,6 @@ export interface ConfigSlice {
 
 export const createConfigSlice: StateCreator<AgentStore, [], [], ConfigSlice> = (set) => ({
     autoApprove: {
-        edits: false,
         terminal: false,
         dangerous: false,
     },

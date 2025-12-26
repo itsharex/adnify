@@ -7,13 +7,14 @@ import OpenAI from 'openai'
 import { BaseProvider } from './base'
 import { ChatParams, ToolDefinition, ToolCall, MessageContent } from '../types'
 import { adapterService } from '../adapterService'
+import { AGENT_DEFAULTS } from '@shared/constants'
 
 export class OpenAIProvider extends BaseProvider {
   private client: OpenAI
 
   constructor(apiKey: string, baseUrl?: string, timeout?: number) {
     super('OpenAI')
-    const timeoutMs = timeout || 120000
+    const timeoutMs = timeout || AGENT_DEFAULTS.DEFAULT_LLM_TIMEOUT
     this.log('info', 'Initializing', { baseUrl: baseUrl || 'default', timeout: timeoutMs })
     this.client = new OpenAI({
       apiKey,
@@ -123,7 +124,8 @@ export class OpenAIProvider extends BaseProvider {
         model,
         messages: openaiMessages,
         stream: true,
-        max_tokens: maxTokens || 8192,
+        stream_options: { include_usage: true }, // 请求返回 usage 信息
+        max_tokens: maxTokens || AGENT_DEFAULTS.DEFAULT_MAX_TOKENS,
       }
 
       if (convertedTools && convertedTools.length > 0) {
@@ -149,12 +151,23 @@ export class OpenAIProvider extends BaseProvider {
 
       let fullContent = ''
       let fullReasoning = ''
+      let usage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined
 
       // 从适配器配置获取 reasoning 字段名
       const toolCalls: ToolCall[] = []
       let currentToolCall: { id?: string; name?: string; argsString: string } | null = null
 
       for await (const chunk of stream) {
+        // 捕获 usage 信息（在最后一个 chunk 中）
+        if ((chunk as any).usage) {
+          const u = (chunk as any).usage
+          usage = {
+            promptTokens: u.prompt_tokens || 0,
+            completionTokens: u.completion_tokens || 0,
+            totalTokens: u.total_tokens || 0,
+          }
+        }
+
         // 动态 delta 类型，支持不同厂商的字段名
         interface ExtendedDelta {
           content?: string
@@ -247,12 +260,14 @@ export class OpenAIProvider extends BaseProvider {
       this.log('info', 'Chat complete', {
         contentLength: fullContent.length,
         toolCallCount: toolCalls.length,
+        usage,
       })
 
       onComplete({
         content: finalContent,
         reasoning: fullReasoning || undefined,
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        usage,
       })
     } catch (error: unknown) {
       const llmError = this.parseError(error)

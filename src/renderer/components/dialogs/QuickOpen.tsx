@@ -1,0 +1,352 @@
+/**
+ * 快速打开文件
+ * 类似 VS Code 的 Ctrl+P
+ */
+
+import { useState, useEffect, useCallback, useRef, memo } from 'react'
+import { Search, FileText, X } from 'lucide-react'
+import { useStore } from '@store'
+import { getFileName } from '@utils/pathUtils'
+import { keybindingService } from '@services/keybindingService'
+import { t } from '@renderer/i18n'
+import { Button } from '../ui'
+
+interface QuickOpenProps {
+  onClose: () => void
+}
+
+interface FileMatch {
+  path: string
+  name: string
+  score: number
+  matches: number[]
+}
+
+// 模糊匹配算法
+function fuzzyMatch(query: string, text: string): { score: number; matches: number[] } | null {
+  const queryLower = query.toLowerCase()
+  const textLower = text.toLowerCase()
+
+  let queryIdx = 0
+  let score = 0
+  const matches: number[] = []
+  let consecutiveBonus = 0
+
+  for (let i = 0; i < text.length && queryIdx < query.length; i++) {
+    if (textLower[i] === queryLower[queryIdx]) {
+      matches.push(i)
+
+      // 连续匹配加分
+      if (matches.length > 1 && matches[matches.length - 1] === matches[matches.length - 2] + 1) {
+        consecutiveBonus += 5
+      }
+
+      // 单词开头加分
+      if (i === 0 || text[i - 1] === '/' || text[i - 1] === '\\' || text[i - 1] === '.' || text[i - 1] === '-' || text[i - 1] === '_') {
+        score += 10
+      }
+
+      // 大写字母加分（驼峰匹配）
+      if (text[i] === text[i].toUpperCase() && text[i] !== text[i].toLowerCase()) {
+        score += 5
+      }
+
+      score += 1
+      queryIdx++
+    }
+  }
+
+  if (queryIdx !== query.length) {
+    return null
+  }
+
+  score += consecutiveBonus
+
+  // 短文件名加分
+  score -= text.length * 0.1
+
+  return { score, matches }
+}
+
+// 高亮匹配字符
+const HighlightedText = memo(function HighlightedText({
+  text,
+  matches,
+}: {
+  text: string
+  matches: number[]
+}) {
+  const parts: JSX.Element[] = []
+  let lastIdx = 0
+
+  for (const matchIdx of matches) {
+    if (matchIdx > lastIdx) {
+      parts.push(
+        <span key={`text-${lastIdx}`} className="text-text-muted">
+          {text.slice(lastIdx, matchIdx)}
+        </span>
+      )
+    }
+    parts.push(
+      <span key={`match-${matchIdx}`} className="text-accent font-medium">
+        {text[matchIdx]}
+      </span>
+    )
+    lastIdx = matchIdx + 1
+  }
+
+  if (lastIdx < text.length) {
+    parts.push(
+      <span key={`text-${lastIdx}`} className="text-editor-text-muted">
+        {text.slice(lastIdx)}
+      </span>
+    )
+  }
+
+  return <>{parts}</>
+})
+
+const FileMatchItem = memo(function FileMatchItem({
+  file,
+  isSelected,
+  onSelect,
+}: {
+  file: FileMatch
+  isSelected: boolean
+  onSelect: () => void
+}) {
+  const fileName = getFileName(file.path) || file.path
+  const dirPath = file.path.slice(0, file.path.length - fileName.length - 1)
+
+  // 计算文件名中的匹配位置
+  const fileNameStart = file.path.length - fileName.length
+  const fileNameMatches = file.matches
+    .filter(m => m >= fileNameStart)
+    .map(m => m - fileNameStart)
+
+  return (
+    <div
+      onClick={onSelect}
+      className={`
+        flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors
+        ${isSelected ? 'bg-accent/20 text-text-primary' : 'hover:bg-surface-hover text-text-secondary'}
+      `}
+    >
+      <FileText className={`w-4 h-4 flex-shrink-0 ${isSelected ? 'text-accent' : 'text-text-muted'}`} />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm truncate">
+          <HighlightedText text={fileName} matches={fileNameMatches} />
+        </div>
+        {dirPath && (
+          <div className="text-xs text-text-muted truncate opacity-70">
+            {dirPath}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+})
+
+export default function QuickOpen({ onClose }: QuickOpenProps) {
+  const { workspacePath, openFile, language } = useStore()
+  const [query, setQuery] = useState('')
+  const [allFiles, setAllFiles] = useState<string[]>([])
+  const [matches, setMatches] = useState<FileMatch[]>([])
+  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  // 递归获取所有文件
+  const getAllFiles = useCallback(async (dirPath: string, prefix: string = ''): Promise<string[]> => {
+    const items = await window.electronAPI.readDir(dirPath)
+    if (!items) return []
+
+    const files: string[] = []
+
+    for (const item of items) {
+      // 跳过隐藏文件和 node_modules
+      if (item.name.startsWith('.') || item.name === 'node_modules') continue
+
+      const relativePath = prefix ? `${prefix}/${item.name}` : item.name
+
+      if (item.isDirectory) {
+        const subFiles = await getAllFiles(item.path, relativePath)
+        files.push(...subFiles)
+      } else {
+        files.push(relativePath)
+      }
+    }
+
+    return files
+  }, [])
+
+  // 加载文件列表
+  useEffect(() => {
+    if (!workspacePath) {
+      setIsLoading(false)
+      return
+    }
+
+    setIsLoading(true)
+    getAllFiles(workspacePath).then(files => {
+      setAllFiles(files)
+      setIsLoading(false)
+    })
+  }, [workspacePath, getAllFiles])
+
+  // 搜索文件
+  useEffect(() => {
+    if (!query.trim()) {
+      // 显示最近的文件或全部文件（限制数量）
+      setMatches(
+        allFiles.slice(0, 20).map(path => ({
+          path,
+          name: getFileName(path) || path,
+          score: 0,
+          matches: [],
+        }))
+      )
+      return
+    }
+
+    const results: FileMatch[] = []
+
+    for (const filePath of allFiles) {
+      const result = fuzzyMatch(query, filePath)
+      if (result) {
+        results.push({
+          path: filePath,
+          name: getFileName(filePath) || filePath,
+          score: result.score,
+          matches: result.matches,
+        })
+      }
+    }
+
+    // 按分数排序
+    results.sort((a, b) => b.score - a.score)
+
+    setMatches(results.slice(0, 50))
+    setSelectedIndex(0)
+  }, [query, allFiles])
+
+  // 打开文件
+  const handleOpenFile = useCallback(async (filePath: string) => {
+    if (!workspacePath) return
+
+    const fullPath = `${workspacePath}/${filePath}`
+    const content = await window.electronAPI.readFile(fullPath)
+
+    if (content !== null) {
+      openFile(fullPath, content)
+      onClose()
+    }
+  }, [workspacePath, openFile, onClose])
+
+  // 键盘导航
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (keybindingService.matches(e, 'list.focusDown')) {
+      e.preventDefault()
+      setSelectedIndex(prev => Math.min(prev + 1, matches.length - 1))
+    } else if (keybindingService.matches(e, 'list.focusUp')) {
+      e.preventDefault()
+      setSelectedIndex(prev => Math.max(prev - 1, 0))
+    } else if (keybindingService.matches(e, 'list.select')) {
+      e.preventDefault()
+      if (matches[selectedIndex]) {
+        handleOpenFile(matches[selectedIndex].path)
+      }
+    } else if (keybindingService.matches(e, 'list.cancel')) {
+      e.preventDefault()
+      onClose()
+    }
+  }, [matches, selectedIndex, handleOpenFile, onClose])
+
+  // 自动聚焦
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  // 滚动到选中项
+  useEffect(() => {
+    if (listRef.current) {
+      const selectedEl = listRef.current.querySelector(`[data-index="${selectedIndex}"]`)
+      selectedEl?.scrollIntoView({ block: 'nearest' })
+    }
+  }, [selectedIndex])
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-start justify-center pt-[15vh] z-50 animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="
+            w-[600px] max-h-[60vh] flex flex-col
+            bg-background/90 backdrop-blur-xl 
+            border border-border/50 rounded-xl shadow-2xl shadow-black/50
+            overflow-hidden animate-slide-up
+        "
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Search Input */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-border/40">
+          <Search className="w-5 h-5 text-accent" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={t('searchFilesPlaceholder', language)}
+            className="flex-1 bg-transparent text-lg text-text-primary placeholder-text-muted focus:outline-none"
+          />
+          {query && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setQuery('')}
+              className="rounded-full w-6 h-6 min-h-0 p-0"
+            >
+              <X className="w-4 h-4 text-text-muted" />
+            </Button>
+          )}
+        </div>
+
+        {/* File List */}
+        <div ref={listRef} className="flex-1 overflow-y-auto py-2 custom-scrollbar">
+          {isLoading ? (
+            <div className="px-4 py-12 text-center text-text-muted flex flex-col items-center gap-3">
+              <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+              <p>{t('loadingFiles', language)}</p>
+            </div>
+          ) : matches.length === 0 ? (
+            <div className="px-4 py-12 text-center text-text-muted">
+              {query ? t('noFilesFound', language) : t('noFilesInWorkspace', language)}
+            </div>
+          ) : (
+            matches.map((file, idx) => (
+              <div key={file.path} data-index={idx}>
+                <FileMatchItem
+                  file={file}
+                  isSelected={idx === selectedIndex}
+                  onSelect={() => handleOpenFile(file.path)}
+                />
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-2 bg-surface/30 border-t border-border/30 text-[10px] text-text-muted flex justify-between items-center">
+          <span>{t('filesCount', language, { count: String(matches.length) })}</span>
+          <div className="flex items-center gap-3">
+            <span><kbd className="font-mono bg-surface/50 px-1 rounded">↑↓</kbd> {t('navigate', language)}</span>
+            <span><kbd className="font-mono bg-surface/50 px-1 rounded">Enter</kbd> {t('open', language)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

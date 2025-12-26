@@ -1,34 +1,35 @@
+import { logger } from '@utils/Logger'
 import { useEffect, useState, useCallback, lazy, Suspense } from 'react'
 import { useStore } from './store'
-import TitleBar from './components/TitleBar'
-import Sidebar from './components/Sidebar'
-import Editor from './components/Editor'
+import TitleBar from './components/layout/TitleBar'
+import { Sidebar } from '@components/sidebar'
+import Editor from './components/editor/Editor'
 import { ChatPanel } from './components/agent'
-import SettingsModal from './components/SettingsModal'
-import TerminalPanel from './components/TerminalPanel'
-import CommandPalette from './components/CommandPalette'
-import KeyboardShortcuts from './components/KeyboardShortcuts'
-import QuickOpen from './components/QuickOpen'
-import ActivityBar from './components/ActivityBar'
-import StatusBar from './components/StatusBar'
-import { ToastProvider, useToast, setGlobalToast } from './components/ToastProvider'
-import { GlobalConfirmDialog } from './components/ConfirmDialog'
-import { ErrorBoundary } from './components/ErrorBoundary'
+import SettingsModal from './components/settings/SettingsModal'
+import TerminalPanel from './components/panels/TerminalPanel'
+import CommandPalette from './components/dialogs/CommandPalette'
+import KeyboardShortcuts from './components/dialogs/KeyboardShortcuts'
+import QuickOpen from './components/dialogs/QuickOpen'
+import ActivityBar from './components/layout/ActivityBar'
+import StatusBar from './components/layout/StatusBar'
+import { ToastProvider, useToast, setGlobalToast } from './components/common/ToastProvider'
+import { GlobalConfirmDialog } from './components/common/ConfirmDialog'
+import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { initEditorConfig } from './config/editorConfig'
 import { themeManager } from './config/themeConfig'
 import { restoreWorkspaceState, initWorkspaceStateSync } from './services/workspaceStateService'
-import { ThemeManager } from './components/ThemeManager'
-import AboutDialog from './components/AboutDialog'
+import { ThemeManager } from './components/editor/ThemeManager'
+import AboutDialog from './components/dialogs/AboutDialog'
 import { adnifyDir } from './services/adnifyDirService'
 import { checkpointService } from './agent/checkpointService'
 import { useAgentStore, initializeAgentStore } from './agent/core/AgentStore'
 import { keybindingService } from './services/keybindingService'
 import { registerCoreCommands } from './config/commands'
-import { LAYOUT_LIMITS } from '../shared/constants'
+import { LAYOUT_LIMITS } from '@shared/constants'
 
 // 懒加载大组件以优化首屏性能
-const ComposerPanel = lazy(() => import('./components/ComposerPanel'))
-const OnboardingWizard = lazy(() => import('./components/OnboardingWizard'))
+const ComposerPanel = lazy(() => import('./components/panels/ComposerPanel'))
+const OnboardingWizard = lazy(() => import('./components/dialogs/OnboardingWizard'))
 
   // 暴露 store 给插件系统
   ; (window as any).__ADNIFY_STORE__ = { getState: () => useStore.getState() }
@@ -146,7 +147,7 @@ function AppContent() {
 
         // 注册设置同步监听器
         window.electronAPI.onSettingsChanged(({ key, value }) => {
-          console.log(`[App] Setting changed in another window: ${key}`, value)
+          logger.system.info(`[App] Setting changed in another window: ${key}`, value)
           if (key === 'llmConfig') setLLMConfig(value as any)
           if (key === 'language') setLanguage(value as any)
           if (key === 'autoApprove') setAutoApprove(value as any)
@@ -173,7 +174,7 @@ function AppContent() {
           }
         }, 100)
       } catch (error) {
-        console.error('Failed to load settings:', error)
+        logger.system.error('Failed to load settings:', error)
         // Even if loading fails, ensure keybindings are registered
         registerCoreCommands()
         removeInitialLoader()
@@ -322,9 +323,9 @@ function AppContent() {
 
     // Listen for menu commands from main process
     const removeListener = window.electronAPI.onExecuteCommand((commandId) => {
-      console.log('[App] Received command from main:', commandId)
+      logger.system.info('[App] Received command from main:', commandId)
       if (commandId === 'workbench.action.showCommands') {
-        console.log('[App] Showing Command Palette')
+        logger.system.info('[App] Showing Command Palette')
         setShowCommandPalette(true)
       }
       if (commandId === 'workbench.action.toggleDevTools') {

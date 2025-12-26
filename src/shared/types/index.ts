@@ -120,7 +120,8 @@ export interface LLMSendMessageParams {
 // ==========================================
 
 export type ToolStatus = 'pending' | 'awaiting' | 'running' | 'success' | 'error' | 'rejected'
-export type ToolApprovalType = 'edits' | 'terminal' | 'dangerous'
+// edits 已移除 - 文件编辑不需要确认（可通过 Checkpoint 撤销）
+export type ToolApprovalType = 'terminal' | 'dangerous'
 export type ToolResultType = 'success' | 'tool_error' | 'rejected'
 
 export interface ToolCall {

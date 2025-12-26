@@ -1,3 +1,4 @@
+import { logger } from '@utils/Logger'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
 import {
@@ -8,8 +9,8 @@ import {
   Upload,
   X
 } from 'lucide-react'
-import { Logo } from '@/renderer/components/Logo'
-import { useStore } from '@/renderer/store'
+import { Logo } from '@/renderer/components/common/Logo'
+import { useStore, useModeStore } from '@/renderer/store'
 import { useAgent } from '@/renderer/hooks/useAgent'
 import { t } from '@/renderer/i18n'
 import { toFullPath } from '@/renderer/utils/pathUtils'
@@ -29,15 +30,13 @@ import { MentionParser, MentionCandidate } from '@/renderer/agent/core/MentionPa
 import ChatMessageUI from './ChatMessage'
 import AgentStatusBar from './AgentStatusBar'
 import { keybindingService } from '@/renderer/services/keybindingService'
-import { slashCommandService, SlashCommand } from '@/renderer/services/slashCommandService'
+import { slashCommandService } from '@/renderer/services/slashCommandService'
 import { AgentService } from '@/renderer/agent/core/AgentService'
 import { Button } from '../ui'
-import { useToast } from '@/renderer/components/ToastProvider'
+import { useToast } from '@/renderer/components/common/ToastProvider'
 
 export default function ChatPanel() {
   const {
-    chatMode,
-    setChatMode,
     llmConfig,
     workspacePath,
     openFile,
@@ -50,6 +49,8 @@ export default function ChatPanel() {
     selectedCode,
     contextStats,
   } = useStore()
+
+  const { currentMode: chatMode, setMode: setChatMode } = useModeStore()
 
   const toast = useToast()
 
@@ -82,7 +83,6 @@ export default function ChatPanel() {
     getCheckpointForMessage,
     addContextItem,
     removeContextItem,
-    clearContextItems,
     checkContextLength,
   } = useAgent()
 
@@ -96,8 +96,9 @@ export default function ChatPanel() {
   const [mentionLoading, setMentionLoading] = useState(false)
   const [mentionRange, setMentionRange] = useState<{ start: number; end: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [showSlashCommand, setShowSlashCommand] = useState(false)
-  const [slashCommandQuery, setSlashCommandQuery] = useState('')
+  // TODO: 斜杠命令 UI 待实现
+  const [, setShowSlashCommand] = useState(false)
+  const [, setSlashCommandQuery] = useState('')
   const [showContextWarning, setShowContextWarning] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -252,7 +253,7 @@ export default function ChatPanel() {
         const suggestions = await MentionParser.getSuggestions(parseResult.query, workspacePath)
         setMentionCandidates(suggestions)
       } catch (err) {
-        console.error('Error fetching suggestions:', err)
+        logger.agent.error('Error fetching suggestions:', err)
       } finally {
         setMentionLoading(false)
       }
@@ -415,24 +416,6 @@ export default function ChatPanel() {
     addContextItem({ type: 'File', uri: activeFilePath })
   }, [activeFilePath, contextItems, addContextItem])
 
-  // 处理斜杠命令选择
-  const handleSlashCommand = useCallback((cmd: SlashCommand) => {
-    const result = slashCommandService.parse('/' + cmd.name, {
-      activeFilePath: activeFilePath || undefined,
-      selectedCode: selectedCode || undefined,
-      workspacePath: workspacePath || undefined,
-    })
-    if (result) {
-      setInput(result.prompt)
-      if (result.mode) {
-        setChatMode(result.mode)
-      }
-    }
-    setShowSlashCommand(false)
-    setSlashCommandQuery('')
-    textareaRef.current?.focus()
-  }, [activeFilePath, selectedCode, workspacePath, setChatMode])
-
   // 键盘处理
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (showFileMention) {
@@ -463,7 +446,7 @@ export default function ChatPanel() {
       return
     }
 
-    const { globalConfirm } = await import('../ConfirmDialog')
+    const { globalConfirm } = await import('../common/ConfirmDialog')
     const confirmed = await globalConfirm({
       title: language === 'zh' ? '恢复检查点' : 'Restore Checkpoint',
       message: t('confirmRestoreCheckpoint', language),

@@ -19,12 +19,14 @@ import {
   AssistantPart,
   isTextPart,
   isToolCallPart,
-} from '../../agent/core/types'
+  isReasoningPart,
+  ReasoningPart,
+} from '@renderer/agent/core/types'
 import FileChangeCard from './FileChangeCard'
 import ToolCallCard from './ToolCallCard'
 import ToolCallGroup from './ToolCallGroup'
-import { WRITE_TOOLS } from '../../agent/core/ToolExecutor'
-import { useStore } from '../../store'
+import { WRITE_TOOLS } from '@renderer/agent/core/ToolExecutor'
+import { useStore } from '@store'
 
 interface ChatMessageProps {
   message: ChatMessageType
@@ -93,55 +95,20 @@ const cleanStreamingContent = (text: string): string => {
   return cleaned.trim()
 }
 
-// 提取 thinking 内容
-const extractThinkingBlocks = (text: string): { thinkingBlocks: { content: string, startTime?: number, isClosed: boolean }[], mainContent: string } => {
-  if (!text) return { thinkingBlocks: [], mainContent: '' }
-
-  const thinkingBlocks: { content: string, startTime?: number, isClosed: boolean }[] = []
-
-  // 1. 匹配已闭合的块
-  let currentText = text
-  const closedRegex = /<thinking(?: startTime="(\d+)")?>([\s\S]*?)<\/thinking>/gi
-  currentText = currentText.replace(closedRegex, (_, startTime, content) => {
-    thinkingBlocks.push({
-      content: content.trim(),
-      startTime: startTime ? parseInt(startTime) : undefined,
-      isClosed: true
-    })
-    return ''
-  })
-
-  // 2. 匹配未闭合的块（在末尾）
-  const openRegex = /<thinking(?: startTime="(\d+)")?>([\s\S]*)$/gi
-  const openMatch = openRegex.exec(currentText)
-  if (openMatch) {
-    const startTime = openMatch[1] ? parseInt(openMatch[1]) : undefined
-    const content = openMatch[2].trim()
-    thinkingBlocks.push({
-      content,
-      startTime,
-      isClosed: false
-    })
-    currentText = currentText.replace(openRegex, '')
-  }
-
-  return { thinkingBlocks, mainContent: currentText.trim() }
-}
-
 // ThinkingBlock 组件 - 高级折叠样式
-const ThinkingBlock = React.memo(({ content, startTime, isClosed, fontSize }: { content: string; startTime?: number; isClosed: boolean; fontSize: number }) => {
-  const [isExpanded, setIsExpanded] = useState(!isClosed) // 初始状态
+const ThinkingBlock = React.memo(({ content, startTime, isStreaming, fontSize }: { content: string; startTime?: number; isStreaming: boolean; fontSize: number }) => {
+  const [isExpanded, setIsExpanded] = useState(isStreaming) // 流式时展开
   const [elapsed, setElapsed] = useState<number>(0)
   const lastElapsed = React.useRef<number>(0)
 
-  // 当 isClosed 状态改变时（例如流结束），自动同步折叠状态
+  // 当流式结束时自动折叠
   React.useEffect(() => {
-    setIsExpanded(!isClosed)
-  }, [isClosed])
+    setIsExpanded(isStreaming)
+  }, [isStreaming])
 
   // 计时器逻辑
   React.useEffect(() => {
-    if (!startTime || isClosed) {
+    if (!startTime || !isStreaming) {
       return
     }
 
@@ -152,10 +119,10 @@ const ThinkingBlock = React.memo(({ content, startTime, isClosed, fontSize }: { 
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [startTime, isClosed])
+  }, [startTime, isStreaming])
 
   // 格式化时长
-  const durationText = isClosed
+  const durationText = !isStreaming
     ? (lastElapsed.current > 0 ? `Thought for ${lastElapsed.current}s` : 'Thought')
     : `Thinking for ${elapsed}s...`
 
@@ -198,23 +165,11 @@ ThinkingBlock.displayName = 'ThinkingBlock'
 // Markdown 渲染组件 - 优化排版
 const MarkdownContent = React.memo(({ content, fontSize, isStreaming }: { content: string; fontSize: number; isStreaming?: boolean }) => {
   const cleanedContent = isStreaming ? cleanStreamingContent(content) : content
-  const { thinkingBlocks, mainContent } = extractThinkingBlocks(cleanedContent)
 
   return (
     <>
-      {/* 显示思考过程（如果有） */}
-      {thinkingBlocks.map((thinking, idx) => (
-        <ThinkingBlock
-          key={idx}
-          content={thinking.content}
-          startTime={thinking.startTime}
-          isClosed={thinking.isClosed}
-          fontSize={fontSize}
-        />
-      ))}
-
       {/* 显示主要内容 */}
-      {mainContent && (
+      {cleanedContent && (
         <div style={{ fontSize: `${fontSize}px` }} className="text-text-primary/90 leading-8 tracking-wide">
           <ReactMarkdown
             className="prose prose-invert max-w-none"
@@ -248,7 +203,7 @@ const MarkdownContent = React.memo(({ content, fontSize, isStreaming }: { conten
               h3: ({ children }) => <h3 className="text-sm font-semibold mb-1 mt-2 first:mt-0 text-text-primary">{children}</h3>,
             }}
           >
-            {mainContent}
+            {cleanedContent}
           </ReactMarkdown>
         </div>
       )}
@@ -280,6 +235,19 @@ const RenderPart = React.memo(({
   if (isTextPart(part)) {
     if (!part.content.trim()) return null
     return <MarkdownContent key={`text-${index}`} content={part.content} fontSize={fontSize} isStreaming={isStreaming} />
+  }
+
+  if (isReasoningPart(part)) {
+    const reasoningPart = part as ReasoningPart
+    return (
+      <ThinkingBlock
+        key={`reasoning-${index}`}
+        content={reasoningPart.content}
+        startTime={reasoningPart.startTime}
+        isStreaming={!!reasoningPart.isStreaming}
+        fontSize={fontSize}
+      />
+    )
   }
 
   if (isToolCallPart(part)) {
@@ -467,7 +435,7 @@ const ChatMessage = React.memo(({
                 {/* User message */}
                 {isUser && <MarkdownContent content={textContent} fontSize={fontSize} />}
 
-                {/* Assistant message */}
+                {/* Assistant message - parts 按顺序渲染（包含 text、reasoning、tool_call） */}
                 {isAssistantMessage(message) && message.parts && message.parts.length > 0 && (
                   <>
                     {(() => {

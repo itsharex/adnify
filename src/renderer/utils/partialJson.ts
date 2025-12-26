@@ -167,6 +167,49 @@ function extractKnownFields(jsonString: string): Record<string, unknown> {
 }
 
 /**
+ * 工具结果截断配置
+ */
+interface TruncateConfig {
+  maxLength: number
+  headRatio: number  // 保留开头的比例
+  tailRatio: number  // 保留结尾的比例
+}
+
+/**
+ * 工具特定的截断配置
+ */
+const TOOL_TRUNCATE_CONFIG: Record<string, TruncateConfig> = {
+  // 文件读取：保留更多内容，开头更重要
+  read_file: { maxLength: 20000, headRatio: 0.8, tailRatio: 0.15 },
+  read_multiple_files: { maxLength: 30000, headRatio: 0.8, tailRatio: 0.15 },
+
+  // 搜索结果：开头最相关
+  search_files: { maxLength: 10000, headRatio: 0.9, tailRatio: 0.05 },
+  codebase_search: { maxLength: 10000, headRatio: 0.9, tailRatio: 0.05 },
+  find_references: { maxLength: 8000, headRatio: 0.85, tailRatio: 0.1 },
+  grep_search: { maxLength: 10000, headRatio: 0.9, tailRatio: 0.05 },
+
+  // 目录结构：开头更重要
+  get_dir_tree: { maxLength: 8000, headRatio: 0.85, tailRatio: 0.1 },
+  list_directory: { maxLength: 8000, headRatio: 0.85, tailRatio: 0.1 },
+
+  // 命令输出：结尾更重要（错误信息通常在最后）
+  run_command: { maxLength: 15000, headRatio: 0.2, tailRatio: 0.75 },
+  execute_command: { maxLength: 15000, headRatio: 0.2, tailRatio: 0.75 },
+
+  // 符号/定义：均衡
+  get_document_symbols: { maxLength: 8000, headRatio: 0.6, tailRatio: 0.35 },
+  get_definition: { maxLength: 5000, headRatio: 0.7, tailRatio: 0.25 },
+  get_hover_info: { maxLength: 3000, headRatio: 0.7, tailRatio: 0.25 },
+
+  // Lint 错误：开头更重要
+  get_lint_errors: { maxLength: 8000, headRatio: 0.85, tailRatio: 0.1 },
+
+  // 默认配置
+  default: { maxLength: 12000, headRatio: 0.7, tailRatio: 0.25 },
+}
+
+/**
  * 智能截断工具结果
  * 根据工具类型和内容特点进行截断，避免 UI 卡顿
  */
@@ -177,57 +220,57 @@ export function truncateToolResult(
 ): string {
   if (!result) return ''
 
-  // 工具特定的限制
-  const limits: Record<string, number> = {
-    read_file: 20000,
-    read_multiple_files: 30000,
-    search_files: 10000,
-    get_dir_tree: 8000,
-    list_directory: 8000,
-    run_command: 15000,
-    codebase_search: 10000,
-    find_references: 8000,
-    get_document_symbols: 8000,
-    default: 12000,
-  }
-
-  const limit = maxLength || limits[toolName] || limits.default
+  const config = TOOL_TRUNCATE_CONFIG[toolName] || TOOL_TRUNCATE_CONFIG.default
+  const limit = maxLength || config.maxLength
 
   if (result.length <= limit) {
     return result
   }
 
-  const truncatedMsg = (omitted: number) => `\n\n... [truncated: ${omitted} chars omitted] ...\n\n`
+  // 计算截断位置
+  const headSize = Math.floor(limit * config.headRatio)
+  const tailSize = Math.floor(limit * config.tailRatio)
+  const omitted = result.length - headSize - tailSize
 
-  // 智能截断策略
-  if (toolName === 'search_files' || toolName === 'find_references' || toolName === 'codebase_search') {
-    // 搜索结果：保留更多开头（最相关的结果）
-    const headSize = Math.floor(limit * 0.9)
-    const tailSize = Math.floor(limit * 0.05)
-    return (
-      result.slice(0, headSize) +
-      truncatedMsg(result.length - limit) +
-      result.slice(-tailSize)
-    )
+  // 尝试在行边界截断（更友好的输出）
+  const head = truncateAtLineEnd(result.slice(0, headSize + 200), headSize)
+  const tail = truncateAtLineStart(result.slice(-tailSize - 200), tailSize)
+
+  const truncatedMsg = `\n\n... [truncated: ${omitted.toLocaleString()} chars omitted] ...\n\n`
+
+  return head + truncatedMsg + tail
+}
+
+/**
+ * 在行尾截断（向前找换行符）
+ */
+function truncateAtLineEnd(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text
+
+  // 在 maxLen 附近找换行符
+  const searchStart = Math.max(0, maxLen - 100)
+  const lastNewline = text.lastIndexOf('\n', maxLen)
+
+  if (lastNewline > searchStart) {
+    return text.slice(0, lastNewline)
   }
 
-  if (toolName === 'run_command') {
-    // 命令输出：保留更多结尾（通常错误信息在最后）
-    const headSize = Math.floor(limit * 0.2)
-    const tailSize = Math.floor(limit * 0.75)
-    return (
-      result.slice(0, headSize) +
-      truncatedMsg(result.length - limit) +
-      result.slice(-tailSize)
-    )
+  return text.slice(0, maxLen)
+}
+
+/**
+ * 在行首截断（向后找换行符）
+ */
+function truncateAtLineStart(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text
+
+  const startPos = text.length - maxLen
+  const searchEnd = Math.min(text.length, startPos + 100)
+  const firstNewline = text.indexOf('\n', startPos)
+
+  if (firstNewline !== -1 && firstNewline < searchEnd) {
+    return text.slice(firstNewline + 1)
   }
 
-  // 默认：保留大部分开头和一部分结尾
-  const headSize = Math.floor(limit * 0.7)
-  const tailSize = Math.floor(limit * 0.25)
-  return (
-    result.slice(0, headSize) +
-    truncatedMsg(result.length - limit) +
-    result.slice(-tailSize)
-  )
+  return text.slice(-maxLen)
 }
