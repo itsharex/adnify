@@ -139,6 +139,38 @@ export function VirtualFileTree({
     })
   }, [expandedFolders, childrenCache, loadChildren])
 
+  const shouldScrollRef = useRef(false)
+
+  // 监听 activeFilePath 变化，自动展开
+  useEffect(() => {
+    if (!activeFilePath || !workspacePath) return
+
+    const syncFile = async () => {
+      // 1. 确保所有父目录都已展开并加载
+      let currentPath = getDirPath(activeFilePath)
+      const pathsToExpand: string[] = []
+
+      while (currentPath && currentPath.length >= workspacePath.length) {
+        if (currentPath === workspacePath) break
+        pathsToExpand.unshift(currentPath)
+        currentPath = getDirPath(currentPath)
+      }
+
+      // 逐级展开并加载
+      for (const path of pathsToExpand) {
+        if (!expandedFolders.has(path)) {
+          expandFolder(path)
+          await loadChildren(path)
+        }
+      }
+
+      // 标记需要滚动
+      shouldScrollRef.current = true
+    }
+
+    syncFile()
+  }, [activeFilePath, workspacePath, expandedFolders, loadChildren, expandFolder])
+
   // 扁平化树结构（只包含可见节点）
   const flattenedNodes = useMemo(() => {
     const result: FlattenedNode[] = []
@@ -187,6 +219,24 @@ export function VirtualFileTree({
     traverse(items, 0)
     return result
   }, [items, expandedFolders, childrenCache, creatingIn, workspacePath])
+
+  // 处理滚动
+  useEffect(() => {
+    if (shouldScrollRef.current && activeFilePath) {
+      const index = flattenedNodes.findIndex(node => node.item.path === activeFilePath)
+      if (index !== -1 && containerRef.current) {
+        const top = index * ITEM_HEIGHT
+        // 如果不在可见范围内，则滚动
+        if (top < scrollTop || top > scrollTop + containerHeight - ITEM_HEIGHT) {
+          containerRef.current.scrollTo({
+            top: Math.max(0, top - containerHeight / 2), // 滚动到中间
+            behavior: 'smooth'
+          })
+        }
+        shouldScrollRef.current = false
+      }
+    }
+  }, [flattenedNodes, activeFilePath, scrollTop, containerHeight])
 
   // 计算可见范围
   const visibleRange = useMemo(() => {
