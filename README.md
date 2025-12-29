@@ -36,8 +36,8 @@ Adnify 不仅仅是一个编辑器，它是你的**智能编程伴侣**。它复
 - **玻璃拟态设计**: 全局采用毛玻璃风格，配合微妙的流光边框和动态阴影
 - **沉浸式布局**: 无框窗口、Chrome 风格标签页、面包屑导航
 
-<!-- 主题切换截图 -->
-![主题](<!-- screenshot-themes.png -->)
+![alt text](image.png)
+![alt text](images/theme2.png)
 
 ### 🤖 AI Agent 深度集成
 
@@ -72,8 +72,7 @@ Adnify 不仅仅是一个编辑器，它是你的**智能编程伴侣**。它复
 
 - **多 LLM 支持**: OpenAI, Anthropic Claude, Google Gemini, DeepSeek, Ollama, 自定义 API
 
-<!-- AI Agent 截图 -->
-![AI Agent](<!-- screenshot-agent.png -->)
+![alt text](images/tool.png)
 
 ### 📝 专业代码编辑
 
@@ -93,8 +92,7 @@ Adnify 不仅仅是一个编辑器，它是你的**智能编程伴侣**。它复
 - **自动保存**: 可配置的自动保存功能
 - **格式化保存**: 保存时自动格式化代码
 
-<!-- 编辑器截图 -->
-![编辑器](<!-- screenshot-editor.png -->)
+[text](README.md) ![text](images/editor.png)
 
 ### 🔍 强大的搜索功能
 
@@ -115,8 +113,7 @@ Adnify 不仅仅是一个编辑器，它是你的**智能编程伴侣**。它复
 - **快捷键支持**: Ctrl+C/V 复制粘贴，Ctrl+Shift+C/V 备用
 - **WebGL 渲染**: 高性能终端渲染
 
-<!-- 终端截图 -->
-![终端](<!-- screenshot-terminal.png -->)
+![alt text](images/terminal.png)
 
 ### 📂 文件管理
 
@@ -138,9 +135,6 @@ Adnify 不仅仅是一个编辑器，它是你的**智能编程伴侣**。它复
 - **提交历史**: 查看完整的提交记录
 - **Diff 视图**: 并排对比文件变更
 - **分支管理**: 查看和切换分支
-
-<!-- Git 截图 -->
-![Git](<!-- screenshot-git.png -->)
 
 ### 🗂 代码大纲
 
