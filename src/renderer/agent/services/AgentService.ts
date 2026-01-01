@@ -5,6 +5,7 @@
 
 import { logger } from '@utils/Logger'
 import { performanceMonitor } from '@shared/utils/PerformanceMonitor'
+import { AppError, formatErrorMessage } from '@/shared/errors'
 import { useAgentStore } from '../store/AgentStore'
 import { useStore } from '@store'
 import { WorkMode } from '@/renderer/modes/types'
@@ -73,50 +74,23 @@ class AgentServiceClass {
   private streamState: StreamHandlerState = createStreamHandlerState()
   private throttleState = { lastUpdate: 0, lastArgsLen: 0 }
 
-  // 会话级文件追踪（带时间戳和内容哈希）
-  private fileReadCache = new Map<string, { contentHash: string; timestamp: number }>()
-  
-  // 文件读取缓存有效期（5分钟）
-  private static readonly FILE_CACHE_TTL_MS = 5 * 60 * 1000
+  // 文件读取缓存（简化版：只记录哈希，不做复杂的 TTL 管理）
+  private fileReadCache = new Map<string, string>() // path -> contentHash
 
   /**
-   * 检查文件是否在有效期内被读取过
-   * @param filePath 文件路径
-   * @param currentContentHash 当前文件内容哈希（可选，用于检测外部修改）
+   * 检查文件缓存是否有效
    */
-  hasValidFileCache(filePath: string, currentContentHash?: string): boolean {
+  hasValidFileCache(filePath: string): boolean {
     const normalizedPath = filePath.replace(/\\/g, '/').toLowerCase()
-    const cache = this.fileReadCache.get(normalizedPath)
-    
-    if (!cache) return false
-    
-    // 检查是否过期
-    const isExpired = Date.now() - cache.timestamp > AgentServiceClass.FILE_CACHE_TTL_MS
-    if (isExpired) {
-      this.fileReadCache.delete(normalizedPath)
-      return false
-    }
-    
-    // 如果提供了当前内容哈希，检查文件是否被外部修改
-    if (currentContentHash && cache.contentHash !== currentContentHash) {
-      logger.agent.info(`[Agent] File externally modified: ${filePath}`)
-      return false
-    }
-    
-    return true
+    return this.fileReadCache.has(normalizedPath)
   }
 
   /**
-   * 标记文件已读取，记录内容哈希和时间戳
+   * 标记文件已读取
    */
-  markFileAsRead(filePath: string, content?: string): void {
+  markFileAsRead(filePath: string, content: string): void {
     const normalizedPath = filePath.replace(/\\/g, '/').toLowerCase()
-    const contentHash = content ? this.simpleHash(content) : ''
-    this.fileReadCache.set(normalizedPath, {
-      contentHash,
-      timestamp: Date.now()
-    })
-    logger.agent.debug(`[Agent] File cached: ${filePath}`)
+    this.fileReadCache.set(normalizedPath, this.simpleHash(content))
   }
 
   /**
@@ -124,9 +98,12 @@ class AgentServiceClass {
    */
   getFileCacheHash(filePath: string): string | null {
     const normalizedPath = filePath.replace(/\\/g, '/').toLowerCase()
-    return this.fileReadCache.get(normalizedPath)?.contentHash || null
+    return this.fileReadCache.get(normalizedPath) || null
   }
 
+  /**
+   * 清除会话缓存
+   */
   clearSession(): void {
     this.fileReadCache.clear()
     logger.agent.info('[Agent] Session cleared')
@@ -135,8 +112,7 @@ class AgentServiceClass {
   private simpleHash(str: string): string {
     let hash = 0
     for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
+      hash = ((hash << 5) - hash) + str.charCodeAt(i)
       hash = hash & hash
     }
     return hash.toString(36)
@@ -196,8 +172,9 @@ class AgentServiceClass {
 
       await this.runAgentLoop(config, llmMessages, workspacePath, chatMode)
     } catch (error) {
-      logger.agent.error('[Agent] Error:', error)
-      this.showError(error instanceof Error ? error.message : 'Unknown error occurred')
+      const appError = AppError.fromError(error)
+      logger.agent.error('[Agent] Error:', appError.toJSON())
+      this.showError(formatErrorMessage(appError))
     } finally {
       this.cleanup()
     }

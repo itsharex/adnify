@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { X, Plus, Trash2, ChevronUp, ChevronDown, Terminal as TerminalIcon, Sparkles, Play, SplitSquareHorizontal, LayoutTemplate } from 'lucide-react'
 import { useStore, useModeStore } from '@store'
+import { useAgentStore } from '@/renderer/agent'
 import { themes } from '../editor/ThemeManager'
 import { Button, Select } from '../ui'
 import { terminalManager, TerminalManagerState } from '@/renderer/services/TerminalManager'
@@ -66,8 +67,10 @@ function getTerminalTheme(themeName: string) {
 }
 
 export default function TerminalPanel() {
-    const { terminalVisible, setTerminalVisible, workspace, setInputPrompt, currentTheme, terminalLayout, setTerminalLayout } = useStore()
+    const { terminalVisible, setTerminalVisible, workspace, currentTheme, terminalLayout, setTerminalLayout } = useStore()
     const { setMode } = useModeStore()
+    // 从 AgentStore 获取 setInputPrompt
+    const setInputPrompt = useAgentStore(state => state.setInputPrompt)
     
     // UI 状态
     const [isCollapsed, setIsCollapsed] = useState(false)

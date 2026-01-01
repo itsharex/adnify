@@ -32,6 +32,10 @@ export class CodebaseIndexService {
     indexedFiles: 0,
     totalChunks: 0,
   }
+  
+  // 进度节流：避免频繁发送 IPC 消息
+  private lastProgressEmit = 0
+  private readonly PROGRESS_THROTTLE_MS = 100
 
   constructor(workspacePath: string, config?: Partial<IndexConfig>) {
     this.workspacePath = workspacePath
@@ -77,14 +81,14 @@ export class CodebaseIndexService {
             this.status.isIndexing = false
             this.status.lastIndexedAt = Date.now()
             logger.index.info(`[IndexService] Indexing complete. Total chunks: ${this.status.totalChunks}`)
-            this.emitProgress()
+            this.emitProgress(true) // 强制发送完成状态
             break
 
           case 'error':
             logger.index.error('[IndexService] Worker error:', message.error)
             this.status.error = message.error
             this.status.isIndexing = false
-            this.emitProgress()
+            this.emitProgress(true) // 强制发送错误状态
             break
         }
       })
@@ -332,9 +336,17 @@ export class CodebaseIndexService {
   // ========== 私有方法 ==========
 
   /**
-   * 发送进度事件到渲染进程
+   * 发送进度事件到渲染进程（带节流）
    */
-  private emitProgress(): void {
+  private emitProgress(force = false): void {
+    const now = Date.now()
+    
+    // 节流：除非强制或间隔足够，否则跳过
+    if (!force && now - this.lastProgressEmit < this.PROGRESS_THROTTLE_MS) {
+      return
+    }
+    this.lastProgressEmit = now
+    
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       try {
         this.mainWindow.webContents.send('index:progress', this.status)

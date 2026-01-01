@@ -19,7 +19,11 @@ export {
     selectIsOnBranch,
     selectContextSummary,
     selectIsCompacting,
+    selectContextStats,
+    selectInputPrompt,
+    selectCurrentSessionId,
 } from './store/AgentStore'
+export type { ContextStats } from './store/AgentStore'
 
 // 核心服务
 export { AgentService } from './services/AgentService'

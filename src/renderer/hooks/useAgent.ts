@@ -63,7 +63,7 @@ export function useAgent() {
   const createThread = useAgentStore(state => state.createThread)
   const switchThread = useAgentStore(state => state.switchThread)
   const deleteThread = useAgentStore(state => state.deleteThread)
-  const clearMessages = useAgentStore(state => state.clearMessages)
+  const clearMessagesAction = useAgentStore(state => state.clearMessages)
   const deleteMessagesAfter = useAgentStore(state => state.deleteMessagesAfter)
   const addContextItem = useAgentStore(state => state.addContextItem)
   const removeContextItem = useAgentStore(state => state.removeContextItem)
@@ -78,6 +78,14 @@ export function useAgent() {
   // 消息检查点操作
   const restoreToCheckpoint = useAgentStore(state => state.restoreToCheckpoint)
   const getCheckpointForMessage = useAgentStore(state => state.getCheckpointForMessage)
+  
+  // 清空消息（包括工具调用日志）
+  const clearMessages = useCallback(() => {
+    clearMessagesAction()
+    // 同时清理工具调用日志
+    useStore.getState().clearToolCallLogs()
+  }, [clearMessagesAction])
+  const clearCheckpoints = useAgentStore(state => state.clearMessageCheckpoints)
 
   // Plan 操作
   const createPlan = useAgentStore(state => state.createPlan)
@@ -227,6 +235,7 @@ export function useAgent() {
     // 消息检查点操作
     restoreToCheckpoint,
     getCheckpointForMessage,
+    clearCheckpoints,
 
     // 上下文操作
     addContextItem,

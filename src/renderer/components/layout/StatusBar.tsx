@@ -29,12 +29,15 @@ import { useDiagnosticsStore, getFileStats } from '@services/diagnosticsStore'
 
 export default function StatusBar() {
   const {
-    activeFilePath, isStreaming, workspacePath, setShowSettings, language,
+    activeFilePath, workspacePath, setShowSettings, language,
     terminalVisible, setTerminalVisible, cursorPosition, isGitRepo, gitStatus,
     setActiveSidePanel
   } = useStore()
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null)
   const [workerProgress, setWorkerProgress] = useState<IndexProgress | null>(null)
+  
+  // 从 AgentStore 获取流式状态
+  const isStreaming = useAgentStore(state => state.streamState.phase === 'streaming' || state.streamState.phase === 'tool_running')
   
   // 从全局 store 获取诊断统计
   const diagnostics = useDiagnosticsStore(state => state.diagnostics)

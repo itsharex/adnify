@@ -16,3 +16,11 @@ export {
   safeParseJson,
   generateId,
 } from './jsonUtils'
+
+// 性能监控
+export {
+  performanceMonitor,
+  type PerformanceMetric,
+  type MetricCategory,
+  type MemorySnapshot,
+} from './PerformanceMonitor'

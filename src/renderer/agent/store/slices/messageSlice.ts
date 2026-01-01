@@ -304,7 +304,7 @@ export const createMessageSlice: StateCreator<
         return message.id
     },
 
-    // 清空消息
+    // 清空消息（同时清理检查点和待确认更改）
     clearMessages: () => {
         const threadId = get().currentThreadId
         if (!threadId) return
@@ -324,8 +324,14 @@ export const createMessageSlice: StateCreator<
                         state: { currentCheckpointIdx: null, isStreaming: false },
                     },
                 },
+                // 同时清理检查点和待确认更改
+                messageCheckpoints: [],
+                pendingChanges: [],
             }
         })
+        
+        // 清理工具调用日志（在 useStore 中）
+        // 注意：这里需要导入 useStore，但为了避免循环依赖，我们在调用处处理
     },
 
     // 删除指定消息之后的所有消息

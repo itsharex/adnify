@@ -245,11 +245,12 @@ function updateContextStats(
   totalChars: number,
   config: ReturnType<typeof getAgentConfig>
 ): void {
-  const agentMessages = useAgentStore.getState().getMessages()
+  const agentStore = useAgentStore.getState()
+  const agentMessages = agentStore.getMessages()
   const fileCount = contextItems.filter(item => item.type === 'File').length
   const semanticResultCount = contextItems.filter(item => item.type === 'Codebase').length
 
-  useStore.getState().setContextStats({
+  agentStore.setContextStats({
     totalChars,
     maxChars: config.maxTotalContextChars,
     fileCount,
@@ -288,7 +289,6 @@ export async function calculateContextStats(
   contextItems: ContextItem[],
   currentInput: string
 ): Promise<void> {
-  const state = useStore.getState()
   const agentStore = useAgentStore.getState()
   const messages = agentStore.getMessages()
   const filteredMessages = messages.filter(m => m.role !== 'checkpoint')
@@ -339,7 +339,7 @@ export async function calculateContextStats(
   // 只统计 user + assistant 消息
   const userAssistantMessages = filteredMessages.filter(m => m.role === 'user' || m.role === 'assistant')
 
-  state.setContextStats({
+  agentStore.setContextStats({
     totalChars,
     maxChars: config.maxTotalContextChars,
     fileCount,

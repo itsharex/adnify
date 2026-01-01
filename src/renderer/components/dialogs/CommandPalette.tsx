@@ -10,6 +10,7 @@ import {
   X, Zap, Keyboard, Sparkles, ArrowRight, Plus, FolderPlus
 } from 'lucide-react'
 import { useStore, useModeStore } from '@/renderer/store'
+import { useAgentStore } from '@/renderer/agent'
 import { useAgent } from '@/renderer/hooks/useAgent'
 import { t } from '@/renderer/i18n'
 import { keybindingService } from '@/renderer/services/keybindingService'
@@ -89,19 +90,20 @@ export default function CommandPalette({ onClose, onShowKeyboardShortcuts }: Com
     setShowSettings,
     setTerminalVisible,
     terminalVisible,
-    clearCheckpoints,
     workspacePath,
     activeFilePath,
-    setInputPrompt,
     language,
     setShowQuickOpen,
     setShowComposer,
     setShowAbout,
   } = useStore()
 
+  // 从 AgentStore 获取 setInputPrompt
+  const setInputPrompt = useAgentStore(state => state.setInputPrompt)
+
   const { setMode } = useModeStore()
 
-  const { clearMessages } = useAgent()
+  const { clearMessages, clearCheckpoints } = useAgent()
 
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)

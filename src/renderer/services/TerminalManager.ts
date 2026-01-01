@@ -40,6 +40,18 @@ type StateListener = (state: TerminalManagerState) => void
 
 // ===== 终端管理器 =====
 
+// 获取终端缓冲配置（从 editorConfig 读取）
+function getOutputBufferConfig() {
+  const config = getEditorConfig()
+  const maxLines = config.performance.terminalBufferSize || 1000
+  return {
+    maxLines,
+    // 使用行数 * 平均行长度估算，避免频繁计算字节
+    maxTotalChars: maxLines * 200,
+    trimRatio: 0.3,
+  }
+}
+
 class TerminalManagerClass {
   private state: TerminalManagerState = {
     terminals: [],
@@ -48,7 +60,8 @@ class TerminalManagerClass {
 
   // xterm 实例管理
   private xtermInstances = new Map<string, XTermInstance>()
-  private outputBuffers = new Map<string, string[]>()
+  // 简化缓冲区：只记录行数和字符数（比字节数计算更快）
+  private outputBuffers = new Map<string, { lines: string[]; totalChars: number }>()
   
   // PTY 状态
   private ptyReady = new Map<string, boolean>()
@@ -75,13 +88,43 @@ class TerminalManagerClass {
       }
       
       // 缓存输出
-      if (!this.outputBuffers.has(id)) {
-        this.outputBuffers.set(id, [])
-      }
-      const buffer = this.outputBuffers.get(id)!
-      buffer.push(data)
-      if (buffer.length > 1000) buffer.shift()
+      this.appendToBuffer(id, data)
     })
+  }
+
+  /**
+   * 追加数据到输出缓冲区
+   */
+  private appendToBuffer(id: string, data: string): void {
+    let buffer = this.outputBuffers.get(id)
+    if (!buffer) {
+      buffer = { lines: [], totalChars: 0 }
+      this.outputBuffers.set(id, buffer)
+    }
+
+    buffer.lines.push(data)
+    buffer.totalChars += data.length
+
+    const config = getOutputBufferConfig()
+
+    // 检查是否需要裁剪
+    if (buffer.lines.length > config.maxLines || buffer.totalChars > config.maxTotalChars) {
+      const keepCount = Math.floor(buffer.lines.length * (1 - config.trimRatio))
+      const removed = buffer.lines.splice(0, buffer.lines.length - keepCount)
+      // 减去被移除的字符数
+      for (const line of removed) {
+        buffer.totalChars -= line.length
+      }
+    }
+  }
+
+  /**
+   * 获取缓冲区统计信息
+   */
+  getBufferStats(id: string): { lines: number; chars: number } | null {
+    const buffer = this.outputBuffers.get(id)
+    if (!buffer) return null
+    return { lines: buffer.lines.length, chars: buffer.totalChars }
   }
 
   // ===== 状态订阅 =====
@@ -304,7 +347,7 @@ class TerminalManagerClass {
   }
 
   getOutputBuffer(id: string): string[] {
-    return this.outputBuffers.get(id) || []
+    return this.outputBuffers.get(id)?.lines || []
   }
 
   getXterm(id: string): XTerminal | null {

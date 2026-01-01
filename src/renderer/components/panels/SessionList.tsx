@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { MessageSquare, Trash2, Download, Upload, Plus, X, Clock, Bot, Zap } from 'lucide-react'
 import { sessionService, SessionSummary } from '@/renderer/agent/services/sessionService'
 import { useStore, useModeStore } from '@/renderer/store'
+import { useAgentStore } from '@/renderer/agent'
 import { useAgent } from '@/renderer/hooks/useAgent'
 import { t } from '@/renderer/i18n'
 
@@ -18,7 +19,10 @@ interface SessionListProps {
 export default function SessionList({ onClose, onLoadSession }: SessionListProps) {
 	const [sessions, setSessions] = useState<SessionSummary[]>([])
 	const [loading, setLoading] = useState(true)
-	const { currentSessionId, setCurrentSessionId, language } = useStore()
+	const { language } = useStore()
+	// 从 AgentStore 获取 session 状态
+	const currentSessionId = useAgentStore(state => state.currentSessionId)
+	const setCurrentSessionId = useAgentStore(state => state.setCurrentSessionId)
 	const chatMode = useModeStore(state => state.currentMode)
 	const { messages, createThread } = useAgent()
 

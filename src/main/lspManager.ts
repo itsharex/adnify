@@ -260,23 +260,33 @@ class LspManager {
       const inst = this.servers.get(key)
       this.servers.delete(key)
 
-      // 自动重启逻辑
+      // 自动重启逻辑（改进版）
       if (code !== 0 && code !== null && inst) {
         const now = Date.now()
-        // 检查是否在冷却时间内
+        
+        // 如果距离上次崩溃超过冷却时间，重置计数
         if (now - inst.lastCrashTime > LspManager.CRASH_COOLDOWN_MS) {
-          inst.crashCount = 0 // 重置崩溃计数
+          inst.crashCount = 1
+        } else {
+          inst.crashCount++
         }
-        inst.crashCount++
         inst.lastCrashTime = now
 
+        // 只有在崩溃次数未超限时才重启
         if (inst.crashCount <= LspManager.MAX_CRASH_COUNT) {
-          logger.lsp.warn(`[LSP ${key}] Server crashed, attempting restart (${inst.crashCount}/${LspManager.MAX_CRASH_COUNT})...`)
+          const delay = Math.min(1000 * inst.crashCount, 5000) // 递增延迟，最大 5 秒
+          logger.lsp.warn(`[LSP ${key}] Server crashed (${inst.crashCount}/${LspManager.MAX_CRASH_COUNT}), restarting in ${delay}ms...`)
+          
           setTimeout(() => {
-            this.startServer(inst.config.name, inst.workspacePath).catch(console.error)
-          }, 1000)
+            // 再次检查是否应该重启（可能用户已手动停止）
+            if (!this.servers.has(key)) {
+              this.startServer(inst.config.name, inst.workspacePath).catch(e => {
+                logger.lsp.error(`[LSP ${key}] Restart failed:`, e)
+              })
+            }
+          }, delay)
         } else {
-          logger.lsp.error(`[LSP ${key}] Server crashed too many times, giving up`)
+          logger.lsp.error(`[LSP ${key}] Server crashed ${inst.crashCount} times, giving up`)
         }
       }
     })

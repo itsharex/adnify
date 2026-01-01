@@ -4,6 +4,9 @@
  * 例如: node scripts/sync-release-to-gitee.js 1.2.5
  * 
  * 支持断点续传：如果下载中断，重新运行会从断点继续
+ * 
+ * 环境变量:
+ * - GITHUB_TOKEN: GitHub Personal Access Token (可选，用于提高 API 速率限制)
  */
 
 const https = require('https')
@@ -12,6 +15,7 @@ const path = require('path')
 
 const GITHUB_REPO = 'adnaan-worker/adnify'
 const GITEE_RELEASE_URL = 'https://gitee.com/adnaan/adnify/releases/new'
+const GITHUB_TOKEN = "87787"
 
 const version = process.argv[2]
 if (!version) {
@@ -54,8 +58,12 @@ function downloadFile(url, filePath, expectedSize, name) {
     const options = {
       headers: {
         'User-Agent': 'Node.js',
-        'Range': existingSize > 0 ? `bytes=${existingSize}-` : undefined
       }
+    }
+    
+    // 只在续传时添加 Range header
+    if (existingSize > 0) {
+      options.headers['Range'] = `bytes=${existingSize}-`
     }
 
     const makeRequest = (requestUrl) => {
@@ -107,8 +115,21 @@ function downloadFile(url, filePath, expectedSize, name) {
 
 // 获取 Release 信息
 const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/releases/tags/${tag}`
+const apiHeaders = {
+  'User-Agent': 'Node.js',
+  'Accept': 'application/vnd.github.v3+json',
+}
 
-https.get(apiUrl, { headers: { 'User-Agent': 'Node.js' } }, (res) => {
+// 如果有 Token，添加认证头
+if (GITHUB_TOKEN) {
+  apiHeaders['Authorization'] = `token ${GITHUB_TOKEN}`
+  console.log('🔑 使用 GitHub Token 认证\n')
+} else {
+  console.log('⚠️  未设置 GITHUB_TOKEN，可能遇到速率限制')
+  console.log('   设置方法: set GITHUB_TOKEN=your_token (Windows)\n')
+}
+
+https.get(apiUrl, { headers: apiHeaders }, (res) => {
   let data = ''
   res.on('data', chunk => data += chunk)
   res.on('end', async () => {

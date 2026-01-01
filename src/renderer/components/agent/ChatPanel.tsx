@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Logo } from '@/renderer/components/common/Logo'
 import { useStore, useModeStore } from '@/renderer/store'
 import { useAgent } from '@/renderer/hooks/useAgent'
+import { useAgentStore } from '@/renderer/agent'
 import { t } from '@/renderer/i18n'
 import { toFullPath } from '@/renderer/utils/pathUtils'
 import {
@@ -48,10 +49,12 @@ export default function ChatPanel() {
     language,
     activeFilePath,
     setActiveDiff,
-    inputPrompt,
-    setInputPrompt,
     selectedCode,
   } = useStore()
+
+  // 从 AgentStore 获取 inputPrompt
+  const inputPrompt = useAgentStore(state => state.inputPrompt)
+  const setInputPrompt = useAgentStore(state => state.setInputPrompt)
 
   const { currentMode: chatMode, setMode: setChatMode } = useModeStore()
 

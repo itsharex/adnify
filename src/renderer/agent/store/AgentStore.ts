@@ -26,6 +26,28 @@ import type { ChatMessage, ContextItem } from '../types'
 
 // ===== Store 类型 =====
 
+// 上下文统计信息
+export interface ContextStats {
+    totalChars: number
+    maxChars: number
+    fileCount: number
+    maxFiles: number
+    messageCount: number
+    maxMessages: number
+    semanticResultCount: number
+    terminalChars: number
+}
+
+// UI 相关状态（从 chatSlice 迁移）
+interface UIState {
+    contextStats: ContextStats | null
+    inputPrompt: string
+    currentSessionId: string | null
+    setContextStats: (stats: ContextStats | null) => void
+    setInputPrompt: (prompt: string) => void
+    setCurrentSessionId: (id: string | null) => void
+}
+
 // 上下文摘要状态
 interface ContextSummaryState {
     contextSummary: string | null
@@ -34,7 +56,7 @@ interface ContextSummaryState {
     setIsCompacting: (isCompacting: boolean) => void
 }
 
-export type AgentStore = ThreadSlice & MessageSlice & CheckpointSlice & PlanSlice & StreamSlice & BranchSlice & ContextSummaryState
+export type AgentStore = ThreadSlice & MessageSlice & CheckpointSlice & PlanSlice & StreamSlice & BranchSlice & ContextSummaryState & UIState
 
 // ===== 流式响应节流优化 =====
 
@@ -158,6 +180,16 @@ export const useAgentStore = create<AgentStore>()(
                 setIsCompacting: (isCompacting) => set({ isCompacting } as any),
             }
 
+            // UI 状态（从 chatSlice 迁移）
+            const uiState: UIState = {
+                contextStats: null,
+                inputPrompt: '',
+                currentSessionId: null,
+                setContextStats: (stats) => set({ contextStats: stats } as any),
+                setInputPrompt: (prompt) => set({ inputPrompt: prompt } as any),
+                setCurrentSessionId: (id) => set({ currentSessionId: id } as any),
+            }
+
             // 重写 appendToAssistant 使用 StreamingBuffer
             messageSlice.appendToAssistant = (messageId: string, content: string) => {
                 streamingBuffer.append(messageId, content)
@@ -178,6 +210,7 @@ export const useAgentStore = create<AgentStore>()(
                 ...streamSlice,
                 ...branchSlice,
                 ...contextSummaryState,
+                ...uiState,
             }
         },
         {
@@ -259,6 +292,9 @@ export const selectIsOnBranch = (state: AgentStore) => {
 
 export const selectContextSummary = (state: AgentStore) => state.contextSummary
 export const selectIsCompacting = (state: AgentStore) => state.isCompacting
+export const selectContextStats = (state: AgentStore) => state.contextStats
+export const selectInputPrompt = (state: AgentStore) => state.inputPrompt
+export const selectCurrentSessionId = (state: AgentStore) => state.currentSessionId
 
 // ===== StreamingBuffer 初始化 =====
 

@@ -6,6 +6,7 @@
 
 import { logger } from '@utils/Logger'
 import { performanceMonitor } from '@shared/utils/PerformanceMonitor'
+import { AppError, ErrorCode } from '@/shared/errors'
 import { useAgentStore } from '../store/AgentStore'
 import { useStore } from '@store'
 import { toolManager, initializeToolProviders } from '../tools'
@@ -165,21 +166,30 @@ export class ToolExecutionService {
     const maxRetries = config.maxRetries
     const retryDelayMs = config.retryDelayMs
 
-    const executeWithTimeout = () => Promise.race([
-      toolManager.execute(name, args, { workspacePath }),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Tool execution timed out after ${timeoutMs / 1000}s`)), timeoutMs)
-      )
-    ])
-
     let result: ToolExecutionResult | undefined
     let lastError: string = ''
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        result = await executeWithTimeout()
-        if (result.success) break
-        lastError = result.error || 'Unknown error'
+        // 使用 AbortController 实现可取消的超时
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+        try {
+          result = await toolManager.execute(name, args, { workspacePath })
+          clearTimeout(timeoutId)
+          
+          if (result.success) break
+          lastError = result.error || 'Unknown error'
+        } catch (e: unknown) {
+          clearTimeout(timeoutId)
+          const appError = AppError.fromError(e)
+          if (appError.code === ErrorCode.TIMEOUT || controller.signal.aborted) {
+            lastError = `Tool execution timed out after ${timeoutMs / 1000}s`
+          } else {
+            throw appError
+          }
+        }
 
         if (attempt < maxRetries && this.isRetryableError(lastError)) {
           logger.agent.info(`[ToolExecutionService] Tool ${name} failed (attempt ${attempt}/${maxRetries}), retrying...`)
@@ -187,8 +197,9 @@ export class ToolExecutionService {
         } else {
           break
         }
-      } catch (error: any) {
-        lastError = error.message
+      } catch (error: unknown) {
+        const appError = AppError.fromError(error)
+        lastError = appError.message
         if (attempt < maxRetries && this.isRetryableError(lastError)) {
           logger.agent.info(`[ToolExecutionService] Tool ${name} error (attempt ${attempt}/${maxRetries}): ${lastError}, retrying...`)
           await new Promise(resolve => setTimeout(resolve, retryDelayMs * attempt))
