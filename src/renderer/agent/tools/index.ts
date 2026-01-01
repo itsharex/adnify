@@ -1,6 +1,5 @@
 /**
  * 工具模块
- * 统一导出工具相关功能
  */
 
 // =================== 类型 ===================
@@ -23,14 +22,18 @@ export {
   TOOL_DEFINITIONS,
   TOOL_SCHEMAS,
   TOOL_DISPLAY_NAMES,
-  getToolDefinitions,
   getToolApprovalType,
   getToolDisplayName,
   getReadOnlyTools,
   getWriteTools,
+  getParallelTools,
   isParallelTool,
   isWriteTool,
 } from '@/shared/config/tools'
+
+// =================== 工具分组 ===================
+export type { ToolLoadingContext } from '@/shared/config/toolGroups'
+export { getToolsForContext, isToolAvailable } from '@/shared/config/toolGroups'
 
 // =================== 工具注册表 ===================
 export { toolRegistry } from './registry'
@@ -38,7 +41,7 @@ export { toolRegistry } from './registry'
 // =================== 工具执行器 ===================
 export { toolExecutors, initializeTools } from './executors'
 
-// =================== 工具提供者系统 ===================
+// =================== 工具提供者 ===================
 export type { ToolProvider, ToolMeta } from './providers'
 export {
   toolManager,
@@ -46,5 +49,5 @@ export {
   mcpToolProvider,
   McpToolProvider,
   initializeToolProviders,
-  setIncludePlanTools,
+  setToolLoadingContext,
 } from './providers'

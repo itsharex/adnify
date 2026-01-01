@@ -382,6 +382,12 @@ export interface ElectronAPI {
 
   // Command Execution
   onExecuteCommand: (callback: (commandId: string) => void) => () => void
+
+  // Resources API (静态资源读取)
+  resourcesReadJson: <T = unknown>(relativePath: string) => Promise<{ success: boolean; data?: T; error?: string }>
+  resourcesReadText: (relativePath: string) => Promise<{ success: boolean; data?: string; error?: string }>
+  resourcesExists: (relativePath: string) => Promise<boolean>
+  resourcesClearCache: (prefix?: string) => Promise<{ success: boolean }>
 }
 export interface LspPosition {
   line: number

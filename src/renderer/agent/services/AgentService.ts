@@ -8,7 +8,7 @@ import { performanceMonitor } from '@shared/utils/PerformanceMonitor'
 import { useAgentStore } from '../store/AgentStore'
 import { useStore } from '@store'
 import { WorkMode } from '@/renderer/modes/types'
-import { toolRegistry, toolManager, initializeToolProviders, setIncludePlanTools } from '../tools'
+import { toolRegistry, toolManager, initializeToolProviders, setToolLoadingContext } from '../tools'
 import { OpenAIMessage } from '../llm/MessageConverter'
 import {
   ContextItem,
@@ -549,7 +549,14 @@ class AgentServiceClass {
       // 发送请求
       // 初始化工具提供者并获取所有工具定义
       initializeToolProviders()
-      setIncludePlanTools(chatMode === 'plan')
+      
+      // 设置工具加载上下文（根据模式和角色加载不同工具）
+      const templateId = useStore.getState().promptTemplateId
+      setToolLoadingContext({
+        mode: chatMode === 'plan' ? 'plan' : chatMode === 'chat' ? 'chat' : 'code',
+        templateId,
+      })
+      
       const allTools = chatMode === 'chat' ? [] : toolManager.getAllToolDefinitions()
       
       window.electronAPI.sendMessage({

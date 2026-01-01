@@ -3,12 +3,14 @@
  * 测试 Zod Schema 验证和工具定义
  */
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import {
   toolRegistry,
-  getToolDefinitions,
   getToolApprovalType,
   TOOL_SCHEMAS,
+  builtinToolProvider,
+  setToolLoadingContext,
+  initializeToolProviders,
 } from '../../src/renderer/agent/tools'
 
 // 从 schemas 中获取具体的 schema
@@ -18,9 +20,14 @@ const RunCommandSchema = TOOL_SCHEMAS.run_command
 const CreatePlanSchema = TOOL_SCHEMAS.create_plan
 
 describe('Tool Definitions', () => {
-  describe('getToolDefinitions', () => {
-    it('should return all tools in agent mode', () => {
-      const tools = getToolDefinitions(false)
+  beforeEach(() => {
+    initializeToolProviders()
+  })
+
+  describe('getToolDefinitions with context', () => {
+    it('should return core tools in code mode', () => {
+      setToolLoadingContext({ mode: 'code' })
+      const tools = builtinToolProvider.getToolDefinitions()
       expect(tools.length).toBeGreaterThan(0)
       expect(tools.find(t => t.name === 'read_file')).toBeDefined()
       expect(tools.find(t => t.name === 'edit_file')).toBeDefined()
@@ -28,15 +35,35 @@ describe('Tool Definitions', () => {
     })
 
     it('should include plan tools in plan mode', () => {
-      const tools = getToolDefinitions(true)
+      setToolLoadingContext({ mode: 'plan' })
+      const tools = builtinToolProvider.getToolDefinitions()
       expect(tools.find(t => t.name === 'create_plan')).toBeDefined()
       expect(tools.find(t => t.name === 'update_plan')).toBeDefined()
     })
 
-    it('should exclude plan tools in non-plan mode', () => {
-      const tools = getToolDefinitions(false)
+    it('should exclude plan tools in code mode', () => {
+      setToolLoadingContext({ mode: 'code' })
+      const tools = builtinToolProvider.getToolDefinitions()
       expect(tools.find(t => t.name === 'create_plan')).toBeUndefined()
       expect(tools.find(t => t.name === 'update_plan')).toBeUndefined()
+    })
+
+    it('should return no tools in chat mode', () => {
+      setToolLoadingContext({ mode: 'chat' })
+      const tools = builtinToolProvider.getToolDefinitions()
+      expect(tools.length).toBe(0)
+    })
+
+    it('should include role-specific tools when templateId is set', () => {
+      setToolLoadingContext({ mode: 'code', templateId: 'uiux-designer' })
+      const tools = builtinToolProvider.getToolDefinitions()
+      expect(tools.find(t => t.name === 'uiux_search')).toBeDefined()
+    })
+
+    it('should not include role-specific tools without templateId', () => {
+      setToolLoadingContext({ mode: 'code' })
+      const tools = builtinToolProvider.getToolDefinitions()
+      expect(tools.find(t => t.name === 'uiux_search')).toBeUndefined()
     })
   })
 
@@ -49,9 +76,9 @@ describe('Tool Definitions', () => {
       expect(getToolApprovalType('delete_file_or_folder')).toBe('dangerous')
     })
 
-    it('should return undefined for read tools', () => {
-      expect(getToolApprovalType('read_file')).toBeUndefined()
-      expect(getToolApprovalType('list_directory')).toBeUndefined()
+    it('should return none for read tools', () => {
+      expect(getToolApprovalType('read_file')).toBe('none')
+      expect(getToolApprovalType('list_directory')).toBe('none')
     })
   })
 })

@@ -542,4 +542,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('workbench:execute-command', handler)
     return () => ipcRenderer.removeListener('workbench:execute-command', handler)
   },
+
+  // Resources API (静态资源读取)
+  resourcesReadJson: (relativePath: string) => ipcRenderer.invoke('resources:readJson', relativePath),
+  resourcesReadText: (relativePath: string) => ipcRenderer.invoke('resources:readText', relativePath),
+  resourcesExists: (relativePath: string) => ipcRenderer.invoke('resources:exists', relativePath),
+  resourcesClearCache: (prefix?: string) => ipcRenderer.invoke('resources:clearCache', prefix),
 })

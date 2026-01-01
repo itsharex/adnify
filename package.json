@@ -159,6 +159,10 @@
       {
         "from": "resources/tree-sitter",
         "to": "tree-sitter"
+      },
+      {
+        "from": "resources/uiux",
+        "to": "uiux"
       }
     ]
   }

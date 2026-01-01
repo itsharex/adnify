@@ -28,7 +28,7 @@ export type { LLMCallConfig } from './services/AgentService'
 // 工具系统（只导出不与 types 冲突的）
 export {
     toolRegistry,
-    getToolDefinitions,
+    TOOL_DEFINITIONS,
     TOOL_DISPLAY_NAMES,
 } from './tools'
 export { getToolApprovalType, getToolDisplayName } from '@/shared/config/tools'

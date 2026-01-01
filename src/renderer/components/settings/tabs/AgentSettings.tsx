@@ -102,7 +102,7 @@ export function AgentSettings({
                             </div>
 
                             <div className="bg-surface/50 p-3 rounded-lg border border-white/5 space-y-2">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-start gap-2 flex-wrap">
                                     <span className="text-xs font-medium text-text-primary">
                                         {templates.find(t => t.id === promptTemplateId)?.name}
                                     </span>

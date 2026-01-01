@@ -6,7 +6,8 @@
 import { logger } from '@utils/Logger'
 import { useAgentStore } from '../store/AgentStore'
 import { useModeStore } from '@/renderer/modes'
-import { toolManager, initializeToolProviders, setIncludePlanTools } from '../tools'
+import { toolManager, initializeToolProviders, setToolLoadingContext } from '../tools'
+import { useStore } from '@/renderer/store'
 import { parsePartialArgs, parseXMLToolCalls, removeXMLToolCallsFromContent, generateToolCallId } from '../utils/XMLToolParser'
 import { LLMStreamChunk, LLMToolCall } from '@/renderer/types/electron'
 
@@ -62,8 +63,12 @@ export function isValidToolName(name: string): boolean {
   
   // 确保工具提供者已初始化
   initializeToolProviders()
-  const isPlanMode = useModeStore.getState().currentMode === 'plan'
-  setIncludePlanTools(isPlanMode)
+  const currentMode = useModeStore.getState().currentMode
+  const templateId = useStore.getState().promptTemplateId
+  setToolLoadingContext({
+    mode: currentMode === 'plan' ? 'plan' : currentMode === 'chat' ? 'chat' : 'code',
+    templateId,
+  })
   
   return toolManager.hasTool(name)
 }

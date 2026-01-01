@@ -527,6 +527,92 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
 
         return { success: true, result: 'Plan updated successfully' }
     },
+
+    async uiux_search(args) {
+        const { uiuxDatabase } = await import('./uiux')
+        
+        const query = args.query as string
+        const domain = args.domain as string | undefined
+        const stack = args.stack as string | undefined
+        const maxResults = (args.max_results as number) || 3
+
+        try {
+            await uiuxDatabase.initialize()
+
+            // 如果指定了 stack，搜索技术栈指南
+            if (stack) {
+                const result = await uiuxDatabase.searchStack(query, stack as any, maxResults)
+                if (result.count === 0) {
+                    return { 
+                        success: true, 
+                        result: `No ${stack} guidelines found for "${query}". Try different keywords.` 
+                    }
+                }
+                return {
+                    success: true,
+                    result: formatUiuxResults(result),
+                    richContent: [{
+                        type: 'json' as const,
+                        text: JSON.stringify(result, null, 2),
+                        title: `${stack} Guidelines: ${query}`,
+                    }],
+                }
+            }
+
+            // 否则搜索域数据
+            const result = await uiuxDatabase.search(query, domain as any, maxResults)
+            if (result.count === 0) {
+                return { 
+                    success: true, 
+                    result: `No ${result.domain} results found for "${query}". Try different keywords or specify a different domain.` 
+                }
+            }
+
+            return {
+                success: true,
+                result: formatUiuxResults(result),
+                richContent: [{
+                    type: 'json' as const,
+                    text: JSON.stringify(result, null, 2),
+                    title: `UI/UX ${result.domain}: ${query}`,
+                }],
+            }
+        } catch (error: any) {
+            return {
+                success: false,
+                result: '',
+                error: `UI/UX search failed: ${error.message}`,
+            }
+        }
+    },
+}
+
+/**
+ * 格式化 UI/UX 搜索结果为可读文本
+ */
+function formatUiuxResults(result: { domain: string; query: string; count: number; results: Record<string, unknown>[]; stack?: string }): string {
+    const lines: string[] = []
+    
+    if (result.stack) {
+        lines.push(`## ${result.stack} Guidelines for "${result.query}"`)
+    } else {
+        lines.push(`## UI/UX ${result.domain} results for "${result.query}"`)
+    }
+    lines.push(`Found ${result.count} result(s)\n`)
+
+    for (let i = 0; i < result.results.length; i++) {
+        const item = result.results[i]
+        lines.push(`### Result ${i + 1}`)
+        
+        for (const [key, value] of Object.entries(item)) {
+            if (value && String(value).trim()) {
+                lines.push(`- **${key}**: ${value}`)
+            }
+        }
+        lines.push('')
+    }
+
+    return lines.join('\n')
 }
 
 /**

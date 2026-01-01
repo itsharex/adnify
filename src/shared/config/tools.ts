@@ -412,6 +412,32 @@ export const TOOL_CONFIGS: Record<string, ToolConfig> = {
             title: { type: 'string', description: 'Plan title' },
         },
     },
+
+    // ===== UI/UX 设计工具 =====
+    uiux_search: {
+        name: 'uiux_search',
+        displayName: 'UI/UX Search',
+        description: 'Search UI/UX design database for styles, colors, typography, charts, landing page patterns, product recommendations, and UX best practices. Use this tool when working on UI/UX design tasks.',
+        category: 'search',
+        approvalType: 'none',
+        parallel: true,
+        requiresWorkspace: false,
+        enabled: true,
+        parameters: {
+            query: { type: 'string', description: 'Search keywords (e.g., "glassmorphism", "saas dashboard", "elegant font")', required: true },
+            domain: { 
+                type: 'string', 
+                description: 'Search domain. Auto-detected if not specified.',
+                enum: ['style', 'color', 'typography', 'chart', 'landing', 'product', 'ux', 'prompt'],
+            },
+            stack: {
+                type: 'string',
+                description: 'Tech stack for stack-specific guidelines (use instead of domain)',
+                enum: ['html-tailwind', 'react', 'nextjs', 'vue', 'svelte', 'swiftui', 'react-native', 'flutter'],
+            },
+            max_results: { type: 'number', description: 'Maximum results (default: 3)', default: 3 },
+        },
+    },
 }
 
 
@@ -540,14 +566,6 @@ export const TOOL_DISPLAY_NAMES = Object.fromEntries(
 // 辅助函数
 // ============================================
 
-const PLAN_TOOLS = ['create_plan', 'update_plan']
-
-/** 获取工具定义列表 */
-export function getToolDefinitions(includePlan = false) {
-    const definitions = Object.values(TOOL_DEFINITIONS)
-    return includePlan ? definitions : definitions.filter(d => !PLAN_TOOLS.includes(d.name))
-}
-
 /** 获取工具审批类型 */
 export function getToolApprovalType(toolName: string): ToolApprovalType {
     return TOOL_CONFIGS[toolName]?.approvalType || 'none'
@@ -570,9 +588,7 @@ export function getWriteTools(): string[] {
     return Object.entries(TOOL_CONFIGS)
         .filter(([_, config]) => config.category === 'write')
         .map(([name]) => name)
-}
-
-/** 获取需要审批的工具 */
+}/** 获取需要审批的工具 */
 export function getApprovalRequiredTools(): string[] {
     return Object.entries(TOOL_CONFIGS)
         .filter(([_, config]) => config.approvalType !== 'none')
@@ -582,6 +598,13 @@ export function getApprovalRequiredTools(): string[] {
 /** 检查工具是否可并行执行 */
 export function isParallelTool(toolName: string): boolean {
     return TOOL_CONFIGS[toolName]?.parallel ?? false
+}
+
+/** 获取可并行执行的工具列表 */
+export function getParallelTools(): string[] {
+    return Object.entries(TOOL_CONFIGS)
+        .filter(([_, config]) => config.parallel)
+        .map(([name]) => name)
 }
 
 /** 检查工具是否为写入类工具 */

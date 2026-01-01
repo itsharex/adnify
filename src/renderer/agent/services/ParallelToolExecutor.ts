@@ -5,8 +5,7 @@
 
 import { logger } from '@utils/Logger'
 import { LLMToolCall } from '@/renderer/types/electron'
-import { toolRegistry } from '../tools'
-import { getReadOnlyTools } from '@/shared/config/tools'
+import { getReadOnlyTools, getParallelTools } from '@/shared/config/tools'
 import { toolExecutionService, ToolExecutionContext } from './ToolExecutionService'
 
 // 只读工具集合（缓存以提高性能）
@@ -30,7 +29,7 @@ interface ParallelExecutionResult {
  * 分析工具之间的依赖关系
  */
 function analyzeToolDependencies(toolCalls: LLMToolCall[]): ToolDependencyAnalysis {
-  const parallelTools = toolRegistry.getParallelTools()
+  const parallelTools = getParallelTools()
   
   // 分类工具
   const readTools: LLMToolCall[] = []
