@@ -73,8 +73,9 @@ export class ToolExecutionService {
 
     store.setStreamPhase('tool_running', { id, name, arguments: args, status: 'running' })
 
-    // 开始性能监控
-    performanceMonitor.start(`tool:${name}`, 'tool', { toolId: id })
+    // 开始性能监控 - 使用 toolCallId 确保并行调用时 timer 名称唯一
+    const timerName = `tool:${name}:${id}`
+    performanceMonitor.start(timerName, 'tool', { toolId: id })
 
     // 记录开始时间
     const startTime = Date.now()
@@ -102,7 +103,7 @@ export class ToolExecutionService {
     const result = await this.executeWithRetry(name, args, workspacePath)
 
     // 结束性能监控
-    performanceMonitor.end(`tool:${name}`, result.success)
+    performanceMonitor.end(timerName, result.success)
 
     // 记录执行日志
     useStore.getState().addToolCallLog({

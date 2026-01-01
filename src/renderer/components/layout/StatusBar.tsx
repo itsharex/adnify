@@ -36,9 +36,6 @@ export default function StatusBar() {
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null)
   const [workerProgress, setWorkerProgress] = useState<IndexProgress | null>(null)
   
-  // 从 AgentStore 获取流式状态
-  const isStreaming = useAgentStore(state => state.streamState.phase === 'streaming' || state.streamState.phase === 'tool_running')
-  
   // 从全局 store 获取诊断统计
   const diagnostics = useDiagnosticsStore(state => state.diagnostics)
   const version = useDiagnosticsStore(state => state.version)
@@ -176,13 +173,6 @@ export default function StatusBar() {
       </div>
 
       <div className="flex items-center gap-4">
-        {isStreaming && (
-          <div className="flex items-center gap-2 text-accent animate-pulse-glow px-2 py-0.5 rounded-full bg-accent/5 border border-accent/10">
-            <div className="w-1 h-1 rounded-full bg-accent animate-pulse" />
-            <span className="font-medium">AI Processing</span>
-          </div>
-        )}
-
         {/* 上下文压缩状态 - 使用 Popover 显示详情 */}
         {(isCompacting || contextSummary) && (
           <BottomBarPopover

@@ -40,11 +40,43 @@ export class VectorStoreService {
       const tables = await this.db.tableNames()
       if (tables.includes(this.tableName)) {
         this.table = await this.db.openTable(this.tableName)
+        
+        // 验证 schema 是否正确（检查是否有 filePath 字段）
+        const isValidSchema = await this.validateSchema()
+        if (!isValidSchema) {
+          logger.index.warn('[VectorStore] Invalid schema detected, dropping old table')
+          await this.db.dropTable(this.tableName)
+          this.table = null
+        }
       }
       logger.index.info('[VectorStore] Initialized at:', this.indexPath)
     } catch (e) {
       logger.index.error('[VectorStore] Failed to initialize LanceDB:', e)
       this.db = null
+    }
+  }
+
+  /**
+   * 验证表 schema 是否正确
+   * 检查必要的字段是否存在且命名正确
+   */
+  private async validateSchema(): Promise<boolean> {
+    if (!this.table) return false
+    
+    try {
+      // 尝试查询一条记录来验证字段
+      await this.table
+        .query()
+        .select(['filePath', 'fileHash'])
+        .limit(1)
+        .execute()
+      
+      // 如果能成功查询，说明 schema 正确
+      return true
+    } catch (e) {
+      // 查询失败说明字段名不匹配
+      logger.index.warn('[VectorStore] Schema validation failed:', e)
+      return false
     }
   }
 

@@ -113,6 +113,7 @@ export default function ChatPanel() {
 
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const [atBottom, setAtBottom] = useState(true)
+  const [showScrollButton, setShowScrollButton] = useState(false)
 
   // 缓存过滤后的消息列表，避免每次渲染都创建新数组
   const filteredMessages = useMemo(
@@ -120,14 +121,27 @@ export default function ChatPanel() {
     [messages]
   )
 
-  // 自动滚动逻辑 - 使用 RAF + 定时器，不依赖消息内容变化
+  // 滚动到底部的函数
+  const scrollToBottom = useCallback((behavior: 'auto' | 'smooth' = 'smooth') => {
+    requestAnimationFrame(() => {
+      virtuosoRef.current?.scrollToIndex({
+        index: filteredMessages.length - 1,
+        align: 'end',
+        behavior
+      })
+    })
+    setAtBottom(true)
+    setShowScrollButton(false)
+  }, [filteredMessages.length])
+
+  // 流式输出时的自动滚动 - 只在用户处于底部时才滚动
   useEffect(() => {
     if (!isStreaming || !atBottom) return
 
     let rafId: number
     let intervalId: NodeJS.Timeout
 
-    const scrollToBottom = () => {
+    const doScroll = () => {
       rafId = requestAnimationFrame(() => {
         virtuosoRef.current?.scrollToIndex({
           index: filteredMessages.length - 1,
@@ -138,16 +152,27 @@ export default function ChatPanel() {
     }
 
     // 立即滚动一次
-    scrollToBottom()
+    doScroll()
     
-    // 每 150ms 检查并滚动
-    intervalId = setInterval(scrollToBottom, 150)
+    // 每 100ms 检查并滚动
+    intervalId = setInterval(doScroll, 100)
 
     return () => {
       cancelAnimationFrame(rafId)
       clearInterval(intervalId)
     }
   }, [isStreaming, atBottom, filteredMessages.length])
+
+  // 处理用户滚动状态变化
+  const handleAtBottomStateChange = useCallback((bottom: boolean) => {
+    setAtBottom(bottom)
+    // 不在底部且有内容时显示滚动按钮
+    if (!bottom && filteredMessages.length > 0) {
+      setShowScrollButton(true)
+    } else if (bottom) {
+      setShowScrollButton(false)
+    }
+  }, [filteredMessages.length])
 
   // 一次性同步 inputPrompt 到本地 input
   useEffect(() => {
@@ -919,15 +944,35 @@ export default function ChatPanel() {
             <Virtuoso
               ref={virtuosoRef}
               data={filteredMessages}
-              atBottomStateChange={setAtBottom}
+              atBottomStateChange={handleAtBottomStateChange}
               initialTopMostItemIndex={Math.max(0, filteredMessages.length - 1)}
-              followOutput={isStreaming ? 'smooth' : false}
+              followOutput={isStreaming && atBottom ? 'smooth' : false}
               itemContent={(_, message) => renderMessage(message)}
               className="flex-1 custom-scrollbar"
               style={{ minHeight: '100px' }}
               overscan={200}
+              atBottomThreshold={100}
             />
           )}
+
+          {/* Scroll to Bottom Button */}
+          <AnimatePresence>
+            {showScrollButton && (
+              <motion.button
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                transition={{ duration: 0.2 }}
+                onClick={() => scrollToBottom('smooth')}
+                className="absolute bottom-44 right-4 z-30 p-2.5 rounded-full bg-surface/95 border border-white/10 shadow-xl hover:bg-surface hover:border-accent/30 hover:shadow-accent/10 transition-all"
+                title={language === 'zh' ? '滚动到底部' : 'Scroll to bottom'}
+              >
+                <svg className="w-4 h-4 text-text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+              </motion.button>
+            )}
+          </AnimatePresence>
 
           {/* File Mention Popup */}
           {
