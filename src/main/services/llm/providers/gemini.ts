@@ -71,6 +71,7 @@ export class GeminiProvider extends BaseProvider {
       messages,
       tools,
       systemPrompt,
+      stream = true,  // 默认流式
       signal,
       adapterConfig,
       onStream,
@@ -80,7 +81,7 @@ export class GeminiProvider extends BaseProvider {
     } = params
 
     try {
-      this.log('info', 'Starting chat', { model, messageCount: messages.length })
+      this.log('info', 'Starting chat', { model, messageCount: messages.length, stream })
 
       // 检查是否已经被中止
       if (signal?.aborted) {
@@ -192,41 +193,96 @@ export class GeminiProvider extends BaseProvider {
       }
 
       const chat = genModel.startChat({ history })
-      const result = await chat.sendMessageStream(lastUserMessage)
-
+      
       let fullContent = ''
       const toolCalls: LLMToolCall[] = []
 
-      for await (const chunk of result.stream) {
-        // 检查中止信号
-        if (signal?.aborted) {
-          this.log('info', 'Stream aborted by user')
-          onError(new LLMErrorClass('Request aborted', LLMErrorCode.ABORTED, undefined, false))
-          return
-        }
+      if (stream) {
+        // 流式响应
+        const result = await chat.sendMessageStream(lastUserMessage)
 
-        const text = chunk.text()
-        if (text) {
-          fullContent += text
-          onStream({ type: 'text', content: text })
-        }
+        for await (const chunk of result.stream) {
+          // 检查中止信号
+          if (signal?.aborted) {
+            this.log('info', 'Stream aborted by user')
+            onError(new LLMErrorClass('Request aborted', LLMErrorCode.ABORTED, undefined, false))
+            return
+          }
 
-        // 支持 Gemini 的思考内容（如果适配器配置了）
-        const reasoningField = adapterConfig?.response?.reasoningField
-        if (reasoningField) {
+          const text = chunk.text()
+          if (text) {
+            fullContent += text
+            onStream({ type: 'text', content: text })
+          }
+
+          // 支持 Gemini 的思考内容（如果适配器配置了）
+          const reasoningField = adapterConfig?.response?.reasoningField
+          if (reasoningField) {
+            const candidate = chunk.candidates?.[0]
+            const parts = candidate?.content?.parts
+            if (parts) {
+              for (const part of parts) {
+                if ((part as any)[reasoningField]) {
+                  const reasoning = (part as any)[reasoningField]
+                  onStream({ type: 'reasoning', content: reasoning })
+                }
+              }
+            }
+          }
+
           const candidate = chunk.candidates?.[0]
-          const parts = candidate?.content?.parts
-          if (parts) {
-            for (const part of parts) {
-              if ((part as any)[reasoningField]) {
-                const reasoning = (part as any)[reasoningField]
-                onStream({ type: 'reasoning', content: reasoning })
+          if (candidate?.content?.parts) {
+            for (const part of candidate.content.parts) {
+              if ('functionCall' in part && part.functionCall) {
+                const toolCall: LLMToolCall = {
+                  id: `gemini-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                  name: part.functionCall.name,
+                  arguments: part.functionCall.args as Record<string, unknown>,
+                }
+                toolCalls.push(toolCall)
+                onToolCall(toolCall)
               }
             }
           }
         }
 
-        const candidate = chunk.candidates?.[0]
+        // 尝试获取 usage 信息
+        let usage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined
+        try {
+          const response = await result.response
+          if (response.usageMetadata) {
+            usage = {
+              promptTokens: response.usageMetadata.promptTokenCount || 0,
+              completionTokens: response.usageMetadata.candidatesTokenCount || 0,
+              totalTokens: response.usageMetadata.totalTokenCount || 0,
+            }
+          }
+        } catch {
+          // 忽略获取 usage 失败
+        }
+
+        this.log('info', 'Chat complete', {
+          contentLength: fullContent.length,
+          toolCallCount: toolCalls.length,
+        })
+
+        onComplete({
+          content: fullContent,
+          toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+          usage,
+        })
+      } else {
+        // 非流式响应
+        const result = await chat.sendMessage(lastUserMessage)
+        const response = result.response
+        
+        fullContent = response.text()
+        if (fullContent) {
+          onStream({ type: 'text', content: fullContent })
+        }
+
+        // 处理工具调用
+        const candidate = response.candidates?.[0]
         if (candidate?.content?.parts) {
           for (const part of candidate.content.parts) {
             if ('functionCall' in part && part.functionCall) {
@@ -240,17 +296,9 @@ export class GeminiProvider extends BaseProvider {
             }
           }
         }
-      }
 
-      this.log('info', 'Chat complete', {
-        contentLength: fullContent.length,
-        toolCallCount: toolCalls.length,
-      })
-
-      // 尝试获取 usage 信息
-      let usage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined
-      try {
-        const response = await result.response
+        // 获取 usage 信息
+        let usage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined
         if (response.usageMetadata) {
           usage = {
             promptTokens: response.usageMetadata.promptTokenCount || 0,
@@ -258,15 +306,18 @@ export class GeminiProvider extends BaseProvider {
             totalTokens: response.usageMetadata.totalTokenCount || 0,
           }
         }
-      } catch {
-        // 忽略获取 usage 失败
-      }
 
-      onComplete({
-        content: fullContent,
-        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-        usage,
-      })
+        this.log('info', 'Chat complete', {
+          contentLength: fullContent.length,
+          toolCallCount: toolCalls.length,
+        })
+
+        onComplete({
+          content: fullContent,
+          toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+          usage,
+        })
+      }
     } catch (error: unknown) {
       const llmError = this.parseError(error)
       // ABORTED 是用户主动取消，不是错误

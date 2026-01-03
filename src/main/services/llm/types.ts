@@ -55,6 +55,7 @@ export interface ChatParams {
     maxTokens?: number
     temperature?: number
     topP?: number
+    stream?: boolean  // 是否使用流式响应，默认 true
     signal?: AbortSignal
     adapterConfig?: LLMAdapterConfig
     onStream: (chunk: StreamChunk) => void

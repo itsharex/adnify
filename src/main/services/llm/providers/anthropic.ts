@@ -142,6 +142,7 @@ export class AnthropicProvider extends BaseProvider {
       messages,
       tools,
       systemPrompt,
+      stream = true,  // 默认流式
       signal,
       adapterConfig,
       onStream,
@@ -154,6 +155,7 @@ export class AnthropicProvider extends BaseProvider {
       this.log('info', 'Chat', { 
         model, 
         messageCount: messages.length,
+        stream,
         temperature: params.temperature,
         topP: params.topP,
         maxTokens: params.maxTokens,
@@ -305,7 +307,7 @@ export class AnthropicProvider extends BaseProvider {
         const template = adapterConfig.request.bodyTemplate
         for (const [key, value] of Object.entries(template)) {
           if (typeof value === 'string' && value.startsWith('{{')) continue
-          if (['model', 'messages', 'system', 'tools'].includes(key)) continue
+          if (['model', 'messages', 'system', 'tools', 'stream'].includes(key)) continue
           requestParams[key] = value
         }
       }
@@ -319,55 +321,90 @@ export class AnthropicProvider extends BaseProvider {
       // 打印请求体用于调试（不含 system 和 tools 详情）
       const debugParams = {
         ...requestParams,
+        stream,
         system: requestParams.system ? `[${(requestParams.system as string).length} chars]` : undefined,
         tools: convertedTools ? `[${convertedTools.length} tools]` : undefined,
       }
       logger.system.info('[Anthropic] Request body:', JSON.stringify(debugParams, null, 2))
 
-      const stream = this.client.messages.stream(
-        requestParams as unknown as Anthropic.MessageCreateParamsStreaming,
-        { signal }
-      )
-
       let fullContent = ''
       const toolCalls: LLMToolCall[] = []
 
-      stream.on('text', (text) => {
-        fullContent += text
-        onStream({ type: 'text', content: text })
-      })
+      if (stream) {
+        // 流式响应
+        const streamResponse = this.client.messages.stream(
+          requestParams as unknown as Anthropic.MessageCreateParamsStreaming,
+          { signal }
+        )
 
-      // 支持 Anthropic 的原生思考块
-      stream.on('streamEvent', (event) => {
-        if (event.type === 'content_block_delta' && event.delta.type === 'thinking_delta') {
-          const thinking = (event.delta as any).thinking
-          onStream({ type: 'reasoning', content: thinking })
-        }
-      })
+        streamResponse.on('text', (text) => {
+          fullContent += text
+          onStream({ type: 'text', content: text })
+        })
 
-      const finalMessage = await stream.finalMessage()
-
-      for (const block of finalMessage.content) {
-        if (block.type === 'tool_use') {
-          const toolCall: LLMToolCall = {
-            id: block.id,
-            name: block.name,
-            arguments: block.input as Record<string, unknown>,
+        // 支持 Anthropic 的原生思考块
+        streamResponse.on('streamEvent', (event) => {
+          if (event.type === 'content_block_delta' && event.delta.type === 'thinking_delta') {
+            const thinking = (event.delta as any).thinking
+            onStream({ type: 'reasoning', content: thinking })
           }
-          toolCalls.push(toolCall)
-          onToolCall(toolCall)
-        }
-      }
+        })
 
-      onComplete({
-        content: fullContent,
-        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-        usage: {
-          promptTokens: finalMessage.usage.input_tokens,
-          completionTokens: finalMessage.usage.output_tokens,
-          totalTokens: finalMessage.usage.input_tokens + finalMessage.usage.output_tokens,
-        },
-      })
+        const finalMessage = await streamResponse.finalMessage()
+
+        for (const block of finalMessage.content) {
+          if (block.type === 'tool_use') {
+            const toolCall: LLMToolCall = {
+              id: block.id,
+              name: block.name,
+              arguments: block.input as Record<string, unknown>,
+            }
+            toolCalls.push(toolCall)
+            onToolCall(toolCall)
+          }
+        }
+
+        onComplete({
+          content: fullContent,
+          toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+          usage: {
+            promptTokens: finalMessage.usage.input_tokens,
+            completionTokens: finalMessage.usage.output_tokens,
+            totalTokens: finalMessage.usage.input_tokens + finalMessage.usage.output_tokens,
+          },
+        })
+      } else {
+        // 非流式响应
+        const response = await this.client.messages.create(
+          requestParams as unknown as Anthropic.MessageCreateParamsNonStreaming,
+          { signal }
+        )
+
+        for (const block of response.content) {
+          if (block.type === 'text') {
+            fullContent += block.text
+            onStream({ type: 'text', content: block.text })
+          } else if (block.type === 'tool_use') {
+            const toolCall: LLMToolCall = {
+              id: block.id,
+              name: block.name,
+              arguments: block.input as Record<string, unknown>,
+            }
+            toolCalls.push(toolCall)
+            onToolCall(toolCall)
+          }
+        }
+
+        onComplete({
+          content: fullContent,
+          toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+          usage: {
+            promptTokens: response.usage.input_tokens,
+            completionTokens: response.usage.output_tokens,
+            totalTokens: response.usage.input_tokens + response.usage.output_tokens,
+          },
+        })
+      }
     } catch (error: unknown) {
       const llmError = this.parseError(error)
       if (llmError.code === LLMErrorCode.ABORTED) {

@@ -22,8 +22,8 @@
     "postinstall": "node scripts/download-wasm.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.40.0",
-    "@google/generative-ai": "^0.21.0",
+    "@anthropic-ai/sdk": "^0.71.2",
+    "@google/generative-ai": "^0.24.1",
     "@lancedb/lancedb": "^0.13.0",
     "@monaco-editor/react": "^4.6.0",
     "@parcel/watcher": "^2.4.1",
@@ -42,7 +42,7 @@
     "lucide-react": "^0.468.0",
     "monaco-editor": "^0.52.0",
     "node-pty": "^1.1.0-beta42",
-    "openai": "^4.96.0",
+    "openai": "^6.15.0",
     "p-limit": "^3.1.0",
     "picomatch": "^4.0.3",
     "png2icons": "^2.0.1",

@@ -89,6 +89,7 @@ export class OpenAIProvider extends BaseProvider {
       maxTokens,
       temperature,
       topP,
+      stream = true,  // 默认流式
       signal,
       adapterConfig,
       onStream,
@@ -98,7 +99,7 @@ export class OpenAIProvider extends BaseProvider {
     } = params
 
     try {
-      this.log('info', 'Chat', { model, messageCount: messages.length })
+      this.log('info', 'Chat', { model, messageCount: messages.length, stream })
 
       const openaiMessages: OpenAI.ChatCompletionMessageParam[] = []
 
@@ -157,8 +158,6 @@ export class OpenAIProvider extends BaseProvider {
       const requestBody: Record<string, unknown> = {
         model,
         messages: openaiMessages,
-        stream: true,
-        stream_options: { include_usage: true }, // 请求返回 usage 信息
         max_tokens: maxTokens || AGENT_DEFAULTS.DEFAULT_MAX_TOKENS,
       }
 
@@ -180,132 +179,23 @@ export class OpenAIProvider extends BaseProvider {
         for (const [key, value] of Object.entries(template)) {
           // 跳过占位符
           if (typeof value === 'string' && value.startsWith('{{')) continue
-          // 不覆盖已设置的核心字段
-          if (['model', 'messages', 'stream', 'tools'].includes(key)) continue
+          // 不覆盖已设置的核心字段（stream 除外，由参数控制）
+          if (['model', 'messages', 'tools'].includes(key)) continue
+          // stream 由参数控制，不从模板读取
+          if (key === 'stream') continue
           requestBody[key] = value
         }
       }
 
-      const stream = await this.client.chat.completions.create(
-        requestBody as unknown as OpenAI.ChatCompletionCreateParamsStreaming,
-        { signal }
-      )
-
-      let fullContent = ''
-      let fullReasoning = ''
-      let usage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined
-
-      // 从适配器配置获取 reasoning 字段名
-      const toolCalls: LLMToolCall[] = []
-      let currentToolCall: { id?: string; name?: string; argsString: string } | null = null
-
-      for await (const chunk of stream) {
-        // 捕获 usage 信息（在最后一个 chunk 中）
-        if ((chunk as any).usage) {
-          const u = (chunk as any).usage
-          usage = {
-            promptTokens: u.prompt_tokens || 0,
-            completionTokens: u.completion_tokens || 0,
-            totalTokens: u.total_tokens || 0,
-          }
-        }
-
-        // 动态 delta 类型，支持不同厂商的字段名
-        interface ExtendedDelta {
-          content?: string
-          [key: string]: unknown  // 支持动态字段如 reasoning, thinking 等
-          tool_calls?: Array<{
-            index?: number
-            id?: string
-            function?: { name?: string; arguments?: string }
-          }>
-        }
-        const delta = chunk.choices[0]?.delta as ExtendedDelta | undefined
-
-        if (delta?.content) {
-          fullContent += delta.content
-          onStream({ type: 'text', content: delta.content })
-        }
-
-        // 使用适配器配置的 reasoning 字段名，支持嵌套路径
-        const reasoningField = adapterConfig?.response?.reasoningField || 'reasoning'
-
-        // 简单的嵌套路径解析函数
-        const getNestedValue = (obj: any, path: string): any => {
-          return path.split('.').reduce((acc, part) => acc && acc[part], obj)
-        }
-
-        const reasoningContent = getNestedValue(delta, reasoningField) as string | undefined
-        if (reasoningContent) {
-          fullReasoning += reasoningContent
-          onStream({ type: 'reasoning', content: reasoningContent })
-        }
-
-        if (delta?.tool_calls) {
-          for (const tc of delta.tool_calls) {
-            if (tc.index !== undefined) {
-              if (tc.id) {
-                if (currentToolCall?.id) {
-                  const finalToolCall = this.finalizeToolCall(currentToolCall)
-                  if (finalToolCall) {
-                    toolCalls.push(finalToolCall)
-                    onStream({ type: 'tool_call_end', toolCall: finalToolCall })
-                    onToolCall(finalToolCall)
-                  }
-                }
-                currentToolCall = {
-                  id: tc.id,
-                  name: tc.function?.name,
-                  argsString: tc.function?.arguments || '',
-                }
-                onStream({
-                  type: 'tool_call_start',
-                  toolCallDelta: { id: tc.id, name: tc.function?.name },
-                })
-                if (tc.function?.arguments) {
-                  onStream({
-                    type: 'tool_call_delta',
-                    toolCallDelta: { id: tc.id, args: tc.function.arguments },
-                  })
-                }
-              } else if (currentToolCall) {
-                if (tc.function?.name) {
-                  currentToolCall.name = tc.function.name
-                  onStream({
-                    type: 'tool_call_delta',
-                    toolCallDelta: { id: currentToolCall.id, name: tc.function.name },
-                  })
-                }
-                if (tc.function?.arguments) {
-                  currentToolCall.argsString += tc.function.arguments
-                  onStream({
-                    type: 'tool_call_delta',
-                    toolCallDelta: { id: currentToolCall.id, args: tc.function.arguments },
-                  })
-                }
-              }
-            }
-          }
-        }
+      // 根据 stream 参数决定请求模式
+      if (stream) {
+        requestBody.stream = true
+        requestBody.stream_options = { include_usage: true }
+        await this.handleStreamResponse(requestBody, signal, adapterConfig, onStream, onToolCall, onComplete)
+      } else {
+        requestBody.stream = false
+        await this.handleNonStreamResponse(requestBody, signal, adapterConfig, onStream, onToolCall, onComplete)
       }
-
-      if (currentToolCall?.id) {
-        const finalToolCall = this.finalizeToolCall(currentToolCall)
-        if (finalToolCall) {
-          toolCalls.push(finalToolCall)
-          onStream({ type: 'tool_call_end', toolCall: finalToolCall })
-          onToolCall(finalToolCall)
-        }
-      }
-
-      const finalContent = fullContent || (fullReasoning ? `[Reasoning]\n${fullReasoning}` : '')
-
-      onComplete({
-        content: finalContent,
-        reasoning: fullReasoning || undefined,
-        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-        usage,
-      })
     } catch (error: unknown) {
       const llmError = this.parseError(error)
       // ABORTED 是用户主动取消，不是错误
@@ -316,6 +206,210 @@ export class OpenAIProvider extends BaseProvider {
       }
       onError(llmError)
     }
+  }
+
+  /**
+   * 处理流式响应
+   */
+  private async handleStreamResponse(
+    requestBody: Record<string, unknown>,
+    signal: AbortSignal | undefined,
+    adapterConfig: ChatParams['adapterConfig'],
+    onStream: ChatParams['onStream'],
+    onToolCall: ChatParams['onToolCall'],
+    onComplete: ChatParams['onComplete']
+  ): Promise<void> {
+    const stream = await this.client.chat.completions.create(
+      requestBody as unknown as OpenAI.ChatCompletionCreateParamsStreaming,
+      { signal }
+    )
+
+    let fullContent = ''
+    let fullReasoning = ''
+    let usage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined
+    const toolCalls: LLMToolCall[] = []
+    let currentToolCall: { id?: string; name?: string; argsString: string } | null = null
+
+    for await (const chunk of stream) {
+      // 捕获 usage 信息（在最后一个 chunk 中）
+      if ((chunk as any).usage) {
+        const u = (chunk as any).usage
+        usage = {
+          promptTokens: u.prompt_tokens || 0,
+          completionTokens: u.completion_tokens || 0,
+          totalTokens: u.total_tokens || 0,
+        }
+      }
+
+      interface ExtendedDelta {
+        content?: string
+        [key: string]: unknown
+        tool_calls?: Array<{
+          index?: number
+          id?: string
+          function?: { name?: string; arguments?: string }
+        }>
+      }
+      const delta = chunk.choices[0]?.delta as ExtendedDelta | undefined
+
+      if (delta?.content) {
+        fullContent += delta.content
+        onStream({ type: 'text', content: delta.content })
+      }
+
+      // 使用适配器配置的 reasoning 字段名
+      const reasoningField = adapterConfig?.response?.reasoningField || 'reasoning'
+      const getNestedValue = (obj: any, path: string): any => {
+        return path.split('.').reduce((acc, part) => acc && acc[part], obj)
+      }
+      const reasoningContent = getNestedValue(delta, reasoningField) as string | undefined
+      if (reasoningContent) {
+        fullReasoning += reasoningContent
+        onStream({ type: 'reasoning', content: reasoningContent })
+      }
+
+      if (delta?.tool_calls) {
+        for (const tc of delta.tool_calls) {
+          if (tc.index !== undefined) {
+            if (tc.id) {
+              if (currentToolCall?.id) {
+                const finalToolCall = this.finalizeToolCall(currentToolCall)
+                if (finalToolCall) {
+                  toolCalls.push(finalToolCall)
+                  onStream({ type: 'tool_call_end', toolCall: finalToolCall })
+                  onToolCall(finalToolCall)
+                }
+              }
+              currentToolCall = {
+                id: tc.id,
+                name: tc.function?.name,
+                argsString: tc.function?.arguments || '',
+              }
+              onStream({
+                type: 'tool_call_start',
+                toolCallDelta: { id: tc.id, name: tc.function?.name },
+              })
+              if (tc.function?.arguments) {
+                onStream({
+                  type: 'tool_call_delta',
+                  toolCallDelta: { id: tc.id, args: tc.function.arguments },
+                })
+              }
+            } else if (currentToolCall) {
+              if (tc.function?.name) {
+                currentToolCall.name = tc.function.name
+                onStream({
+                  type: 'tool_call_delta',
+                  toolCallDelta: { id: currentToolCall.id, name: tc.function.name },
+                })
+              }
+              if (tc.function?.arguments) {
+                currentToolCall.argsString += tc.function.arguments
+                onStream({
+                  type: 'tool_call_delta',
+                  toolCallDelta: { id: currentToolCall.id, args: tc.function.arguments },
+                })
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (currentToolCall?.id) {
+      const finalToolCall = this.finalizeToolCall(currentToolCall)
+      if (finalToolCall) {
+        toolCalls.push(finalToolCall)
+        onStream({ type: 'tool_call_end', toolCall: finalToolCall })
+        onToolCall(finalToolCall)
+      }
+    }
+
+    const finalContent = fullContent || (fullReasoning ? `[Reasoning]\n${fullReasoning}` : '')
+    onComplete({
+      content: finalContent,
+      reasoning: fullReasoning || undefined,
+      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+      usage,
+    })
+  }
+
+  /**
+   * 处理非流式响应
+   */
+  private async handleNonStreamResponse(
+    requestBody: Record<string, unknown>,
+    signal: AbortSignal | undefined,
+    adapterConfig: ChatParams['adapterConfig'],
+    onStream: ChatParams['onStream'],
+    onToolCall: ChatParams['onToolCall'],
+    onComplete: ChatParams['onComplete']
+  ): Promise<void> {
+    const response = await this.client.chat.completions.create(
+      requestBody as unknown as OpenAI.ChatCompletionCreateParamsNonStreaming,
+      { signal }
+    )
+
+    const message = response.choices[0]?.message
+    const content = message?.content || ''
+    
+    // 一次性发送内容
+    if (content) {
+      onStream({ type: 'text', content })
+    }
+
+    // 处理 reasoning（如果有）
+    const reasoningField = adapterConfig?.response?.reasoningField || 'reasoning'
+    const reasoning = (message as any)?.[reasoningField] as string | undefined
+    if (reasoning) {
+      onStream({ type: 'reasoning', content: reasoning })
+    }
+
+    // 处理工具调用
+    const toolCalls: LLMToolCall[] = []
+    if (message?.tool_calls) {
+      for (const tc of message.tool_calls) {
+        // SDK v6: tool_calls 可能是 function 类型或 custom 类型
+        if (tc.type === 'function') {
+          let args: Record<string, unknown> = {}
+          try {
+            args = JSON.parse(tc.function.arguments || '{}')
+          } catch {
+            this.log('warn', 'Failed to parse tool arguments')
+          }
+          const toolCall: LLMToolCall = {
+            id: tc.id,
+            name: tc.function.name,
+            arguments: args,
+          }
+          toolCalls.push(toolCall)
+          onToolCall(toolCall)
+        } else if (tc.type === 'custom') {
+          // 处理 custom tool call（SDK v6 新增）
+          const toolCall: LLMToolCall = {
+            id: tc.id,
+            name: tc.custom.name,
+            arguments: { input: tc.custom.input },
+          }
+          toolCalls.push(toolCall)
+          onToolCall(toolCall)
+        }
+      }
+    }
+
+    // 提取 usage
+    const usage = response.usage ? {
+      promptTokens: response.usage.prompt_tokens || 0,
+      completionTokens: response.usage.completion_tokens || 0,
+      totalTokens: response.usage.total_tokens || 0,
+    } : undefined
+
+    onComplete({
+      content,
+      reasoning: reasoning || undefined,
+      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+      usage,
+    })
   }
 
   private finalizeToolCall(tc: {

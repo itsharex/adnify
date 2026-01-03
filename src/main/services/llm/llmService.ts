@@ -183,6 +183,9 @@ export class LLMService {
 
     try {
       const provider = this.getProvider(config)
+      
+      // 从 adapterConfig 的 bodyTemplate 中读取 stream 配置，默认 true
+      const stream = config.adapterConfig?.request?.bodyTemplate?.stream !== false
 
       await provider.chat({
         model: config.model,
@@ -192,6 +195,7 @@ export class LLMService {
         maxTokens: config.maxTokens,
         temperature: config.temperature,
         topP: config.topP,
+        stream,
         signal: this.currentAbortController.signal,
         adapterConfig: config.adapterConfig,
 
@@ -291,6 +295,9 @@ export class LLMService {
 
     try {
       const provider = this.getProvider(config)
+      
+      // 从 adapterConfig 的 bodyTemplate 中读取 stream 配置，默认 true
+      const stream = config.adapterConfig?.request?.bodyTemplate?.stream !== false
 
       await provider.chat({
         model: config.model,
@@ -300,6 +307,7 @@ export class LLMService {
         maxTokens: config.maxTokens || 1000,
         temperature: config.temperature ?? 0.3,
         topP: config.topP,
+        stream,
         signal: abortController.signal,
         adapterConfig: config.adapterConfig,
 

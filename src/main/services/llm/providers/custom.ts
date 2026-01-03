@@ -44,10 +44,10 @@ export class CustomProvider extends BaseProvider {
     }
 
     async chat(params: ChatParams): Promise<void> {
-        const { model, messages, tools, systemPrompt, maxTokens, temperature, topP, signal, onStream, onToolCall, onComplete, onError } = params
+        const { model, messages, tools, systemPrompt, maxTokens, temperature, topP, stream = true, signal, onStream, onToolCall, onComplete, onError } = params
 
         try {
-            this.log('info', 'Chat', { model, messageCount: messages.length })
+            this.log('info', 'Chat', { model, messageCount: messages.length, stream })
 
             const { request, response } = this.adapterConfig
 
@@ -61,6 +61,7 @@ export class CustomProvider extends BaseProvider {
                 maxTokens,
                 temperature,
                 topP,
+                stream,
             })
 
             // 2. 发送请求
@@ -93,7 +94,11 @@ export class CustomProvider extends BaseProvider {
                 }
 
                 // 3. 解析响应
-                await this.parseResponse(httpResponse, response, onStream, onToolCall, onComplete)
+                if (stream) {
+                    await this.parseStreamResponse(httpResponse, response, onStream, onToolCall, onComplete)
+                } else {
+                    await this.parseNonStreamResponse(httpResponse, response, onStream, onToolCall, onComplete)
+                }
             } finally {
                 clearTimeout(timeoutId)
             }
@@ -121,8 +126,9 @@ export class CustomProvider extends BaseProvider {
         maxTokens?: number
         temperature?: number
         topP?: number
+        stream?: boolean
     }): RequestData {
-        const { requestConfig, model, messages, tools, systemPrompt, maxTokens, temperature, topP } = params
+        const { requestConfig, model, messages, tools, systemPrompt, maxTokens, temperature, topP, stream = true } = params
 
         // 构建 URL
         const url = `${this.baseUrl}${requestConfig.endpoint}`
@@ -159,12 +165,10 @@ export class CustomProvider extends BaseProvider {
             body.top_p = topP
         }
 
-        // 4. 确保 stream 存在，并请求 usage 信息
-        if (!('stream' in body)) {
-            body.stream = true
-        }
+        // 4. 确保 stream 由参数控制
+        body.stream = stream
         // 请求返回 usage 信息（OpenAI 兼容 API）
-        if (!('stream_options' in body)) {
+        if (stream && !('stream_options' in body)) {
             body.stream_options = { include_usage: true }
         }
 
@@ -250,9 +254,9 @@ export class CustomProvider extends BaseProvider {
     }
 
     /**
-     * 解析响应流
+     * 解析流式响应
      */
-    private async parseResponse(
+    private async parseStreamResponse(
         httpResponse: Response,
         responseConfig: LLMAdapterConfig['response'],
         onStream: ChatParams['onStream'],
@@ -419,6 +423,101 @@ export class CustomProvider extends BaseProvider {
         } finally {
             reader.releaseLock()
         }
+    }
+
+    /**
+     * 解析非流式响应
+     */
+    private async parseNonStreamResponse(
+        httpResponse: Response,
+        responseConfig: LLMAdapterConfig['response'],
+        onStream: ChatParams['onStream'],
+        onToolCall: ChatParams['onToolCall'],
+        onComplete: ChatParams['onComplete']
+    ): Promise<void> {
+        const data = await httpResponse.json()
+        
+        const contentField = responseConfig.contentField || 'message.content'
+        const reasoningField = responseConfig.reasoningField
+        const toolCallField = responseConfig.toolCallField || 'message.tool_calls'
+        const toolNamePath = responseConfig.toolNamePath || 'function.name'
+        const toolArgsPath = responseConfig.toolArgsPath || 'function.arguments'
+        const toolIdPath = responseConfig.toolIdPath || 'id'
+
+        let fullContent = ''
+        let fullReasoning = ''
+        const toolCalls: LLMToolCall[] = []
+
+        // 提取 usage
+        let usage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined
+        if (data.usage) {
+            const u = data.usage
+            usage = {
+                promptTokens: u.prompt_tokens || u.promptTokens || 0,
+                completionTokens: u.completion_tokens || u.completionTokens || 0,
+                totalTokens: u.total_tokens || u.totalTokens || 0,
+            }
+        }
+
+        // 提取内容
+        const choices = data.choices
+        if (choices && Array.isArray(choices) && choices.length > 0) {
+            const choice = choices[0]
+            
+            // 非流式响应的 content 路径通常是 message.content
+            const content = getByPath(choice, contentField)
+            if (content && typeof content === 'string') {
+                fullContent = content
+                onStream?.({ type: 'text', content })
+            }
+
+            // 提取推理
+            if (reasoningField) {
+                const reasoning = getByPath(choice, reasoningField)
+                if (reasoning && typeof reasoning === 'string') {
+                    fullReasoning = reasoning
+                    onStream?.({ type: 'reasoning', content: reasoning })
+                }
+            }
+
+            // 提取工具调用
+            const toolCallsData = getByPath(choice, toolCallField)
+            if (toolCallsData && Array.isArray(toolCallsData)) {
+                for (const tc of toolCallsData) {
+                    const id = getByPath(tc, toolIdPath) || `call_${toolCalls.length}`
+                    const name = getByPath(tc, toolNamePath)
+                    const argsData = getByPath(tc, toolArgsPath)
+
+                    let args: Record<string, unknown> = {}
+                    if (typeof argsData === 'string') {
+                        try {
+                            args = JSON.parse(argsData)
+                        } catch {
+                            // 忽略解析错误
+                        }
+                    } else if (typeof argsData === 'object' && argsData !== null) {
+                        args = argsData as Record<string, unknown>
+                    }
+
+                    if (name) {
+                        const toolCall: LLMToolCall = {
+                            id: String(id),
+                            name: String(name),
+                            arguments: args,
+                        }
+                        toolCalls.push(toolCall)
+                        onToolCall?.(toolCall)
+                    }
+                }
+            }
+        }
+
+        onComplete?.({
+            content: fullContent,
+            reasoning: fullReasoning || undefined,
+            toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+            usage,
+        })
     }
 
     /**
