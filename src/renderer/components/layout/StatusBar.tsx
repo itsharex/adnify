@@ -28,15 +28,21 @@ import { PlanListPopover } from '../panels/PlanListContent'
 import { useAgentStore, selectMessages, selectContextSummary, selectIsCompacting } from '@renderer/agent'
 import { isAssistantMessage, TokenUsage } from '@renderer/agent/types'
 import { useDiagnosticsStore, getFileStats } from '@services/diagnosticsStore'
+import { AGENT_DEFAULTS } from '@shared/constants'
 
 export default function StatusBar() {
   const {
     activeFilePath, workspacePath, setShowSettings, language,
     terminalVisible, setTerminalVisible, debugVisible, setDebugVisible,
-    cursorPosition, isGitRepo, gitStatus, setActiveSidePanel
+    cursorPosition, isGitRepo, gitStatus, setActiveSidePanel, agentConfig
   } = useStore()
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null)
   const [workerProgress, setWorkerProgress] = useState<IndexProgress | null>(null)
+  
+  // Token 阈值（从配置获取）
+  const maxContextTokens = agentConfig.maxContextTokens ?? AGENT_DEFAULTS.MAX_CONTEXT_TOKENS
+  const warnTokenThreshold = maxContextTokens * 0.8  // 80%
+  const mediumTokenThreshold = maxContextTokens * 0.5  // 50%
   
   // 从全局 store 获取诊断统计
   const diagnostics = useDiagnosticsStore(state => state.diagnostics)
@@ -225,14 +231,14 @@ export default function StatusBar() {
           <BottomBarPopover
             icon={
               <div className={`flex items-center gap-1.5 ${
-                tokenStats.totalUsage.totalTokens > 100000
+                tokenStats.totalUsage.totalTokens > warnTokenThreshold
                   ? 'text-orange-400'
-                  : tokenStats.totalUsage.totalTokens > 50000
+                  : tokenStats.totalUsage.totalTokens > mediumTokenThreshold
                     ? 'text-yellow-400'
                     : ''
               }`}>
                 <Coins className={`w-3 h-3 ${
-                  tokenStats.totalUsage.totalTokens > 100000
+                  tokenStats.totalUsage.totalTokens > warnTokenThreshold
                     ? 'drop-shadow-[0_0_4px_rgba(251,146,60,0.5)] animate-pulse'
                     : ''
                 }`} />
@@ -241,7 +247,7 @@ export default function StatusBar() {
                     ? `${(tokenStats.totalUsage.totalTokens / 1000).toFixed(1)}k`
                     : tokenStats.totalUsage.totalTokens}
                 </span>
-                {tokenStats.totalUsage.totalTokens > 100000 && (
+                {tokenStats.totalUsage.totalTokens > warnTokenThreshold && (
                   <span className="text-[8px]">🔥</span>
                 )}
               </div>

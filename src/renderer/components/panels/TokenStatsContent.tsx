@@ -3,8 +3,12 @@
  * 显示会话的 Token 使用详情
  */
 
-import { Coins, Zap, AlertTriangle } from 'lucide-react'
+import { Coins, Zap, AlertTriangle, Plus } from 'lucide-react'
 import { TokenUsage } from '@renderer/agent/types'
+import { useStore } from '@renderer/store'
+import { useAgentStore } from '@renderer/agent'
+import { AGENT_DEFAULTS } from '@shared/constants'
+import { Button } from '../ui'
 
 interface TokenStatsContentProps {
   totalUsage: TokenUsage
@@ -17,8 +21,17 @@ export default function TokenStatsContent({
   lastUsage,
   language = 'en',
 }: TokenStatsContentProps) {
-  const isHighUsage = totalUsage.totalTokens > 100000
-  const isMediumUsage = totalUsage.totalTokens > 50000
+  // 从配置获取实际的上下文限制
+  const agentConfig = useStore(state => state.agentConfig)
+  const createThread = useAgentStore(state => state.createThread)
+  
+  // 使用配置的 maxContextTokens，默认 200000
+  const maxTokens = agentConfig.maxContextTokens ?? AGENT_DEFAULTS.MAX_CONTEXT_TOKENS
+  const warnThreshold = maxTokens * 0.8  // 80% 警告阈值
+  
+  const usagePercent = Math.min(100, (totalUsage.totalTokens / maxTokens) * 100)
+  const isHighUsage = totalUsage.totalTokens > warnThreshold  // 超过 80%
+  const isMediumUsage = totalUsage.totalTokens > maxTokens * 0.5  // 超过 50%
 
   const formatNumber = (n: number) => n.toLocaleString()
   const formatK = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : n.toString()
@@ -93,14 +106,25 @@ export default function TokenStatsContent({
         </div>
       )}
 
-      {/* 高使用量警告 */}
+      {/* 高使用量警告 - 超过 80% 时显示 */}
       {isHighUsage && (
         <div className="flex items-start gap-2 p-3 rounded-xl bg-orange-500/10 border border-orange-500/20">
           <AlertTriangle className="w-4 h-4 text-orange-400 flex-shrink-0 mt-0.5" />
-          <div className="text-xs text-orange-300">
-            {language === 'zh' 
-              ? 'Token 使用量较高，建议新建会话以获得更好的响应质量和速度。'
-              : 'High token usage detected. Consider starting a new session for better response quality and speed.'}
+          <div className="flex-1">
+            <div className="text-xs text-orange-300 mb-2">
+              {language === 'zh' 
+                ? 'Token 使用量较高，建议新建会话以获得更好的响应质量和速度。'
+                : 'High token usage detected. Consider starting a new session for better response quality and speed.'}
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 text-xs bg-orange-500/20 hover:bg-orange-500/30 text-orange-300"
+              onClick={() => createThread()}
+            >
+              <Plus className="w-3 h-3 mr-1" />
+              {language === 'zh' ? '新建会话' : 'New Chat'}
+            </Button>
           </div>
         </div>
       )}
@@ -109,7 +133,7 @@ export default function TokenStatsContent({
       <div className="space-y-1">
         <div className="flex items-center justify-between text-[10px] text-text-muted">
           <span>{language === 'zh' ? '上下文使用率' : 'Context Usage'}</span>
-          <span>{Math.min(100, Math.round(totalUsage.totalTokens / 2000)).toFixed(0)}%</span>
+          <span>{usagePercent.toFixed(0)}% ({formatK(totalUsage.totalTokens)} / {formatK(maxTokens)})</span>
         </div>
         <div className="h-1.5 bg-black/30 rounded-full overflow-hidden">
           <div 
@@ -120,7 +144,7 @@ export default function TokenStatsContent({
                   ? 'bg-gradient-to-r from-yellow-500 to-orange-500'
                   : 'bg-gradient-to-r from-accent to-green-400'
             }`}
-            style={{ width: `${Math.min(100, totalUsage.totalTokens / 2000)}%` }}
+            style={{ width: `${usagePercent}%` }}
           />
         </div>
       </div>

@@ -136,35 +136,29 @@ export function useAgent() {
   }, [llmConfig, workspacePath, chatMode, promptTemplateId, aiInstructions, openFiles, activeFilePath])
 
   // 检测上下文是否过长（在用户发送消息前调用）
-  const checkContextLength = useCallback((): { needsCompact: boolean; messageCount: number; charCount: number } => {
+  // 使用累计 token 数判断，而非字符数
+  const checkContextLength = useCallback((): { needsCompact: boolean; messageCount: number; tokenCount: number } => {
     const messages = useAgentStore.getState().getMessages()
     // 只统计 user + assistant 消息（不含 tool），更符合用户直觉
     const userAssistantMessages = messages.filter(m => m.role === 'user' || m.role === 'assistant')
 
-    // 计算字符数
-    let charCount = 0
-    for (const msg of userAssistantMessages) {
-      if ('content' in msg) {
-        const content = msg.content
-        if (typeof content === 'string') {
-          charCount += content.length
-        } else if (Array.isArray(content)) {
-          for (const part of content) {
-            if (part.type === 'text') charCount += part.text.length
-          }
-        }
+    // 计算累计 token 数（从 assistant 消息的 usage 中获取）
+    let tokenCount = 0
+    for (const msg of messages) {
+      if (msg.role === 'assistant' && 'usage' in msg && msg.usage) {
+        tokenCount += msg.usage.totalTokens || 0
       }
     }
 
     // 从用户配置读取阈值，警告阈值设为配置值的 80%
     const { agentConfig } = useStore.getState()
     const WARN_MESSAGE_THRESHOLD = Math.floor((agentConfig.maxHistoryMessages ?? AGENT_DEFAULTS.MAX_HISTORY_MESSAGES) * 0.8)
-    const WARN_CHAR_THRESHOLD = Math.floor((agentConfig.maxTotalContextChars ?? AGENT_DEFAULTS.MAX_TOTAL_CONTEXT_CHARS) * 0.8)
+    const WARN_TOKEN_THRESHOLD = Math.floor((agentConfig.maxContextTokens ?? AGENT_DEFAULTS.MAX_CONTEXT_TOKENS) * 0.8)
 
     return {
-      needsCompact: userAssistantMessages.length > WARN_MESSAGE_THRESHOLD || charCount > WARN_CHAR_THRESHOLD,
+      needsCompact: userAssistantMessages.length > WARN_MESSAGE_THRESHOLD || tokenCount > WARN_TOKEN_THRESHOLD,
       messageCount: userAssistantMessages.length,
-      charCount,
+      tokenCount,
     }
   }, [])
 

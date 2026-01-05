@@ -63,7 +63,11 @@ export function Select({
             }
         }
 
-        const handleScroll = () => {
+        const handleScroll = (event: Event) => {
+            // 如果滚动发生在下拉菜单内部，不关闭
+            if (dropdownRef.current?.contains(event.target as Node)) {
+                return
+            }
             if (isOpen) setIsOpen(false)
         }
 

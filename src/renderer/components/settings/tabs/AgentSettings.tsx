@@ -200,11 +200,11 @@ export function AgentSettings({
                                 />
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-xs font-medium text-text-secondary">{t('总上下文限制', 'Total Context Limit')}</label>
+                                <label className="text-xs font-medium text-text-secondary">{t('上下文 Token 限制', 'Context Token Limit')}</label>
                                 <Input
                                     type="number"
-                                    value={agentConfig.maxTotalContextChars}
-                                    onChange={(e) => setAgentConfig({ ...agentConfig, maxTotalContextChars: parseInt(e.target.value) || 60000 })}
+                                    value={agentConfig.maxContextTokens ?? 128000}
+                                    onChange={(e) => setAgentConfig({ ...agentConfig, maxContextTokens: parseInt(e.target.value) || 128000 })}
                                     step={10000}
                                     className="bg-black/20 border-white/10 text-xs"
                                 />

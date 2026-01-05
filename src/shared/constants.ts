@@ -215,8 +215,8 @@ export const AGENT_DEFAULTS = {
     MAX_HISTORY_MESSAGES: 50,
     /** 工具结果最大字符数 */
     MAX_TOOL_RESULT_CHARS: 10000,
-    /** 总上下文最大字符数 */
-    MAX_TOTAL_CONTEXT_CHARS: 50000,
+    /** 最大上下文 Token 数（用于 Token 统计面板警告） */
+    MAX_CONTEXT_TOKENS: 128000,
     /** LLM 默认最大 tokens */
     DEFAULT_MAX_TOKENS: 8192,
     /** LLM 默认超时 (ms) */

@@ -27,6 +27,7 @@ export function getAgentConfig(): AgentRuntimeConfig {
         maxToolResultChars: agentConfig.maxToolResultChars ?? DEFAULT_AGENT_CONFIG.maxToolResultChars,
         maxFileContentChars: agentConfig.maxFileContentChars ?? DEFAULT_AGENT_CONFIG.maxFileContentChars,
         maxTotalContextChars: agentConfig.maxTotalContextChars ?? DEFAULT_AGENT_CONFIG.maxTotalContextChars,
+        maxContextTokens: agentConfig.maxContextTokens ?? DEFAULT_AGENT_CONFIG.maxContextTokens,
         maxSingleFileChars: agentConfig.maxSingleFileChars ?? DEFAULT_AGENT_CONFIG.maxSingleFileChars,
         maxContextFiles: agentConfig.maxContextFiles ?? DEFAULT_AGENT_CONFIG.maxContextFiles,
         maxSemanticResults: agentConfig.maxSemanticResults ?? DEFAULT_AGENT_CONFIG.maxSemanticResults,

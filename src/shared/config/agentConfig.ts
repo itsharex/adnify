@@ -22,6 +22,7 @@ export interface AgentRuntimeConfig {
     maxToolResultChars: number
     maxFileContentChars: number
     maxTotalContextChars: number
+    maxContextTokens: number
     maxSingleFileChars: number
     maxContextFiles: number
     maxSemanticResults: number
@@ -57,6 +58,7 @@ export const DEFAULT_AGENT_CONFIG: AgentRuntimeConfig = {
     maxToolResultChars: 10000,
     maxFileContentChars: 15000,
     maxTotalContextChars: 60000,
+    maxContextTokens: 128000,
     maxSingleFileChars: 6000,
     maxContextFiles: 6,
     maxSemanticResults: 5,
