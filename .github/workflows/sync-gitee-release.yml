@@ -1,0 +1,99 @@
+name: Sync Release to Gitee
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to sync (e.g. v1.3.4)'
+        required: true
+
+jobs:
+  sync-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get release info
+        id: release
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${{ github.event.release.tag_name }}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download release assets from GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p assets
+          gh release download ${{ steps.release.outputs.tag }} \
+            --repo ${{ github.repository }} \
+            --dir assets \
+            --pattern "*.exe" \
+            --pattern "*.dmg" \
+            --pattern "*.AppImage" \
+            --pattern "*.tar.gz" \
+            --pattern "*.zip"
+          ls -la assets/
+
+      - name: Create Gitee Release
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          VERSION="${{ steps.release.outputs.version }}"
+          
+          # 创建 Release
+          RESPONSE=$(curl -s -X POST \
+            "https://gitee.com/api/v5/repos/adnaan/adnify/releases" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"access_token\": \"$GITEE_TOKEN\",
+              \"tag_name\": \"$TAG\",
+              \"name\": \"Adnify v$VERSION\",
+              \"body\": \"## Adnify v$VERSION\n\n从 GitHub 自动同步\n\n详细说明请查看 [GitHub Release](https://github.com/adnaan-worker/adnify/releases/tag/$TAG)\",
+              \"prerelease\": false
+            }")
+          
+          echo "Create release response: $RESPONSE"
+          
+          # 获取 release id
+          RELEASE_ID=$(echo $RESPONSE | jq -r '.id // empty')
+          
+          if [ -z "$RELEASE_ID" ]; then
+            echo "Release may already exist, trying to get existing release..."
+            RELEASE_ID=$(curl -s "https://gitee.com/api/v5/repos/adnaan/adnify/releases/tags/$TAG?access_token=$GITEE_TOKEN" | jq -r '.id // empty')
+          fi
+          
+          if [ -z "$RELEASE_ID" ]; then
+            echo "Failed to get release ID"
+            exit 1
+          fi
+          
+          echo "Release ID: $RELEASE_ID"
+          echo "release_id=$RELEASE_ID" >> $GITHUB_ENV
+
+      - name: Upload assets to Gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          for file in assets/*; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              echo "Uploading $filename..."
+              
+              curl -s -X POST \
+                "https://gitee.com/api/v5/repos/adnaan/adnify/releases/${{ env.release_id }}/attach_files" \
+                -H "Content-Type: multipart/form-data" \
+                -F "access_token=$GITEE_TOKEN" \
+                -F "file=@$file"
+              
+              echo "Uploaded $filename"
+            fi
+          done
+          
+          echo "All assets uploaded!"
