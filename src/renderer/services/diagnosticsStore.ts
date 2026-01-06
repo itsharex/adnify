@@ -5,7 +5,7 @@
  */
 
 import { create } from 'zustand'
-import { LspDiagnostic } from '@app-types/electron'
+import type { LspDiagnostic } from '@shared/types'
 import { onDiagnostics } from './lspService'
 
 interface DiagnosticsState {

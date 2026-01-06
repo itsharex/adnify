@@ -5,7 +5,7 @@
  */
 
 export { createFileSlice } from './fileSlice'
-export type { FileSlice, OpenFile, FileItem } from './fileSlice'
+export type { FileSlice, OpenFile } from './fileSlice'
 
 export { createSettingsSlice } from './settingsSlice'
 export type { SettingsSlice, ProviderType, LLMConfig, AutoApproveSettings } from './settingsSlice'

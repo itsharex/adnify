@@ -9,6 +9,7 @@ import { spawn } from 'child_process'
 import { rgPath } from '@vscode/ripgrep'
 import * as path from 'path'
 import * as fs from 'fs'
+import type { SearchFilesOptions, SearchFileResult } from '@shared/types'
 
 /**
  * 获取 ripgrep 可执行文件路径
@@ -22,20 +23,6 @@ function getRgPath(): string {
   // 打包环境：ripgrep 在 asar.unpacked 中
   const unpackedPath = rgPath.replace('app.asar', 'app.asar.unpacked')
   return fs.existsSync(unpackedPath) ? unpackedPath : rgPath
-}
-
-interface SearchFilesOptions {
-  isRegex: boolean
-  isCaseSensitive: boolean
-  isWholeWord?: boolean
-  include?: string
-  exclude?: string
-}
-
-interface SearchFileResult {
-  path: string
-  line: number
-  text: string
 }
 
 /** 默认忽略的目录 */

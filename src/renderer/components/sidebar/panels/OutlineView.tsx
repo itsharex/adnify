@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ChevronRight, FileText, Code, Hash, Braces, Box, Loader2 } from 'lucide-react'
 import { useStore } from '@store'
-import { LspDocumentSymbol } from '@app-types/electron'
+import type { LspDocumentSymbol } from '@shared/types'
 import { getFileName } from '@utils/pathUtils'
 import { logger } from '@utils/Logger'
 import { getDocumentSymbols } from '@services/lspService'

@@ -5,7 +5,7 @@
 
 import { api } from '@/renderer/services/electronAPI'
 import { logger } from '@utils/Logger'
-import type { IndexStatus } from '@app-types/electron'
+import type { IndexStatus } from '@shared/types'
 
 // ============ Types ============
 

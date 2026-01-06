@@ -264,8 +264,8 @@ export const LSP_SERVER_DEFINITIONS: LspServerDefinition[] = [
     {
         id: 'deno',
         name: 'Deno',
-        description: 'Deno LSP (需要已安装 Deno)',
-        languages: ['typescript', 'javascript'], // Deno 项目中的 TS/JS
+        description: 'Deno LSP (需要已安装 Deno，仅用于 Deno 项目)',
+        languages: [], // 不注册为默认服务器，通过项目检测动态选择
         displayLanguages: ['Deno'],
         builtin: false,
         installable: false, // 需要用户自行安装 Deno

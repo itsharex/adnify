@@ -2,13 +2,7 @@
  * 文件相关状态切片
  */
 import { StateCreator } from 'zustand'
-
-export interface FileItem {
-  name: string
-  path: string
-  isDirectory: boolean
-  isRoot?: boolean
-}
+import type { FileItem } from '@shared/types'
 
 export interface WorkspaceConfig {
   configPath: string | null

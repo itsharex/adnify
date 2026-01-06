@@ -4,6 +4,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '@store'
+import { api } from '@/renderer/services/electronAPI'
 import { t, TranslationKey } from '@renderer/i18n'
 import { getIncomingCalls, getOutgoingCalls, lspUriToPath } from '@renderer/services/lspService'
 import type { editor } from 'monaco-editor'
@@ -42,7 +43,7 @@ interface EditorContextMenuProps {
 }
 
 export default function EditorContextMenu({ x, y, editor, onClose }: EditorContextMenuProps) {
-  const { language, activeFile, openFile, setActiveFile } = useStore()
+  const { language, activeFilePath, openFile, setActiveFile } = useStore()
   const menuRef = useRef<HTMLDivElement>(null)
   const [callHierarchyResult, setCallHierarchyResult] = useState<CallHierarchyResult | null>(null)
   const [loading, setLoading] = useState(false)
@@ -109,13 +110,13 @@ export default function EditorContextMenu({ x, y, editor, onClose }: EditorConte
 
   // 查找调用者
   const handleFindCallers = async () => {
-    if (!activeFile) return
+    if (!activeFilePath) return
     const pos = getPosition()
     if (!pos) return
 
     setLoading(true)
     try {
-      const results = await getIncomingCalls(activeFile, pos.line, pos.character)
+      const results = await getIncomingCalls(activeFilePath, pos.line, pos.character)
       if (results && results.length > 0) {
         setCallHierarchyResult({
           type: 'callers',
@@ -140,13 +141,13 @@ export default function EditorContextMenu({ x, y, editor, onClose }: EditorConte
 
   // 查找被调用者
   const handleFindCallees = async () => {
-    if (!activeFile) return
+    if (!activeFilePath) return
     const pos = getPosition()
     if (!pos) return
 
     setLoading(true)
     try {
-      const results = await getOutgoingCalls(activeFile, pos.line, pos.character)
+      const results = await getOutgoingCalls(activeFilePath, pos.line, pos.character)
       if (results && results.length > 0) {
         setCallHierarchyResult({
           type: 'callees',
@@ -173,7 +174,9 @@ export default function EditorContextMenu({ x, y, editor, onClose }: EditorConte
   const handleJumpToCall = async (item: CallHierarchyResult['items'][0]) => {
     const filePath = lspUriToPath(item.uri)
     if (filePath) {
-      await openFile(filePath)
+      const content = await api.file.read(filePath)
+      if (content === null) return
+      openFile(filePath, content)
       setActiveFile(filePath)
       // 延迟设置光标位置，等待编辑器加载
       setTimeout(() => {

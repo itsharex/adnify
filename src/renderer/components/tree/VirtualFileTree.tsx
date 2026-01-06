@@ -15,7 +15,7 @@ import {
   ExternalLink
 } from 'lucide-react'
 import { useStore } from '@store'
-import { FileItem } from '@app-types/electron'
+import type { FileItem } from '@shared/types'
 import { t } from '@renderer/i18n'
 import { getDirPath, joinPath } from '@utils/pathUtils'
 import { toast } from '../common/ToastProvider'

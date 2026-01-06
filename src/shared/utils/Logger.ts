@@ -96,21 +96,22 @@ interface LoggerConfig {
 
 // 检测是否为生产环境
 function isProduction(): boolean {
-  // Electron 主进程
+  // 检查 NODE_ENV（适用于所有环境）
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') {
+    return true
+  }
+  // Electron 主进程 - 检查是否打包后运行
   if (typeof process !== 'undefined') {
-    // 检查 NODE_ENV
-    if (process.env.NODE_ENV === 'production') return true
-    // 检查是否打包后运行（app.isPackaged）
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { app } = require('electron')
       if (app?.isPackaged) return true
     } catch {
-      // 不在 Electron 环境中
+      // 不在 Electron 主进程环境中
     }
   }
-  // Renderer 进程 - 检查 import.meta.env
-  if (typeof import.meta !== 'undefined' && (import.meta as any).env?.PROD) {
+  // Renderer 进程 - 检查 window.__PROD__ 标记（由 Vite 注入）
+  if (typeof globalThis !== 'undefined' && (globalThis as any).__PROD__) {
     return true
   }
   return false

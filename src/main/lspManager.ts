@@ -31,8 +31,8 @@ interface LspServerConfig {
   name: string
   languages: LanguageId[]
   getCommand: () => Promise<{ command: string; args: string[] } | null>
-  /** 智能根目录检测函数 */
-  findRoot?: (filePath: string, workspacePath: string) => Promise<string>
+  /** 智能根目录检测函数，返回 null 表示不应该使用此服务器 */
+  findRoot?: (filePath: string, workspacePath: string) => Promise<string | null>
   /** 自动安装函数 */
   install?: () => Promise<{ success: boolean; path?: string; error?: string }>
 }
@@ -383,14 +383,13 @@ const LSP_SERVERS: LspServerConfig[] = [
   },
   {
     name: 'deno',
-    languages: ['typescript', 'javascript'], // Deno 项目中的 TS/JS
+    languages: [], // 不注册为默认服务器，通过 findBestRoot 动态选择
     getCommand: getDenoCommand,
     // Deno 项目检测：查找 deno.json 或 deno.jsonc
     findRoot: async (filePath, workspacePath) => {
       const fileDir = path.dirname(filePath)
       const root = await findNearestRoot(fileDir, workspacePath, ['deno.json', 'deno.jsonc'])
-      // 如果找不到 deno.json，返回 workspacePath（但实际上不应该启动 Deno LSP）
-      return root || workspacePath
+      return root || null // 找不到 deno.json 返回 null，表示不应该使用 Deno LSP
     },
   },
 ]
@@ -981,7 +980,8 @@ class LspManager {
     if (!config?.findRoot) return workspacePath
 
     try {
-      return await config.findRoot(filePath, workspacePath)
+      const root = await config.findRoot(filePath, workspacePath)
+      return root || workspacePath
     } catch {
       return workspacePath
     }

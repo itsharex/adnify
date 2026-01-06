@@ -6,7 +6,7 @@ import { api } from '@/renderer/services/electronAPI'
 import { useState, useMemo } from 'react'
 import { ChevronRight, FileText, AlertCircle, AlertTriangle, Info } from 'lucide-react'
 import { useStore } from '@store'
-import { LspDiagnostic } from '@app-types/electron'
+import type { LspDiagnostic } from '@shared/types'
 import { useDiagnosticsStore } from '@services/diagnosticsStore'
 
 export function ProblemsView() {

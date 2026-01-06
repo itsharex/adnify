@@ -42,7 +42,7 @@ export interface FileSnapshot {
 export interface SearchFilesOptions {
     isRegex: boolean
     isCaseSensitive: boolean
-    isWholeWord: boolean
+    isWholeWord?: boolean
     include?: string
     exclude?: string
 }

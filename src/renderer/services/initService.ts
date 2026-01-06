@@ -16,7 +16,6 @@ import { adnifyDir } from './adnifyDirService'
 import { checkpointService } from '@renderer/agent/services/checkpointService'
 import { initDiagnosticsListener } from './diagnosticsStore'
 import { restoreWorkspaceState } from './workspaceStateService'
-import { mcpService } from './mcpService'
 
 export interface InitResult {
   success: boolean
@@ -109,7 +108,7 @@ async function restoreWorkspace(): Promise<boolean> {
  * 第四阶段：后台初始化（非阻塞）
  * 使用 requestIdleCallback 延迟执行
  */
-function scheduleBackgroundInit(workspaceRoots: string[]): void {
+function scheduleBackgroundInit(): void {
   // Checkpoint 服务初始化
   scheduleIdleTask(async () => {
     try {
@@ -129,16 +128,6 @@ function scheduleBackgroundInit(workspaceRoots: string[]): void {
       logger.system.warn('[Init] Agent store rehydrate failed:', e)
     }
   })
-  
-  // MCP 服务初始化
-  scheduleIdleTask(async () => {
-    try {
-      await mcpService.initialize(workspaceRoots)
-      logger.system.debug('[Init] MCP service initialized')
-    } catch (e) {
-      logger.system.warn('[Init] MCP service init failed:', e)
-    }
-  }, 3000) // MCP 可以延迟更久
 }
 
 /**
@@ -169,17 +158,13 @@ export async function initializeApp(
     const { onboardingCompleted, hasExistingConfig } = useStore.getState()
     
     // 第三阶段：恢复工作区
-    let workspaceRoots: string[] = []
     if (!isEmptyWindow) {
       updateStatus('Restoring workspace...')
-      const hasWorkspace = await restoreWorkspace()
-      if (hasWorkspace) {
-        workspaceRoots = useStore.getState().workspace?.roots || []
-      }
+      await restoreWorkspace()
     }
     
     // 第四阶段：后台初始化（非阻塞）
-    scheduleBackgroundInit(workspaceRoots)
+    scheduleBackgroundInit()
     
     updateStatus('Ready!')
     startupMetrics.end('init-total')

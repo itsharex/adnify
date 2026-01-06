@@ -74,7 +74,7 @@ export interface LLMConfig {
     /** 高级配置（认证、请求、响应覆盖） */
     advanced?: {
         auth?: {
-            type: 'bearer' | 'api-key' | 'header' | 'none'
+            type?: 'bearer' | 'api-key' | 'header' | 'none'
             headerName?: string
         }
         request?: {

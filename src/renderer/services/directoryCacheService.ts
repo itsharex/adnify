@@ -5,7 +5,7 @@
 
 import { api } from '@/renderer/services/electronAPI'
 import { logger } from '@utils/Logger'
-import { FileItem } from '@app-types/electron'
+import type { FileItem } from '@shared/types'
 
 interface CacheEntry {
     items: FileItem[]
