@@ -52,11 +52,14 @@ export {
 // 缓存服务
 export {
   CacheService,
-  fileContentCache,
-  searchResultCache,
-  llmResponseCache,
+  cacheManager,
+  createCache,
+  createTypedCache,
   type CacheConfig,
   type CacheStats,
+  type EvictionPolicy,
+  type SetOptions,
+  type CacheEvent,
 } from './CacheService'
 
 // 重试工具

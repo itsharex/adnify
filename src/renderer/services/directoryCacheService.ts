@@ -5,21 +5,22 @@
 
 import { api } from '@/renderer/services/electronAPI'
 import { logger } from '@utils/Logger'
+import { CacheService } from '@shared/utils/CacheService'
+import { getCacheConfig } from '@shared/config/agentConfig'
 import type { FileItem } from '@shared/types'
 
-interface CacheEntry {
-    items: FileItem[]
-    timestamp: number
-}
-
 class DirectoryCacheService {
-    private cache = new Map<string, CacheEntry>()
+    private cache: CacheService<FileItem[]>
     private pendingRequests = new Map<string, Promise<FileItem[]>>()
-    
-    // 缓存过期时间（5分钟）
-    private readonly TTL = 5 * 60 * 1000
-    // 最大缓存条目数
-    private readonly MAX_ENTRIES = 200
+
+    constructor() {
+        const cacheConfig = getCacheConfig('directory')
+        this.cache = new CacheService<FileItem[]>('DirectoryCache', {
+            maxSize: cacheConfig.maxSize,
+            defaultTTL: cacheConfig.ttlMs,
+            cleanupInterval: 60000,
+        })
+    }
 
     /**
      * 获取目录内容（优先从缓存）
@@ -28,8 +29,8 @@ class DirectoryCacheService {
         // 检查缓存
         if (!forceRefresh) {
             const cached = this.cache.get(path)
-            if (cached && Date.now() - cached.timestamp < this.TTL) {
-                return cached.items
+            if (cached) {
+                return cached
             }
         }
 
@@ -45,7 +46,7 @@ class DirectoryCacheService {
 
         try {
             const items = await request
-            this.setCache(path, items)
+            this.cache.set(path, items)
             return items
         } finally {
             this.pendingRequests.delete(path)
@@ -63,41 +64,6 @@ class DirectoryCacheService {
             logger.file.error('[DirCache] Failed to read directory:', path, error)
             return []
         }
-    }
-
-    /**
-     * 设置缓存
-     */
-    private setCache(path: string, items: FileItem[]) {
-        // 如果缓存已满，删除最旧的条目
-        if (this.cache.size >= this.MAX_ENTRIES) {
-            const oldestKey = this.findOldestEntry()
-            if (oldestKey) {
-                this.cache.delete(oldestKey)
-            }
-        }
-
-        this.cache.set(path, {
-            items,
-            timestamp: Date.now()
-        })
-    }
-
-    /**
-     * 找到最旧的缓存条目
-     */
-    private findOldestEntry(): string | null {
-        let oldestKey: string | null = null
-        let oldestTime = Infinity
-
-        for (const [key, entry] of this.cache) {
-            if (entry.timestamp < oldestTime) {
-                oldestTime = entry.timestamp
-                oldestKey = key
-            }
-        }
-
-        return oldestKey
     }
 
     /**
@@ -181,14 +147,21 @@ class DirectoryCacheService {
     }
 
     /**
-     * 获取缓存统计信息（调试用）
+     * 获取缓存统计信息
      */
     getStats() {
         return {
-            size: this.cache.size,
-            maxSize: this.MAX_ENTRIES,
+            ...this.cache.getStats(),
             pendingRequests: this.pendingRequests.size
         }
+    }
+
+    /**
+     * 销毁服务
+     */
+    destroy() {
+        this.cache.destroy()
+        this.pendingRequests.clear()
     }
 }
 

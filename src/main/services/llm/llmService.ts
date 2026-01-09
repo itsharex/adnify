@@ -11,58 +11,30 @@ import { logger } from '@shared/utils/Logger'
 import { BrowserWindow } from 'electron'
 import { UnifiedProvider } from './providers/unified'
 import { LLMProvider, LLMMessage, LLMConfig, ToolDefinition, LLMErrorCode } from './types'
+import { CacheService } from '@shared/utils/CacheService'
+import { getCacheConfig } from '@shared/config/agentConfig'
 
 interface ProviderCacheEntry {
   provider: LLMProvider
-  lastUsed: number
-  useCount: number
   configHash: string
 }
 
-const CACHE_TTL_MS = 30 * 60 * 1000
-const CACHE_MAX_SIZE = 10
-const CACHE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000
-
 export class LLMService {
   private window: BrowserWindow
-  private providerCache: Map<string, ProviderCacheEntry> = new Map()
+  private providerCache: CacheService<ProviderCacheEntry>
   private currentAbortController: AbortController | null = null
-  private cleanupTimer: NodeJS.Timeout | null = null
 
   constructor(window: BrowserWindow) {
     this.window = window
-    this.startCacheCleanup()
-  }
-
-  private startCacheCleanup(): void {
-    this.cleanupTimer = setInterval(() => {
-      this.cleanupExpiredProviders()
-    }, CACHE_CLEANUP_INTERVAL_MS)
-  }
-
-  private cleanupExpiredProviders(): void {
-    const now = Date.now()
-    const expiredKeys: string[] = []
-
-    for (const [key, entry] of this.providerCache) {
-      if (now - entry.lastUsed > CACHE_TTL_MS) {
-        expiredKeys.push(key)
-      }
-    }
-
-    for (const key of expiredKeys) {
-      this.providerCache.delete(key)
-    }
-
-    if (this.providerCache.size > CACHE_MAX_SIZE) {
-      const entries = Array.from(this.providerCache.entries())
-        .sort((a, b) => a[1].useCount - b[1].useCount)
-
-      const toRemove = entries.slice(0, this.providerCache.size - CACHE_MAX_SIZE)
-      for (const [key] of toRemove) {
-        this.providerCache.delete(key)
-      }
-    }
+    
+    // 使用统一缓存配置
+    const cacheConfig = getCacheConfig('llmProvider')
+    this.providerCache = new CacheService<ProviderCacheEntry>('LLMProvider', {
+      maxSize: cacheConfig.maxSize,
+      defaultTTL: cacheConfig.ttlMs,
+      evictionPolicy: cacheConfig.evictionPolicy || 'lfu',
+      cleanupInterval: cacheConfig.cleanupInterval || 5 * 60 * 1000,
+    })
   }
 
   private generateConfigHash(config: LLMConfig): string {
@@ -94,8 +66,6 @@ export class LLMService {
     const cached = this.providerCache.get(key)
 
     if (cached && cached.configHash === configHash) {
-      cached.lastUsed = Date.now()
-      cached.useCount++
       return cached.provider
     }
 
@@ -108,8 +78,6 @@ export class LLMService {
 
     this.providerCache.set(key, {
       provider,
-      lastUsed: Date.now(),
-      useCount: 1,
       configHash,
     })
 
@@ -123,9 +91,7 @@ export class LLMService {
         keysToDelete.push(key)
       }
     }
-    for (const key of keysToDelete) {
-      this.providerCache.delete(key)
-    }
+    this.providerCache.deleteMany(keysToDelete)
   }
 
   invalidateAllProviders(): void {
@@ -314,21 +280,10 @@ export class LLMService {
   }
 
   destroy() {
-    if (this.cleanupTimer) {
-      clearInterval(this.cleanupTimer)
-      this.cleanupTimer = null
-    }
-    this.providerCache.clear()
+    this.providerCache.destroy()
   }
 
-  getCacheStats(): { size: number; entries: Array<{ key: string; useCount: number; lastUsed: number }> } {
-    return {
-      size: this.providerCache.size,
-      entries: Array.from(this.providerCache.entries()).map(([key, entry]) => ({
-        key,
-        useCount: entry.useCount,
-        lastUsed: entry.lastUsed,
-      })),
-    }
+  getCacheStats() {
+    return this.providerCache.getStats()
   }
 }

@@ -6,6 +6,7 @@
 
 import type { ContextConfig } from './types'
 import { DEFAULT_CONTEXT_CONFIG } from './types'
+import { getTruncationConfig } from '@shared/config/agentConfig'
 
 // 文件读取工具（需要保留头尾）
 const FILE_READ_TOOLS = ['read_file', 'read_multiple_files']
@@ -79,16 +80,20 @@ export function truncateToolResult(
  */
 export function truncateMessage(
   content: string,
-  maxChars: number = 2000,
+  maxChars?: number,
   preserveEnds: boolean = true
 ): string {
-  if (content.length <= maxChars) return content
+  // 使用配置中的默认值
+  const truncationConfig = getTruncationConfig()
+  const limit = maxChars ?? truncationConfig.messageMaxChars
+
+  if (content.length <= limit) return content
 
   if (preserveEnds) {
-    const headSize = Math.floor(maxChars * 0.6)
-    const tailSize = Math.floor(maxChars * 0.3)
+    const headSize = Math.floor(limit * 0.6)
+    const tailSize = Math.floor(limit * 0.3)
     return `${content.slice(0, headSize)}\n...[truncated]...\n${content.slice(-tailSize)}`
   }
 
-  return content.slice(0, maxChars) + '...[truncated]'
+  return content.slice(0, limit) + '...[truncated]'
 }

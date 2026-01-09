@@ -3,6 +3,9 @@
  * 检测 LLM API 连通性和配置有效性
  */
 
+import { CacheService } from '@shared/utils/CacheService'
+import { getCacheConfig } from '@shared/config/agentConfig'
+
 export interface HealthCheckResult {
     provider: string
     status: 'healthy' | 'unhealthy' | 'unknown'
@@ -11,8 +14,13 @@ export interface HealthCheckResult {
     checkedAt: Date
 }
 
-// 健康检查结果缓存
-const healthCache: Map<string, HealthCheckResult> = new Map()
+// 使用统一缓存
+const cacheConfig = getCacheConfig('healthCheck')
+const healthCache = new CacheService<HealthCheckResult>('HealthCheck', {
+    maxSize: cacheConfig.maxSize,
+    defaultTTL: cacheConfig.ttlMs,
+    evictionPolicy: cacheConfig.evictionPolicy || 'fifo',
+})
 
 /**
  * 检查单个 Provider 的健康状态
@@ -83,7 +91,7 @@ export async function checkProviderHealth(
  * 获取缓存的健康检查结果
  */
 export function getCachedHealthStatus(provider: string): HealthCheckResult | null {
-    return healthCache.get(provider) || null
+    return healthCache.get(provider) ?? null
 }
 
 /**
@@ -97,5 +105,12 @@ export function clearHealthCache() {
  * 获取所有缓存的健康检查结果
  */
 export function getAllHealthStatus(): HealthCheckResult[] {
-    return Array.from(healthCache.values())
+    return healthCache.values()
+}
+
+/**
+ * 获取缓存统计
+ */
+export function getHealthCacheStats() {
+    return healthCache.getStats()
 }

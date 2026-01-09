@@ -17,6 +17,8 @@ import * as fs from 'fs'
 import { BrowserWindow } from 'electron'
 import { SERVICE_DEFAULTS } from '@shared/constants'
 import { LanguageId } from '@shared/languages'
+import { CacheService } from '@shared/utils/CacheService'
+import { getCacheConfig } from '@shared/config/agentConfig'
 import {
   getInstalledServerPath,
   commandExists,
@@ -400,9 +402,7 @@ class LspManager {
   private servers: Map<string, LspServerInstance> = new Map() // key: serverName:workspacePath
   private languageToServer: Map<LanguageId, string> = new Map()
   private documentVersions: Map<string, number> = new Map() // 启用文档版本管理
-  private diagnosticsCache: Map<string, any[]> = new Map()
-  private diagnosticsCacheOrder: string[] = [] // LRU 顺序追踪
-  private static readonly MAX_DIAGNOSTICS_CACHE_SIZE = 500 // 最多缓存 500 个文件的诊断
+  private diagnosticsCache: CacheService<any[]>
   private startingServers: Set<string> = new Set()
   
   // 跟踪每个服务器打开的文档
@@ -423,6 +423,15 @@ class LspManager {
   private static readonly DIAGNOSTICS_TIMEOUT_MS = 3000
 
   constructor() {
+    // 初始化诊断缓存
+    const cacheConfig = getCacheConfig('lspDiagnostics')
+    this.diagnosticsCache = new CacheService<any[]>('LspDiagnostics', {
+      maxSize: cacheConfig.maxSize,
+      defaultTTL: cacheConfig.ttlMs,
+      evictionPolicy: cacheConfig.evictionPolicy || 'lru',
+      cleanupInterval: cacheConfig.cleanupInterval || 0,
+    })
+
     for (const config of LSP_SERVERS) {
       for (const lang of config.languages) {
         this.languageToServer.set(lang, config.name)
@@ -434,26 +443,10 @@ class LspManager {
   }
 
   /**
-   * 设置诊断缓存（带 LRU 淘汰）
+   * 设置诊断缓存
    */
   private setDiagnosticsCache(uri: string, diagnostics: any[]): void {
-    // 如果已存在，先从顺序列表中移除
-    const existingIndex = this.diagnosticsCacheOrder.indexOf(uri)
-    if (existingIndex >= 0) {
-      this.diagnosticsCacheOrder.splice(existingIndex, 1)
-    }
-    
-    // 添加到末尾（最近使用）
-    this.diagnosticsCacheOrder.push(uri)
     this.diagnosticsCache.set(uri, diagnostics)
-    
-    // 如果超过限制，淘汰最旧的
-    while (this.diagnosticsCacheOrder.length > LspManager.MAX_DIAGNOSTICS_CACHE_SIZE) {
-      const oldestUri = this.diagnosticsCacheOrder.shift()
-      if (oldestUri) {
-        this.diagnosticsCache.delete(oldestUri)
-      }
-    }
   }
 
   private startIdleCheck() {
@@ -819,20 +812,25 @@ class LspManager {
     const instance = this.servers.get(key)
     if (!instance?.process) return
     
-    // 清除该服务器相关的诊断缓存
+    // 清除该服务器相关的诊断缓存（按前缀删除）
     const workspaceUri = `file:///${instance.workspacePath.replace(/\\/g, '/')}`
-    for (const uri of this.diagnosticsCache.keys()) {
-      if (uri.startsWith(workspaceUri) || uri.startsWith(workspaceUri.replace('file:///', 'file://'))) {
-        this.diagnosticsCache.delete(uri)
-        // 通知前端清除诊断
-        BrowserWindow.getAllWindows().forEach((win) => {
-          if (!win.isDestroyed()) {
-            try {
-              win.webContents.send('lsp:diagnostics', { uri, diagnostics: [], serverKey: key })
-            } catch { }
-          }
-        })
-      }
+    const altUri = workspaceUri.replace('file:///', 'file://')
+    
+    // 获取要删除的 URI 列表
+    const urisToDelete = this.diagnosticsCache.keys().filter(
+      uri => uri.startsWith(workspaceUri) || uri.startsWith(altUri)
+    )
+    
+    for (const uri of urisToDelete) {
+      this.diagnosticsCache.delete(uri)
+      // 通知前端清除诊断
+      BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed()) {
+          try {
+            win.webContents.send('lsp:diagnostics', { uri, diagnostics: [], serverKey: key })
+          } catch { }
+        }
+      })
     }
     
     // 清除文档跟踪（服务器关闭后文档状态无效）
@@ -870,7 +868,11 @@ class LspManager {
   }
 
   getDiagnostics(uri: string): any[] {
-    return this.diagnosticsCache.get(uri) || []
+    return this.diagnosticsCache.get(uri) ?? []
+  }
+
+  getDiagnosticsCacheStats() {
+    return this.diagnosticsCache.getStats()
   }
 
   // 文档版本管理

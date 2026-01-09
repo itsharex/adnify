@@ -7,6 +7,8 @@ import { api } from '@/renderer/services/electronAPI'
 import { logger } from '@utils/Logger'
 import { LintError } from '../types'
 import { onDiagnostics, lspUriToPath } from '@services/lspService'
+import { CacheService } from '@shared/utils/CacheService'
+import { getCacheConfig } from '@shared/config/agentConfig'
 
 // 支持的语言和对应的 lint 命令
 const LINT_COMMANDS: Record<string, { command: string; parser: (output: string, file: string) => LintError[] }> = {
@@ -147,13 +149,26 @@ function parsePylintOutput(output: string, file: string): LintError[] {
 }
 
 class LintService {
-	private cache: Map<string, { errors: LintError[]; timestamp: number }> = new Map()
-	private lspDiagnostics: Map<string, LintError[]> = new Map()
-	private cacheTimeout = 30000 // 30秒缓存
-	private maxCacheSize = 100 // 最大缓存文件数
+	private cache: CacheService<LintError[]>
+	private lspDiagnostics: CacheService<LintError[]>
 	private lspDisposer: (() => void) | null = null
 
 	constructor() {
+		const cacheConfig = getCacheConfig('lint')
+		
+		// 使用统一的 CacheService
+		this.cache = new CacheService<LintError[]>('LintErrors', {
+			maxSize: cacheConfig.maxSize,
+			defaultTTL: cacheConfig.ttlMs,
+			cleanupInterval: 60000,
+		})
+		
+		this.lspDiagnostics = new CacheService<LintError[]>('LspDiagnostics', {
+			maxSize: cacheConfig.maxSize,
+			defaultTTL: 0, // LSP 诊断不过期，由 LSP 更新
+			cleanupInterval: 0,
+		})
+
 		// 订阅 LSP 诊断信息
 		this.lspDisposer = onDiagnostics((uri, diagnostics) => {
 			const filePath = lspUriToPath(uri)
@@ -166,11 +181,6 @@ class LintService {
 				file: filePath,
 			}))
 			
-			// LSP 诊断也需要限制大小
-			if (this.lspDiagnostics.size >= this.maxCacheSize) {
-				const firstKey = this.lspDiagnostics.keys().next().value
-				if (firstKey) this.lspDiagnostics.delete(firstKey)
-			}
 			this.lspDiagnostics.set(filePath, errors)
 		})
 	}
@@ -188,8 +198,8 @@ class LintService {
 		// 2. 检查缓存
 		if (!forceRefresh) {
 			const cached = this.cache.get(filePath)
-			if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
-				return cached.errors
+			if (cached) {
+				return cached
 			}
 		}
 
@@ -223,20 +233,8 @@ class LintService {
 			const output = (result.output || '') + (result.errorOutput || '')
 			const errors = lintConfig.parser(output, filePath)
 
-			// 更新缓存（带大小限制）
-			if (this.cache.size >= this.maxCacheSize) {
-				// 删除最旧的条目
-				let oldestKey: string | null = null
-				let oldestTime = Infinity
-				for (const [key, entry] of this.cache) {
-					if (entry.timestamp < oldestTime) {
-						oldestTime = entry.timestamp
-						oldestKey = key
-					}
-				}
-				if (oldestKey) this.cache.delete(oldestKey)
-			}
-			this.cache.set(filePath, { errors, timestamp: Date.now() })
+			// 更新缓存（CacheService 自动处理大小限制和 TTL）
+			this.cache.set(filePath, errors)
 
 			return errors
 		} catch (error) {
@@ -353,6 +351,16 @@ class LintService {
 	}
 
 	/**
+	 * 获取缓存统计
+	 */
+	getCacheStats() {
+		return {
+			lint: this.cache.getStats(),
+			lsp: this.lspDiagnostics.getStats(),
+		}
+	}
+
+	/**
 	 * 格式化错误为字符串
 	 */
 	formatErrors(errors: LintError[]): string {
@@ -385,6 +393,8 @@ class LintService {
 			this.lspDisposer()
 			this.lspDisposer = null
 		}
+		this.cache.destroy()
+		this.lspDiagnostics.destroy()
 	}
 }
 

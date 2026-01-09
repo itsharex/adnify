@@ -15,6 +15,8 @@ import { logger } from '@utils/Logger'
 import { useStore } from '@store'
 import { getEditorConfig } from '@renderer/config/editorConfig'
 import { getLanguageFromPath as sharedGetLanguageFromPath } from '@shared/languages'
+import { CacheService } from '@shared/utils/CacheService'
+import { getCacheConfig } from '@shared/config/agentConfig'
 
 // ============ Interfaces ============
 
@@ -91,21 +93,18 @@ function getDefaultOptions(): CompletionOptions {
 // Stop sequences for completion
 
 
-// ============ LRU Cache ============
-
-interface CacheEntry {
-  result: CompletionResult
-  timestamp: number
-}
+// ============ Completion Cache using CacheService ============
 
 class CompletionCache {
-  private cache = new Map<string, CacheEntry>()
-  private maxSize: number
-  private ttl: number
+  private cache: CacheService<CompletionResult>
 
-  constructor(maxSize = 100, ttl = 60000) {
-    this.maxSize = maxSize
-    this.ttl = ttl
+  constructor() {
+    const cacheConfig = getCacheConfig('completion')
+    this.cache = new CacheService<CompletionResult>('Completion', {
+      maxSize: cacheConfig.maxSize,
+      defaultTTL: cacheConfig.ttlMs,
+      cleanupInterval: 60000,
+    })
   }
 
   private generateKey(context: CompletionContext): string {
@@ -117,36 +116,13 @@ class CompletionCache {
 
   get(context: CompletionContext): CompletionResult | null {
     const key = this.generateKey(context)
-    const entry = this.cache.get(key)
-
-    if (!entry) return null
-
-    // Check TTL
-    if (Date.now() - entry.timestamp > this.ttl) {
-      this.cache.delete(key)
-      return null
-    }
-
-    // Move to end (LRU)
-    this.cache.delete(key)
-    this.cache.set(key, entry)
-
-    return { ...entry.result, cached: true }
+    const result = this.cache.get(key)
+    return result ? { ...result, cached: true } : null
   }
 
   set(context: CompletionContext, result: CompletionResult): void {
     const key = this.generateKey(context)
-
-    // Evict oldest if at capacity
-    if (this.cache.size >= this.maxSize) {
-      const firstKey = this.cache.keys().next().value
-      if (firstKey) this.cache.delete(firstKey)
-    }
-
-    this.cache.set(key, {
-      result,
-      timestamp: Date.now(),
-    })
+    this.cache.set(key, result)
   }
 
   clear(): void {
@@ -157,17 +133,24 @@ class CompletionCache {
   getByPrefix(context: CompletionContext, minPrefixLength = 50): CompletionResult | null {
     const currentPrefix = context.prefix.slice(-100)
 
-    for (const [key, entry] of this.cache) {
-      if (Date.now() - entry.timestamp > this.ttl) continue
-
+    for (const key of this.cache.keys()) {
       // Check if cached prefix is a prefix of current prefix
       const cachedPrefix = key.split(':')[2] || ''
       if (currentPrefix.startsWith(cachedPrefix) && cachedPrefix.length >= minPrefixLength) {
-        return { ...entry.result, cached: true }
+        const result = this.cache.get(key)
+        return result ? { ...result, cached: true } : null
       }
     }
 
     return null
+  }
+
+  getStats() {
+    return this.cache.getStats()
+  }
+
+  destroy() {
+    this.cache.destroy()
   }
 }
 
@@ -260,7 +243,7 @@ class CompletionService {
 
   constructor() {
     this.options = getDefaultOptions()
-    this.cache = new CompletionCache(this.options.cacheMaxSize, this.options.cacheTTL)
+    this.cache = new CompletionCache()
     this.setupDebouncedRequest()
   }
 
@@ -278,13 +261,7 @@ class CompletionService {
     this.options = { ...this.options, ...options }
     // Recreate debounced function with new delay
     this.setupDebouncedRequest()
-    // Update cache settings
-    if (options.cacheMaxSize || options.cacheTTL) {
-      this.cache = new CompletionCache(
-        this.options.cacheMaxSize,
-        this.options.cacheTTL
-      )
-    }
+    // Note: cache config is now managed by CacheService via agentConfig
   }
 
   /**

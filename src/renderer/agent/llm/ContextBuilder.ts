@@ -10,7 +10,11 @@ import { useAgentStore } from '../store/AgentStore'
 import { toolRegistry } from '../tools'
 import { getAgentConfig } from '../utils/AgentConfig'
 import { ContextItem, MessageContent, TextContent } from '../types'
-import { fileContentCache, searchResultCache } from '@shared/utils/CacheService'
+import { createTypedCache } from '@shared/utils/CacheService'
+
+// 创建缓存实例
+const fileContentCache = createTypedCache<string>('fileContent')
+const searchResultCache = createTypedCache<unknown[]>('searchResult')
 
 /**
  * 构建上下文内容
@@ -88,14 +92,12 @@ async function processFileContext(
 ): Promise<string | null> {
   const filePath = item.uri
   try {
-    // 使用缓存服务
     const content = await fileContentCache.getOrSet(
       filePath,
       async () => {
         const fileContent = await api.file.read(filePath)
         return fileContent || ''
-      },
-      2 * 60 * 1000 // 2 分钟 TTL
+      }
     )
     
     if (content) {
@@ -123,14 +125,12 @@ async function processCodebaseContext(
     const cleanQuery = userQuery.replace(/@codebase\s*/i, '').trim() || userQuery
     const cacheKey = `${workspacePath}:${cleanQuery}`
     
-    // 使用缓存服务
     const results = await searchResultCache.getOrSet(
       cacheKey,
       async () => {
         const searchResults = await api.index.hybridSearch(workspacePath, cleanQuery, 20)
         return searchResults || []
-      },
-      60 * 1000 // 1 分钟 TTL（搜索结果变化较快）
+      }
     ) as Array<{ relativePath: string; score: number; language: string; content: string }>
 
     if (results && results.length > 0) {
@@ -285,11 +285,7 @@ export function buildUserContent(
 
 /**
  * 计算并更新当前上下文统计信息
- * 优化：使用缓存的文件大小，避免频繁读取文件
  */
-// 文件大小缓存
-const fileSizeCache = new Map<string, number>()
-
 export async function calculateContextStats(
   contextItems: ContextItem[],
   currentInput: string
@@ -322,28 +318,15 @@ export async function calculateContextStats(
   // 2. 计算当前输入长度
   totalChars += currentInput.length
 
-  // 3. 计算上下文项长度（使用缓存）
+  // 3. 计算上下文项长度（复用 fileContentCache）
   for (const item of contextItems) {
     if (item.type === 'File') {
       fileCount++
       const filePath = (item as any).uri
       if (filePath) {
-        // 使用缓存的文件大小
-        let fileSize = fileSizeCache.get(filePath)
-        if (fileSize === undefined) {
-          try {
-            const content = await api.file.read(filePath)
-            fileSize = content?.length ?? 0
-            fileSizeCache.set(filePath, fileSize)
-            // 限制缓存大小
-            if (fileSizeCache.size > 100) {
-              const firstKey = fileSizeCache.keys().next().value
-              if (firstKey) fileSizeCache.delete(firstKey)
-            }
-          } catch {
-            fileSize = 0
-          }
-        }
+        // 复用 fileContentCache，避免重复读取
+        const content = fileContentCache.get(filePath)
+        const fileSize = content?.length ?? 0
         totalChars += Math.min(fileSize, config.maxFileContentChars)
       }
     } else if (item.type === 'Codebase') {
