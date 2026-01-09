@@ -9,6 +9,14 @@ import { getFileName } from '@shared/utils/pathUtils'
 import { toast } from '@renderer/components/common/ToastProvider'
 import { t } from '@renderer/i18n'
 import { getEditorConfig } from '@renderer/config/editorConfig'
+import { monaco } from '@renderer/monacoWorker'
+
+/** 获取文件对应的 Monaco model 版本号 */
+function getModelVersionId(filePath: string): number | undefined {
+  const uri = monaco.Uri.file(filePath)
+  const model = monaco.editor.getModel(uri)
+  return model?.getAlternativeVersionId()
+}
 
 export function useFileSave() {
   const { openFiles, markFileSaved, closeFile, language } = useStore()
@@ -22,7 +30,14 @@ export function useFileSave() {
     try {
       const success = await api.file.write(file.path, file.content)
       if (success) {
-        markFileSaved(file.path)
+        // 获取当前版本号并保存
+        const versionId = getModelVersionId(file.path)
+        markFileSaved(file.path, versionId)
+        // 如果文件之前被删除，现在已恢复
+        if (file.isDeleted) {
+          const { markFileRestored } = useStore.getState()
+          markFileRestored(file.path)
+        }
         toast.success(
           language === 'zh' ? '文件已保存' : 'File Saved',
           getFileName(file.path)
@@ -105,7 +120,8 @@ export function useFileSave() {
         if (file?.isDirty) {
           const success = await api.file.write(file.path, file.content)
           if (success) {
-            markFileSaved(file.path)
+            const versionId = getModelVersionId(file.path)
+            markFileSaved(file.path, versionId)
           }
         }
       }, config.autoSaveDelay)
@@ -122,7 +138,8 @@ export function useFileSave() {
         if (file.isDirty) {
           const success = await api.file.write(file.path, file.content)
           if (success) {
-            markFileSaved(file.path)
+            const versionId = getModelVersionId(file.path)
+            markFileSaved(file.path, versionId)
           }
         }
       }

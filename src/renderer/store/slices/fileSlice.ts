@@ -26,10 +26,14 @@ export interface OpenFile {
   content: string
   isDirty: boolean
   originalContent?: string
+  /** 保存时的版本号（Monaco versionId） */
+  savedVersionId?: number
   /** 大文件信息（如果是大文件） */
   largeFileInfo?: LargeFileInfo
   /** 文件编码 */
   encoding?: string
+  /** 文件是否已被外部删除 */
+  isDeleted?: boolean
 }
 
 export interface FileSlice {
@@ -56,9 +60,15 @@ export interface FileSlice {
   closeFile: (path: string) => void
   setActiveFile: (path: string | null) => void
   updateFileContent: (path: string, content: string) => void
-  markFileSaved: (path: string) => void
+  /** 更新文件的 dirty 状态（基于版本号比较） */
+  updateFileDirtyState: (path: string, currentVersionId: number) => void
+  markFileSaved: (path: string, versionId?: number) => void
   /** 从磁盘重新加载文件内容（不设置 dirty） */
   reloadFileFromDisk: (path: string, content: string) => void
+  /** 标记文件已被外部删除 */
+  markFileDeleted: (path: string) => void
+  /** 标记文件已恢复（不再是删除状态） */
+  markFileRestored: (path: string) => void
   // 文件树刷新触发器
   fileTreeRefreshKey: number
   triggerFileTreeRefresh: () => void
@@ -152,6 +162,7 @@ export const createFileSlice: StateCreator<FileSlice, [], [], FileSlice> = (set)
           content,
           isDirty: false,
           originalContent,
+          savedVersionId: 1, // Monaco 初始版本号
           largeFileInfo: options?.largeFileInfo,
           encoding: options?.encoding,
         }],
@@ -174,20 +185,44 @@ export const createFileSlice: StateCreator<FileSlice, [], [], FileSlice> = (set)
   updateFileContent: (path, content) =>
     set((state) => ({
       openFiles: state.openFiles.map((f) =>
-        f.path === path ? { ...f, content, isDirty: true } : f
+        f.path === path ? { ...f, content } : f
       ),
     })),
 
-  markFileSaved: (path) =>
+  updateFileDirtyState: (path, currentVersionId) =>
     set((state) => ({
-      openFiles: state.openFiles.map((f) => (f.path === path ? { ...f, isDirty: false } : f)),
+      openFiles: state.openFiles.map((f) =>
+        f.path === path ? { ...f, isDirty: currentVersionId !== f.savedVersionId } : f
+      ),
+    })),
+
+  markFileSaved: (path, versionId) =>
+    set((state) => ({
+      openFiles: state.openFiles.map((f) => (f.path === path ? { 
+        ...f, 
+        isDirty: false, 
+        savedVersionId: versionId ?? f.savedVersionId 
+      } : f)),
     })),
 
   reloadFileFromDisk: (path, content) =>
     set((state) => ({
       openFiles: state.openFiles.map((f) =>
-        // 重新加载时清除 originalContent，避免 DiffEditor 显示两边相同的内容
-        f.path === path ? { ...f, content, originalContent: undefined, isDirty: false } : f
+        f.path === path ? { ...f, content, originalContent: undefined, isDirty: false, isDeleted: false, savedVersionId: undefined } : f
+      ),
+    })),
+
+  markFileDeleted: (path) =>
+    set((state) => ({
+      openFiles: state.openFiles.map((f) =>
+        f.path === path ? { ...f, isDeleted: true } : f
+      ),
+    })),
+
+  markFileRestored: (path) =>
+    set((state) => ({
+      openFiles: state.openFiles.map((f) =>
+        f.path === path ? { ...f, isDeleted: false } : f
       ),
     })),
 })

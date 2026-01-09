@@ -245,6 +245,12 @@ export function ProviderSettings({
           toolCallField: advanced.response?.toolCallField,
           doneMarker: advanced.response?.doneMarker || baseConfig.response.doneMarker,
         },
+        toolFormat: advanced.toolFormat ? {
+          wrapMode: advanced.toolFormat.wrapMode || baseConfig.toolFormat?.wrapMode || 'function',
+          wrapField: advanced.toolFormat.wrapField ?? baseConfig.toolFormat?.wrapField,
+          parameterField: advanced.toolFormat.parameterField || baseConfig.toolFormat?.parameterField || 'parameters',
+          includeType: advanced.toolFormat.includeType ?? baseConfig.toolFormat?.includeType ?? true,
+        } : baseConfig.toolFormat,
       }
       newConfigs[localConfig.provider].adapterConfig = updatedAdapterConfig
       setLocalConfig({ ...localConfig, adapterConfig: updatedAdapterConfig })

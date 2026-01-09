@@ -46,7 +46,7 @@ loader.config({ monaco })
 
 export default function Editor() {
   const {
-    openFiles, activeFilePath, setActiveFile, updateFileContent, markFileSaved,
+    openFiles, activeFilePath, setActiveFile, updateFileContent, updateFileDirtyState, markFileSaved,
     language, activeDiff, setActiveDiff
   } = useStore()
   const { pendingChanges, acceptChange, undoChange } = useAgent()
@@ -140,6 +140,24 @@ export default function Editor() {
 
     monacoInstance.editor.setTheme('adnify-dynamic')
 
+    // 监听内容变化，基于版本号更新 dirty 状态
+    const model = editor.getModel()
+    if (model && activeFilePath) {
+      // 初始化时记录版本号
+      const { openFiles } = useStore.getState()
+      const file = openFiles.find(f => f.path === activeFilePath)
+      if (file && !file.savedVersionId) {
+        // 首次打开，记录初始版本号
+        const { markFileSaved } = useStore.getState()
+        markFileSaved(activeFilePath, model.getAlternativeVersionId())
+      }
+
+      editor.onDidChangeModelContent(() => {
+        const currentVersionId = model.getAlternativeVersionId()
+        updateFileDirtyState(activeFilePath, currentVersionId)
+      })
+    }
+
     editor.onContextMenu((e) => {
       e.event.preventDefault()
       e.event.stopPropagation()
@@ -164,7 +182,10 @@ export default function Editor() {
         if (config.formatOnSave && content !== activeFile.content) {
           updateFileContent(activeFile.path, content)
         }
-        markFileSaved(activeFile.path)
+        // 保存时记录当前版本号
+        const model = editorRef.current.getModel()
+        const versionId = model?.getAlternativeVersionId()
+        markFileSaved(activeFile.path, versionId)
         toast.success(language === 'zh' ? '文件已保存' : 'File Saved', getFileName(activeFile.path))
       } else {
         toast.error(language === 'zh' ? '保存失败' : 'Save Failed', language === 'zh' ? '无法写入文件' : 'Could not write to file')

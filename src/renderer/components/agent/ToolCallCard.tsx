@@ -64,19 +64,20 @@ const ToolCallCard = memo(function ToolCallCard({
     }
   }, [isRunning, isStreaming])
 
-  // 延迟渲染逻辑：动画期间不渲染重型内容
+  // 延迟渲染逻辑：流式状态下立即显示，非流式时等待动画
   const [showContent, setShowContent] = useState(false)
   useEffect(() => {
       let timer: NodeJS.Timeout
       if (isExpanded) {
-          // 展开时：延迟显示内容，等待动画完成
-          timer = setTimeout(() => setShowContent(true), 100)
+          // 流式状态下立即显示内容，非流式时短暂延迟等待动画
+          const delay = isStreaming || isRunning ? 0 : 50
+          timer = setTimeout(() => setShowContent(true), delay)
       } else {
           // 收起时：立即隐藏内容，防止重绘
           setShowContent(false)
       }
       return () => clearTimeout(timer)
-  }, [isExpanded])
+  }, [isExpanded, isStreaming, isRunning])
 
   // 获取简短描述
   const description = useMemo(() => {
@@ -452,12 +453,24 @@ const ToolCallCard = memo(function ToolCallCard({
     </motion.div>
   )
 }, (prevProps, nextProps) => {
+  // 快速路径：流式状态下总是更新
+  const prevStreaming = (prevProps.toolCall.arguments as Record<string, unknown>)?._streaming
+  const nextStreaming = (nextProps.toolCall.arguments as Record<string, unknown>)?._streaming
+  if (prevStreaming || nextStreaming) {
+    // 流式状态下，只比较关键字段
+    return (
+      prevProps.toolCall.id === nextProps.toolCall.id &&
+      prevProps.toolCall.name === nextProps.toolCall.name &&
+      prevStreaming === nextStreaming
+    )
+  }
+  
+  // 非流式状态：完整比较
   return (
     prevProps.toolCall.id === nextProps.toolCall.id &&
     prevProps.toolCall.status === nextProps.toolCall.status &&
     prevProps.toolCall.name === nextProps.toolCall.name &&
     prevProps.isAwaitingApproval === nextProps.isAwaitingApproval &&
-    JSON.stringify(prevProps.toolCall.arguments) === JSON.stringify(nextProps.toolCall.arguments) &&
     prevProps.toolCall.result === nextProps.toolCall.result &&
     prevProps.toolCall.richContent?.length === nextProps.toolCall.richContent?.length
   )

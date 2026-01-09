@@ -21,9 +21,9 @@ const PARAMETER_REGEX = /<parameter[=\s]+["']?([^"'>\s]+)["']?\s*>([\s\S]*?)<\/p
 const PARAMETER_PARTIAL_REGEX = /<parameter[=\s]+["']?([^"'>\s]+)["']?\s*>([\s\S]*?)(?:<\/parameter>|$)/gi
 
 export interface ParsedToolCall {
-    id: string
-    name: string
-    arguments: Record<string, unknown>
+  id: string
+  name: string
+  arguments: Record<string, unknown>
 }
 
 /**
@@ -205,5 +205,9 @@ export function parsePartialArgs(argsString: string): Record<string, unknown> {
  * 从文本内容中移除 XML 工具调用标记
  */
 export function removeXMLToolCallsFromContent(content: string): string {
-    return content.replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '').trim()
+    // 移除 <tool_call>...</tool_call> 格式
+    let cleaned = content.replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '')
+    // 移除 <function="xxx">...</function> 格式
+    cleaned = cleaned.replace(/<function[=\s]+["']?[^"'>\s]+["']?\s*>[\s\S]*?<\/function>/gi, '')
+    return cleaned.trim()
 }

@@ -2,7 +2,7 @@
  * 编辑器标签栏组件
  */
 import { memo } from 'react'
-import { X, AlertCircle, AlertTriangle, RefreshCw } from 'lucide-react'
+import { X, AlertCircle, AlertTriangle, RefreshCw, FileX } from 'lucide-react'
 import { getFileName } from '@shared/utils/pathUtils'
 import type { OpenFile } from '@store'
 
@@ -43,6 +43,7 @@ export const EditorTabs = memo(function EditorTabs({
               ${isActive
                 ? 'bg-transparent text-text-primary font-medium'
                 : 'bg-transparent text-text-muted hover:bg-white/5 hover:text-text-primary'}
+              ${file.isDeleted ? 'opacity-60' : ''}
             `}
             onClick={() => onSelectFile(file.path)}
             onContextMenu={(e) => {
@@ -54,7 +55,12 @@ export const EditorTabs = memo(function EditorTabs({
               <div className="absolute top-0 left-0 right-0 h-[2px] bg-accent shadow-[0_0_10px_rgba(var(--accent)/0.8)] z-10" />
             )}
 
-            <span className="text-[13px] truncate flex-1">{fileName}</span>
+            {/* 已删除文件图标 */}
+            {file.isDeleted && (
+              <FileX className="w-3.5 h-3.5 text-status-error flex-shrink-0" title="文件已被删除" />
+            )}
+
+            <span className={`text-[13px] truncate flex-1 ${file.isDeleted ? 'line-through text-text-muted' : ''}`}>{fileName}</span>
 
             <div
               className="flex items-center justify-center w-5 h-5 rounded-lg hover:bg-white/10 transition-colors"
