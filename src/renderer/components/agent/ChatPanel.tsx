@@ -159,6 +159,8 @@ export default function ChatPanel() {
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const [atBottom, setAtBottom] = useState(true)
   const [showScrollButton, setShowScrollButton] = useState(false)
+  // 用于防止工具卡片展开/收缩时误判滚动状态
+  const isAutoScrollingRef = useRef(false)
 
   // 缓存过滤后的消息列表，避免每次渲染都创建新数组
   const filteredMessages = useMemo(
@@ -187,37 +189,42 @@ export default function ChatPanel() {
     let intervalId: NodeJS.Timeout
 
     const doScroll = () => {
+      isAutoScrollingRef.current = true
       rafId = requestAnimationFrame(() => {
         virtuosoRef.current?.scrollToIndex({
           index: filteredMessages.length - 1,
           align: 'end',
           behavior: 'auto'
         })
+        // 延迟重置标志，给 Virtuoso 时间处理滚动
+        setTimeout(() => {
+          isAutoScrollingRef.current = false
+        }, 50)
       })
     }
 
     // 立即滚动一次
     doScroll()
     
-    // 每 100ms 检查并滚动
-    intervalId = setInterval(doScroll, 100)
+    // 每 150ms 检查并滚动（降低频率避免抖动）
+    intervalId = setInterval(doScroll, 150)
 
     return () => {
       cancelAnimationFrame(rafId)
       clearInterval(intervalId)
+      isAutoScrollingRef.current = false
     }
   }, [isStreaming, atBottom, filteredMessages.length])
 
   // 处理用户滚动状态变化
   const handleAtBottomStateChange = useCallback((bottom: boolean) => {
+    // 如果是自动滚动触发的，忽略状态变化
+    if (isAutoScrollingRef.current) return
+    
     setAtBottom(bottom)
-    // 不在底部且有内容时显示滚动按钮
-    if (!bottom && filteredMessages.length > 0) {
-      setShowScrollButton(true)
-    } else if (bottom) {
-      setShowScrollButton(false)
-    }
-  }, [filteredMessages.length])
+    // 不在底部时显示滚动按钮（流式输出时也显示，方便用户回到底部）
+    setShowScrollButton(!bottom)
+  }, [])
 
   // 一次性同步 inputPrompt 到本地 input
   useEffect(() => {
@@ -931,12 +938,12 @@ export default function ChatPanel() {
               data={filteredMessages}
               atBottomStateChange={handleAtBottomStateChange}
               initialTopMostItemIndex={Math.max(0, filteredMessages.length - 1)}
-              followOutput={isStreaming && atBottom ? 'smooth' : false}
+              followOutput={isStreaming ? 'smooth' : false}
               itemContent={(_, message) => renderMessage(message)}
               className="flex-1 custom-scrollbar"
               style={{ minHeight: '100px' }}
               overscan={200}
-              atBottomThreshold={100}
+              atBottomThreshold={200}
             />
           )}
 

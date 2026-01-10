@@ -260,10 +260,18 @@ const ToolCallCard = memo(function ToolCallCard({
     }
 
     // 4. 默认通用预览
+    const hasArgs = Object.keys(args).filter(k => !k.startsWith('_')).length > 0
+    const hasResult = toolCall.result || (toolCall.richContent && toolCall.richContent.length > 0)
+
+    // 运行中且没有内容时显示骨架屏
+    if (isRunning && !hasArgs && !hasResult) {
+      return <div className="bg-black/20 rounded-md border border-border overflow-hidden">{renderSkeleton()}</div>
+    }
+
     return (
       <div className="space-y-2">
         {/* 参数 */}
-        {Object.keys(args).filter(k => !k.startsWith('_')).length > 0 && (
+        {hasArgs && (
           <div className="bg-black/20 rounded-md border border-border p-2 shadow-inner">
             <JsonHighlight
               data={Object.fromEntries(Object.entries(args).filter(([k]) => !k.startsWith('_')))}

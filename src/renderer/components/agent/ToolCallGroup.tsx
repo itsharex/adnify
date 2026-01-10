@@ -2,7 +2,10 @@
  * 工具调用组组件
  * 用于合并显示连续的工具调用，减少刷屏
  * 
- * 升级版：高级卡片折叠设计
+ * 设计：
+ * - 正在执行的工具：独立显示
+ * - 最新完成的 1 个工具：独立显示（让用户看清结果）
+ * - 更早完成的工具：折叠到组中
  */
 
 import { useState, useMemo } from 'react'
@@ -32,7 +35,8 @@ export default function ToolCallGroup({
     const [isExpanded, setIsExpanded] = useState(false)
     const { language } = useStore()
 
-    const { completedCalls, activeCalls } = useMemo(() => {
+    // 分类：折叠组 / 最新完成 / 正在执行
+    const { foldedCalls, latestCompleted, activeCalls } = useMemo(() => {
         const completed: ToolCall[] = []
         const active: ToolCall[] = []
 
@@ -44,7 +48,16 @@ export default function ToolCallGroup({
                 completed.push(tc)
             }
         })
-        return { completedCalls: completed, activeCalls: active }
+
+        // 最新完成的 1 个独立显示，其余折叠
+        const latest = completed.length > 0 ? completed[completed.length - 1] : null
+        const folded = completed.length > 1 ? completed.slice(0, -1) : []
+
+        return { 
+            foldedCalls: folded, 
+            latestCompleted: latest, 
+            activeCalls: active 
+        }
     }, [toolCalls, pendingToolId])
 
     const renderToolCard = (tc: ToolCall) => {
@@ -77,61 +90,60 @@ export default function ToolCallGroup({
 
     return (
         <div className="my-2 space-y-2">
-            {/* 1. 已完成的工具组 */}
-            {completedCalls.length > 0 && (
-                completedCalls.length === 1 ? (
-                    renderToolCard(completedCalls[0])
-                ) : (
-                    <motion.div 
-                        layout
-                        className="rounded-2xl border border-border bg-surface/20 backdrop-blur-md overflow-hidden transition-all duration-300 hover:bg-surface/30 hover:shadow-md"
+            {/* 1. 折叠的历史工具组（2个及以上才折叠） */}
+            {foldedCalls.length > 0 && (
+                <motion.div 
+                    layout
+                    className="rounded-2xl border border-border bg-surface/20 backdrop-blur-md overflow-hidden transition-all duration-300 hover:bg-surface/30 hover:shadow-md"
+                >
+                    <div
+                        className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none"
+                        onClick={() => setIsExpanded(!isExpanded)}
                     >
-                        <div
-                            className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none"
-                            onClick={() => setIsExpanded(!isExpanded)}
-                        >
-                            <div className="p-2 rounded-xl bg-accent/10 text-accent border border-accent/20">
-                                <Layers className="w-4 h-4" />
-                            </div>
-                            <div className="flex-1 min-w-0 flex items-center gap-2">
-                                <span className="text-xs font-bold text-text-primary tracking-tight">
-                                    {language === 'zh'
-                                        ? `已执行 ${completedCalls.length} 个步骤`
-                                        : `Completed ${completedCalls.length} steps`}
-                                </span>
-                                <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
-                                    <CheckCircle2 className="w-3 h-3" />
-                                    Success
-                                </span>
-                            </div>
-                            <motion.div 
-                                animate={{ rotate: isExpanded ? 180 : 0 }}
-                                className="p-1 rounded-lg text-text-muted hover:bg-white/5 transition-colors"
-                            >
-                                <ChevronDown className="w-4 h-4" />
-                            </motion.div>
+                        <div className="p-2 rounded-xl bg-accent/10 text-accent border border-accent/20">
+                            <Layers className="w-4 h-4" />
                         </div>
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                            <span className="text-xs font-bold text-text-primary tracking-tight">
+                                {language === 'zh'
+                                    ? `已执行 ${foldedCalls.length} 个步骤`
+                                    : `${foldedCalls.length} completed step${foldedCalls.length > 1 ? 's' : ''}`}
+                            </span>
+                            <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Success
+                            </span>
+                        </div>
+                        <motion.div 
+                            animate={{ rotate: isExpanded ? 180 : 0 }}
+                            className="p-1 rounded-lg text-text-muted hover:bg-white/5 transition-colors"
+                        >
+                            <ChevronDown className="w-4 h-4" />
+                        </motion.div>
+                    </div>
 
-                        <AnimatePresence initial={false}>
-                            {isExpanded && (
-                                <motion.div
-                                    layout
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: 'auto', opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    transition={{ duration: 0.25, ease: "easeInOut" }}
-                                >
-                                    <div className="border-t border-border p-3 space-y-3 bg-black/10">
-                                        {completedCalls.map(renderToolCard)}
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </motion.div>
-                )
+                    <AnimatePresence initial={false}>
+                        {isExpanded && (
+                            <motion.div
+                                layout
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.25, ease: "easeInOut" }}
+                            >
+                                <div className="border-t border-border p-3 space-y-3 bg-black/10">
+                                    {foldedCalls.map(renderToolCard)}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </motion.div>
             )}
 
-            {/* 2. 正在运行的工具 */}
+            {/* 2. 最新完成的工具（独立显示） */}
+            {latestCompleted && renderToolCard(latestCompleted)}
+
+            {/* 3. 正在运行的工具 */}
             <AnimatePresence>
                 {activeCalls.length > 0 && (
                     <motion.div 
