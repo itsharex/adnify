@@ -59,6 +59,7 @@ jobs:
             release/*.zip
             release/*.yml
             release/*.yaml
+            release/*.blockmap
           if-no-files-found: ignore
 
 

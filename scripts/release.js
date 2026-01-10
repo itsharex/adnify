@@ -28,6 +28,15 @@ switch (bumpType) {
 
 console.log(`\n📦 Releasing v${newVersion}...\n`)
 
+// 0. 检查 tag 是否已存在
+try {
+  execSync(`git rev-parse v${newVersion}`, { stdio: 'pipe' })
+  console.error(`❌ Tag v${newVersion} already exists!`)
+  process.exit(1)
+} catch {
+  // tag 不存在，继续
+}
+
 // 1. 更新 package.json 版本号
 pkg.version = newVersion
 fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
