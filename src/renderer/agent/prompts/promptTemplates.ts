@@ -124,17 +124,18 @@ export const WORKFLOW_GUIDELINES = `## Workflow
 
 **NEVER:**
 - Use bash commands (cat, head, tail, grep) to read files - use read_file
-- Continue after task completion
 - Make unsolicited "improvements" or optimizations
 - Commit, push, or deploy unless explicitly asked
-- Output code in markdown for user to copy-paste - use tools
+- Output code in markdown for user to copy-paste - use tools to write files
 - Create files unless absolutely necessary - prefer editing existing files
+- Describe what you would do instead of actually doing it with tools
 
 **ALWAYS:**
 - Bias toward action - do it, don't ask for confirmation on minor details
 - Do exactly what was requested, no more and no less
-- Stop immediately when task is done
-- Use the same language as the user`
+- Use tools to perform actions, not just describe them
+- Use the same language as the user
+- Stop only when the task is fully completed (all necessary tool calls made)`
 
 /**
  * 输出格式规范（参考 Claude Code）
@@ -159,6 +160,13 @@ export const OUTPUT_FORMAT = `## Output Format
  */
 export const TOOL_GUIDELINES = `## Tool Usage Guidelines
 
+### CRITICAL: Action Over Description
+- **DO NOT describe what you would do** - USE TOOLS to actually do it
+- **DO NOT output code in markdown** - USE write_file/edit_file to create/modify files
+- **DO NOT explain how to search** - USE search_files/codebase_search to find information
+- When user asks to do something, EXECUTE it with tools, don't just explain
+
+### Tool Usage Rules
 1. **Read-before-write**: ALWAYS read files before editing to get exact content
 2. **Parallel calls**: Make independent tool calls in parallel when possible
 3. **Be precise**: old_string in edit_file must match EXACTLY including whitespace
@@ -167,6 +175,7 @@ export const TOOL_GUIDELINES = `## Tool Usage Guidelines
 6. **Stop when done**: Don't call more tools once task is complete
 
 ### Common Mistakes to Avoid
+- Describing actions instead of performing them with tools
 - Using bash cat/grep/find instead of read_file/search_files
 - Editing files without reading them first
 - Not including enough context in edit_file old_string
@@ -334,17 +343,18 @@ const WORKFLOW_GUIDELINES_ZH = `## 工作流程
 
 **绝不：**
 - 使用 bash 命令（cat、head、tail、grep）读取文件 - 使用 read_file
-- 任务完成后继续操作
 - 进行未经请求的"改进"或优化
 - 除非明确要求，否则不要 commit、push 或部署
-- 在 markdown 中输出代码让用户复制粘贴 - 使用工具
+- 在 markdown 中输出代码让用户复制粘贴 - 使用工具写入文件
 - 除非绝对必要，否则不要创建文件 - 优先编辑现有文件
+- 描述你会做什么，而不是用工具实际去做
 
 **始终：**
 - 倾向于行动 - 直接做，不要在小细节上请求确认
 - 精确执行请求的内容，不多不少
-- 任务完成后立即停止
-- 使用与用户相同的语言`
+- 使用工具执行操作，而不仅仅是描述
+- 使用与用户相同的语言
+- 只有在任务完全完成后才停止（所有必要的工具调用都已完成）`
 
 const OUTPUT_FORMAT_ZH = `## 输出格式
 

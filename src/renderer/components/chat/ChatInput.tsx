@@ -161,10 +161,10 @@ export default function ChatInput({
         )}
 
         {/* Context Chips */}
-        {(contextItems.length > 0 || fileRefs.length > 0 || hasCodebaseRef || hasSymbolsRef || hasGitRef || hasTerminalRef || hasWebRef || (activeFilePath && onAddFile)) && (
+        {(contextItems.length > 0 || fileRefs.length > 0 || hasCodebaseRef || hasSymbolsRef || hasGitRef || hasTerminalRef || hasWebRef || (activeFilePath && onAddFile && !activeFilePath.includes('.adnify'))) && (
           <div className="flex flex-wrap gap-2 px-4 pt-3 pb-1">
-            {/* Active File Suggestion */}
-            {activeFilePath && onAddFile && !contextItems.some(item => item.type === 'File' && (item as FileContext).uri === activeFilePath) && (
+            {/* Active File Suggestion - 不显示 .adnify 目录下的文件 */}
+            {activeFilePath && onAddFile && !activeFilePath.includes('.adnify') && !contextItems.some(item => item.type === 'File' && (item as FileContext).uri === activeFilePath) && (
               <button
                 onClick={() => onAddFile(activeFilePath)}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-accent/5 text-accent text-[11px] font-bold rounded-full border border-accent/10 animate-fade-in select-none hover:bg-accent/15 transition-colors hover:border-accent/30"

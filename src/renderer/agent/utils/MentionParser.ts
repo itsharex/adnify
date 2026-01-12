@@ -145,7 +145,7 @@ export class MentionParser {
 
             for (const item of items) {
                 if (item.name.startsWith('.') && item.name !== '.env') continue
-                if (['node_modules', 'dist', 'build', '.git'].includes(item.name)) continue
+                if (['node_modules', 'dist', 'build', '.git', '.adnify'].includes(item.name)) continue
 
                 const relativePath = item.path.replace(rootPath, '').replace(/^[/\\]/, '')
                 const match = item.name.toLowerCase().includes(query) || relativePath.toLowerCase().includes(query)

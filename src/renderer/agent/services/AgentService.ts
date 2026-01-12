@@ -356,9 +356,7 @@ class AgentServiceClass {
 
       logger.agent.info('[Agent] LLM result', {
         hasContent: !!result.content,
-        contentLength: result.content?.length || 0,
         toolCallsCount: result.toolCalls?.length || 0,
-        toolCallNames: result.toolCalls?.map(tc => tc.name) || [],
       })
 
       if (!result.toolCalls || result.toolCalls.length === 0) {

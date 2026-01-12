@@ -18,6 +18,28 @@ interface EditorTabsProps {
   onRunLint: () => void
 }
 
+/**
+ * 获取 tab 显示名称
+ * 对于 .adnify/plans/ 下的文件，显示为 "Plan 1"、"Plan 2" 等
+ */
+function getTabDisplayName(filePath: string, openFiles: OpenFile[]): string {
+  // 检查是否是 plan 文件
+  const normalizedPath = filePath.replace(/\\/g, '/')
+  if (normalizedPath.includes('.adnify/plans/') && normalizedPath.endsWith('.json')) {
+    // 获取所有打开的 plan 文件并排序
+    const planFiles = openFiles
+      .filter(f => f.path.replace(/\\/g, '/').includes('.adnify/plans/') && f.path.endsWith('.json'))
+      .sort((a, b) => a.path.localeCompare(b.path))
+    
+    const index = planFiles.findIndex(f => f.path === filePath)
+    if (index !== -1) {
+      return `Plan ${index + 1}`
+    }
+  }
+  
+  return getFileName(filePath)
+}
+
 export const EditorTabs = memo(function EditorTabs({
   openFiles,
   activeFilePath,
@@ -33,7 +55,7 @@ export const EditorTabs = memo(function EditorTabs({
     <div className="h-9 flex items-center bg-background border-b border-border overflow-x-auto custom-scrollbar select-none">
       {openFiles.map((file) => {
         const isActive = file.path === activeFilePath
-        const fileName = getFileName(file.path)
+        const fileName = getTabDisplayName(file.path, openFiles)
 
         return (
           <div
