@@ -128,7 +128,11 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
         // 使用 maxSingleFileChars 限制单个文件的输出大小
         const config = getAgentConfig()
         if (numberedContent.length > config.maxSingleFileChars) {
-            numberedContent = numberedContent.slice(0, config.maxSingleFileChars) + '\n...(file content truncated, use start_line/end_line to read specific sections)'
+            const totalLines = lines.length
+            const readLines = endLine - startLine + 1
+            numberedContent = numberedContent.slice(0, config.maxSingleFileChars) + 
+                `\n\n⚠️ FILE TRUNCATED (showing ${readLines} of ${totalLines} lines, ~${config.maxSingleFileChars} chars)\n` +
+                `To read more: use search_files to find target location, then read_file with start_line/end_line`
         }
 
         return { success: true, result: numberedContent, meta: { filePath: path } }

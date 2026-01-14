@@ -64,34 +64,39 @@ export const TOOL_CONFIGS: Record<string, ToolConfig> = {
 
 ### 🎯 OPTIMAL USAGE
 - **Default**: Read ENTIRE file (omit start_line/end_line)
-- **Only use ranges**: For files >1000 lines when you need specific section
+- **If truncated**: Use search_files to locate target, then read with line range
+
+### ⚠️ HANDLING TRUNCATION
+If you see "(file content truncated...)", the file is large. Do this:
+1. Use \`search_files\` to find the exact location of what you need
+2. Then use \`read_file\` with \`start_line/end_line\` to read that section
+3. Include ~50 lines of context around your target
 
 ### 🚫 FORBIDDEN
-- ❌ Reading same file in multiple fragments
-- ❌ Using start_line/end_line for normal-sized files
-- ❌ Multiple read_file calls → use read_multiple_files instead
+- ❌ Reading same file repeatedly without using search first
+- ❌ Multiple read_file calls for different files → use read_multiple_files
 
-### ✅ CORRECT
+### ✅ CORRECT (for large files)
 \`\`\`
-read_file path="src/main.ts"  // Read entire file
-\`\`\`
+# Step 1: Find target location
+search_files path="js/main.js" pattern="functionName"
+# Result: js/main.js:150: function functionName()
 
-### ❌ WRONG
-\`\`\`
-read_file path="src/main.ts" start_line=1 end_line=50
-read_file path="src/main.ts" start_line=51 end_line=100  // FRAGMENTED!
+# Step 2: Read with context
+read_file path="js/main.js" start_line=130 end_line=200
 \`\`\``,
         detailedDescription: `Read file contents from the filesystem with line numbers (1-indexed).
 - Returns content in "line_number: content" format
-- Default: reads ENTIRE file (recommended)
-- Only use start_line/end_line for files >1000 lines`,
+- Large files (>6000 chars) will be truncated
+- When truncated, use search_files first to locate target`,
         examples: [
-            'read_file path="src/main.ts" → Read entire file (PREFERRED)',
+            'read_file path="src/main.ts" → Read entire file',
+            'read_file path="large.js" start_line=100 end_line=200 → Read specific section',
         ],
         criticalRules: [
-            'Read ENTIRE file by default - do NOT fragment',
+            'If truncated, use search_files to find target first',
             'For 2+ files, use read_multiple_files instead',
-            'Only use line ranges for files >1000 lines',
+            'Include ~50 lines context when using line ranges',
         ],
         category: 'read',
         approvalType: 'none',

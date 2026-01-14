@@ -34,8 +34,8 @@ export function getFileStats(
 ): { errors: number; warnings: number } {
   if (!filePath) return { errors: 0, warnings: 0 }
 
-  // 使用统一的路径规范化函数
-  const normalizedFilePath = normalizePath(filePath)
+  // 规范化路径：统一分隔符 + 小写（Windows 路径不区分大小写）
+  const normalizedFilePath = normalizePath(filePath).toLowerCase()
 
   let diags: LspDiagnostic[] | undefined
 
@@ -49,10 +49,10 @@ export function getFileStats(
       uriPath = decodeURIComponent(uri.slice(7))
     }
 
-    // 使用统一的路径规范化函数
-    const normalizedUri = normalizePath(uriPath)
+    // 规范化路径：统一分隔符 + 小写
+    const normalizedUri = normalizePath(uriPath).toLowerCase()
 
-    // 比较路径
+    // 比较路径（已经是小写，直接比较）
     if (normalizedUri === normalizedFilePath || normalizedUri.endsWith(normalizedFilePath)) {
       diags = value
       break

@@ -8,6 +8,7 @@ import Store from 'electron-store'
 import * as path from 'path'
 import * as fs from 'fs'
 import { SECURITY_DEFAULTS, isSensitivePath as sharedIsSensitivePath } from '@shared/constants'
+import { pathStartsWith, pathEquals } from '@shared/utils/pathUtils'
 
 // 敏感操作类型
 export enum OperationType {
@@ -315,11 +316,11 @@ class SecurityManager implements SecurityModule {
     try {
       const resolvedPath = path.resolve(filePath)
 
+      // 使用 pathStartsWith 进行路径比较（忽略大小写和分隔符差异）
       const isInside = workspaces.some(ws => {
         if (typeof ws !== 'string') return false
         const resolvedWorkspace = path.resolve(ws)
-        return resolvedPath.startsWith(resolvedWorkspace + path.sep) ||
-          resolvedPath === resolvedWorkspace
+        return pathStartsWith(resolvedPath, resolvedWorkspace) || pathEquals(resolvedPath, resolvedWorkspace)
       })
 
       const isSensitive = typeof resolvedPath === 'string' && this.isSensitivePath(resolvedPath)

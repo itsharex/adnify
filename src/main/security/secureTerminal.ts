@@ -299,6 +299,14 @@ export function registerSecureTerminalHandlers(
     const windowRoots = getWindowWorkspace?.(windowId)
     const workspace = windowRoots ? { roots: windowRoots } : getWorkspace()
 
+    // 调试日志：记录 workspace 状态
+    logger.security.debug('[Git] Workspace check:', {
+      windowId,
+      windowRoots: windowRoots || 'null',
+      workspaceFromStore: workspace?.roots || 'null',
+      cwd,
+    })
+
     // 1. 工作区检查（允许无工作区模式以支持新窗口）
     if (!workspace || workspace.roots.length === 0) {
       // 无工作区时信任传入的cwd路径
@@ -306,6 +314,7 @@ export function registerSecureTerminalHandlers(
     } else {
       // 2. 验证工作区边界
       if (!securityManager.validateWorkspacePath(cwd, workspace.roots)) {
+        logger.security.warn('[Git] Path validation failed:', { cwd, roots: workspace.roots })
         securityManager.logOperation(OperationType.GIT_EXEC, args.join(' '), false, {
           reason: '路径在工作区外',
           cwd,
