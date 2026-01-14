@@ -64,6 +64,7 @@ export async function buildAgentSystemPrompt(
     memories,
     customInstructions: customInstructions || null,
     plan,
+    templateId: template.id,
   }
 
   // 根据模式选择构建器

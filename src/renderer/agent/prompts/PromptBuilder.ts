@@ -6,7 +6,8 @@
  */
 
 import { WorkMode } from '@/renderer/modes/types'
-import { generateAllToolsPromptDescription } from '@/shared/config/tools'
+import { generateToolsPromptDescriptionFiltered, type ToolCategory } from '@/shared/config/tools'
+import { getToolsForContext } from '@/shared/config/toolGroups'
 import type { MemoryItem } from '../services/memoryService'
 import type { ProjectRules } from '../services/rulesService'
 import type { Plan } from '../types'
@@ -39,14 +40,32 @@ export interface PromptContext {
   memories: MemoryItem[]
   customInstructions: string | null
   plan: Plan | null
+  /** 角色模板 ID（用于加载角色专属工具） */
+  templateId?: string
 }
 
 // ============================================
 // 动态部分构建函数
 // ============================================
 
-function buildTools(mode: WorkMode): string {
-  const baseTools = generateAllToolsPromptDescription()
+/**
+ * 构建工具描述部分
+ * 
+ * 工具过滤逻辑：
+ * 1. 根据模式排除类别（agent 模式排除 plan 类别）
+ * 2. 根据 getToolsForContext 获取允许的工具列表（包含角色专属工具）
+ * 3. 只生成允许工具的描述
+ */
+function buildTools(mode: WorkMode, templateId?: string): string {
+  // 根据模式确定要排除的类别
+  const excludeCategories: ToolCategory[] = mode === 'plan' ? [] : ['plan']
+  
+  // 获取当前上下文允许的工具列表（包含角色专属工具）
+  const toolLoadingMode = mode === 'plan' ? 'plan' : mode === 'chat' ? 'chat' : 'code'
+  const allowedTools = getToolsForContext({ mode: toolLoadingMode, templateId })
+  
+  // 生成工具描述（双重过滤：类别 + 允许列表）
+  const baseTools = generateToolsPromptDescriptionFiltered(excludeCategories, allowedTools)
   const planningSection = mode === 'plan' ? `\n\n${PLANNING_TOOLS_DESC}` : ''
   
   return `## Available Tools
@@ -164,7 +183,7 @@ export function buildSystemPrompt(ctx: PromptContext): string {
     ctx.mode === 'plan' ? buildPlanSection(ctx.plan) : null,
     PROFESSIONAL_OBJECTIVITY,
     SECURITY_RULES,
-    buildTools(ctx.mode),
+    buildTools(ctx.mode, ctx.templateId),
     CODE_CONVENTIONS,
     WORKFLOW_GUIDELINES,
     OUTPUT_FORMAT,
