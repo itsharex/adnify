@@ -27,6 +27,7 @@ import type {
   AppSettings,
   RuntimeSettings,
   WebSearchConfig,
+  McpConfig,
 } from '@shared/config/types'
 import {
   defaultLLMConfig,
@@ -37,6 +38,7 @@ import {
   defaultSecuritySettings,
   defaultProviderConfigs,
   defaultWebSearchConfig,
+  defaultMcpConfig,
 } from './defaults'
 import {
   TERMINAL_DEFAULTS,
@@ -71,6 +73,7 @@ interface SavedAppSettings {
   aiInstructions?: string
   onboardingCompleted?: boolean
   webSearchConfig?: WebSearchConfig
+  mcpConfig?: McpConfig
 }
 
 // ============================================
@@ -294,6 +297,7 @@ class SettingsService {
         aiInstructions: settings.aiInstructions,
         onboardingCompleted: settings.onboardingCompleted,
         webSearchConfig: settings.webSearchConfig,
+        mcpConfig: settings.mcpConfig,
       }
 
       // 更新缓存
@@ -353,6 +357,7 @@ class SettingsService {
       editorConfig: defaultEditorConfig,
       securitySettings: defaultSecuritySettings,
       webSearchConfig: defaultWebSearchConfig,
+      mcpConfig: defaultMcpConfig,
     }
   }
 
@@ -389,6 +394,7 @@ class SettingsService {
       editorConfig: saved.editorConfig ? deepMerge(defaultEditorConfig, saved.editorConfig) : defaultEditorConfig,
       securitySettings: saved.securitySettings ? deepMerge(defaultSecuritySettings, saved.securitySettings) : defaultSecuritySettings,
       webSearchConfig: saved.webSearchConfig ? { ...defaultWebSearchConfig, ...saved.webSearchConfig } : defaultWebSearchConfig,
+      mcpConfig: saved.mcpConfig ? { ...defaultMcpConfig, ...saved.mcpConfig } : defaultMcpConfig,
     }
   }
 
@@ -494,6 +500,7 @@ class SettingsService {
         editorConfig: settings.editorConfig,
         securitySettings: settings.securitySettings,
         webSearchConfig: settings.webSearchConfig,
+        mcpConfig: settings.mcpConfig,
       }
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(toSave))
     } catch {

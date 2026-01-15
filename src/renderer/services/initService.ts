@@ -70,10 +70,17 @@ async function loadUserSettings(isEmptyWindow: boolean): Promise<string | null> 
   ])
 
   // 应用网络搜索配置到主进程
-  const { webSearchConfig } = useStore.getState()
+  const { webSearchConfig, mcpConfig } = useStore.getState()
   if (webSearchConfig?.googleApiKey && webSearchConfig?.googleCx) {
     api.http.setGoogleSearch(webSearchConfig.googleApiKey, webSearchConfig.googleCx).catch((e) => {
       logger.system.warn('[Init] Failed to set Google Search config:', e)
+    })
+  }
+
+  // 同步 MCP 自动连接设置到主进程
+  if (mcpConfig?.autoConnect !== undefined) {
+    api.mcp.setAutoConnect(mcpConfig.autoConnect).catch((e) => {
+      logger.system.warn('[Init] Failed to set MCP auto-connect config:', e)
     })
   }
 

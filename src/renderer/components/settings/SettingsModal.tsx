@@ -29,7 +29,8 @@ export default function SettingsModal() {
         llmConfig, setLLMConfig, setShowSettings, language, setLanguage,
         autoApprove, setAutoApprove, providerConfigs, setProviderConfig,
         promptTemplateId, setPromptTemplateId, agentConfig, setAgentConfig,
-        aiInstructions, setAiInstructions, webSearchConfig, setWebSearchConfig
+        aiInstructions, setAiInstructions, webSearchConfig, setWebSearchConfig,
+        mcpConfig, setMcpConfig
     } = useStore()
 
     const [activeTab, setActiveTab] = useState<SettingsTab>('provider')
@@ -42,6 +43,7 @@ export default function SettingsModal() {
     const [localProviderConfigs, setLocalProviderConfigs] = useState(providerConfigs)
     const [localAiInstructions, setLocalAiInstructions] = useState(aiInstructions)
     const [localWebSearchConfig, setLocalWebSearchConfig] = useState(webSearchConfig)
+    const [localMcpConfig, setLocalMcpConfig] = useState(mcpConfig)
     const [saved, setSaved] = useState(false);
 
     const editorConfig = getEditorConfig()
@@ -89,6 +91,7 @@ export default function SettingsModal() {
     useEffect(() => { setLocalAgentConfig(agentConfig) }, [agentConfig])
     useEffect(() => { setLocalAiInstructions(aiInstructions) }, [aiInstructions])
     useEffect(() => { setLocalWebSearchConfig(webSearchConfig) }, [webSearchConfig])
+    useEffect(() => { setLocalMcpConfig(mcpConfig) }, [mcpConfig])
 
     const handleSave = async () => {
         // 更新 Store 状态
@@ -99,6 +102,7 @@ export default function SettingsModal() {
         setAgentConfig(localAgentConfig)
         setAiInstructions(localAiInstructions)
         setWebSearchConfig(localWebSearchConfig)
+        setMcpConfig(localMcpConfig)
 
         // 合并当前 provider 的配置到 localProviderConfigs
         const currentProviderLocalConfig = localProviderConfigs[localConfig.provider] || {}
@@ -142,6 +146,7 @@ export default function SettingsModal() {
             editorConfig: currentEditorConfig,
             securitySettings: currentSecuritySettings,
             webSearchConfig: localWebSearchConfig,
+            mcpConfig: localMcpConfig,
         })
 
         // 编辑器配置独立保存到 editorConfig（localStorage + 文件）
@@ -193,6 +198,9 @@ export default function SettingsModal() {
         if (localWebSearchConfig.googleApiKey && localWebSearchConfig.googleCx) {
             window.electronAPI?.httpSetGoogleSearch?.(localWebSearchConfig.googleApiKey, localWebSearchConfig.googleCx)
         }
+
+        // 同步 MCP 自动连接设置到主进程
+        window.electronAPI?.mcpSetAutoConnect?.(localMcpConfig.autoConnect ?? true)
 
         setSaved(true)
         setTimeout(() => setSaved(false), 2000)
@@ -318,7 +326,7 @@ export default function SettingsModal() {
                             )}
                             {activeTab === 'rules' && <RulesMemorySettings language={language} />}
                             {activeTab === 'keybindings' && <KeybindingPanel />}
-                            {activeTab === 'mcp' && <McpSettings language={language} />}
+                            {activeTab === 'mcp' && <McpSettings language={language} mcpConfig={localMcpConfig} setMcpConfig={setLocalMcpConfig} />}
                             {activeTab === 'lsp' && <LspSettings language={language} />}
                             {activeTab === 'indexing' && <IndexSettings language={language} />}
                             {activeTab === 'security' && <SecuritySettings language={language} />}

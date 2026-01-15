@@ -194,7 +194,15 @@ export interface SecuritySettings {
 
 export interface WebSearchConfig {
   googleApiKey?: string
-  googleCx?: string  // Google Programmable Search Engine ID
+  googleCx?: string // Google Programmable Search Engine ID
+}
+
+// ============================================
+// MCP 配置
+// ============================================
+
+export interface McpConfig {
+  autoConnect?: boolean // 启动时自动连接 MCP 服务器
 }
 
 // ============================================
@@ -202,7 +210,7 @@ export interface WebSearchConfig {
 // ============================================
 
 export interface AppSettings {
-  llmConfig: Pick<LLMConfig, 'provider' | 'model'>  // 只保存 provider 和 model
+  llmConfig: Pick<LLMConfig, 'provider' | 'model'> // 只保存 provider 和 model
   language: string
   autoApprove: AutoApproveSettings
   promptTemplateId?: string
@@ -211,6 +219,7 @@ export interface AppSettings {
   aiInstructions: string
   onboardingCompleted: boolean
   webSearchConfig?: WebSearchConfig
+  mcpConfig?: McpConfig
 }
 
 // ============================================
@@ -218,8 +227,9 @@ export interface AppSettings {
 // ============================================
 
 export interface RuntimeSettings extends Omit<AppSettings, 'llmConfig'> {
-  llmConfig: LLMConfig  // 运行时包含完整 LLMConfig
+  llmConfig: LLMConfig // 运行时包含完整 LLMConfig
   editorConfig: EditorConfig
   securitySettings: SecuritySettings
   webSearchConfig: WebSearchConfig
+  mcpConfig: McpConfig
 }

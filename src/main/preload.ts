@@ -342,6 +342,7 @@ export interface ElectronAPI {
   }) => Promise<{ success: boolean; error?: string }>
   mcpRemoveServer: (serverId: string) => Promise<{ success: boolean; error?: string }>
   mcpToggleServer: (serverId: string, disabled: boolean) => Promise<{ success: boolean; error?: string }>
+  mcpSetAutoConnect: (enabled: boolean) => Promise<{ success: boolean; error?: string }>
   onMcpServerStatus: (callback: (event: { serverId: string; status: string; error?: string }) => void) => () => void
   onMcpToolsUpdated: (callback: (event: { serverId: string; tools: any[] }) => void) => () => void
   onMcpResourcesUpdated: (callback: (event: { serverId: string; resources: any[] }) => void) => () => void
@@ -575,6 +576,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   }) => ipcRenderer.invoke('mcp:addServer', config),
   mcpRemoveServer: (serverId: string) => ipcRenderer.invoke('mcp:removeServer', serverId),
   mcpToggleServer: (serverId: string, disabled: boolean) => ipcRenderer.invoke('mcp:toggleServer', serverId, disabled),
+  mcpSetAutoConnect: (enabled: boolean) => ipcRenderer.invoke('mcp:setAutoConnect', enabled),
   // OAuth 相关
   mcpStartOAuth: (serverId: string) => ipcRenderer.invoke('mcp:startOAuth', serverId),
   mcpFinishOAuth: (serverId: string, authorizationCode: string) => ipcRenderer.invoke('mcp:finishOAuth', serverId, authorizationCode),

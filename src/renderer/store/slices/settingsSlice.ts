@@ -20,6 +20,7 @@ import type {
   ProviderConfig,
   SecuritySettings,
   WebSearchConfig,
+  McpConfig,
 } from '@shared/config/types'
 import type { ApiProtocol } from '@shared/config/providers'
 import {
@@ -29,6 +30,7 @@ import {
   defaultEditorConfig,
   defaultSecuritySettings,
   defaultWebSearchConfig,
+  defaultMcpConfig,
 } from '@renderer/settings'
 import { SECURITY_DEFAULTS } from '@shared/constants'
 
@@ -54,6 +56,7 @@ export interface SettingsSlice {
   providerConfigs: Record<string, ProviderModelConfig>
   securitySettings: SecuritySettings
   webSearchConfig: WebSearchConfig
+  mcpConfig: McpConfig
   agentConfig: AgentConfig
   editorConfig: EditorConfig
   onboardingCompleted: boolean
@@ -71,6 +74,7 @@ export interface SettingsSlice {
   removeCustomModel: (providerId: string, model: string) => void
   setSecuritySettings: (settings: Partial<SecuritySettings>) => void
   setWebSearchConfig: (config: Partial<WebSearchConfig>) => void
+  setMcpConfig: (config: Partial<McpConfig>) => void
   setAgentConfig: (config: Partial<AgentConfig>) => void
   setEditorConfig: (config: Partial<EditorConfig>) => void
   setOnboardingCompleted: (completed: boolean) => void
@@ -110,6 +114,7 @@ export const createSettingsSlice: StateCreator<SettingsSlice, [], [], SettingsSl
     allowedShellCommands: [...SECURITY_DEFAULTS.SHELL_COMMANDS],
   },
   webSearchConfig: defaultWebSearchConfig,
+  mcpConfig: defaultMcpConfig,
   agentConfig: defaultAgentConfig,
   editorConfig: defaultEditorConfig,
   onboardingCompleted: true,
@@ -184,6 +189,9 @@ export const createSettingsSlice: StateCreator<SettingsSlice, [], [], SettingsSl
   setWebSearchConfig: (config) =>
     set((state) => ({ webSearchConfig: { ...state.webSearchConfig, ...config } })),
 
+  setMcpConfig: (config) =>
+    set((state) => ({ mcpConfig: { ...state.mcpConfig, ...config } })),
+
   setAgentConfig: (config) =>
     set((state) => ({ agentConfig: { ...state.agentConfig, ...config } })),
 
@@ -229,6 +237,7 @@ export const createSettingsSlice: StateCreator<SettingsSlice, [], [], SettingsSl
         editorConfig: getEditorConfig(),
         securitySettings: settings.securitySettings,
         webSearchConfig: settings.webSearchConfig || defaultWebSearchConfig,
+        mcpConfig: settings.mcpConfig || defaultMcpConfig,
       })
     } catch (e) {
       logger.settings.error('[SettingsSlice] Failed to load settings:', e)

@@ -163,6 +163,7 @@ function createGroupedAPI() {
       addServer: (config: Parameters<typeof raw.mcpAddServer>[0]) => raw.mcpAddServer(config),
       removeServer: (serverId: string) => raw.mcpRemoveServer(serverId),
       toggleServer: (serverId: string, disabled: boolean) => raw.mcpToggleServer(serverId, disabled),
+      setAutoConnect: (enabled: boolean) => raw.mcpSetAutoConnect(enabled),
       startOAuth: (serverId: string) => raw.mcpStartOAuth(serverId),
       finishOAuth: (serverId: string, authorizationCode: string) => raw.mcpFinishOAuth(serverId, authorizationCode),
       refreshOAuthToken: (serverId: string) => raw.mcpRefreshOAuthToken(serverId),

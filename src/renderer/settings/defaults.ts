@@ -145,9 +145,17 @@ export const defaultProviderConfigs = generateDefaultProviderConfigs()
 // 网络搜索默认配置
 // ============================================
 
-import type { WebSearchConfig } from '@shared/config/types'
+import type { WebSearchConfig, McpConfig } from '@shared/config/types'
 
 export const defaultWebSearchConfig: WebSearchConfig = {
   googleApiKey: '',
   googleCx: '',
+}
+
+// ============================================
+// MCP 默认配置
+// ============================================
+
+export const defaultMcpConfig: McpConfig = {
+  autoConnect: true, // 默认启用自动连接
 }

@@ -376,6 +376,7 @@ export interface ElectronAPI {
   }) => Promise<{ success: boolean; error?: string }>
   mcpRemoveServer: (serverId: string) => Promise<{ success: boolean; error?: string }>
   mcpToggleServer: (serverId: string, disabled: boolean) => Promise<{ success: boolean; error?: string }>
+  mcpSetAutoConnect: (enabled: boolean) => Promise<{ success: boolean; error?: string }>
   mcpStartOAuth: (serverId: string) => Promise<{ success: boolean; authorizationUrl?: string; error?: string }>
   mcpFinishOAuth: (serverId: string, authorizationCode: string) => Promise<{ success: boolean; error?: string }>
   mcpRefreshOAuthToken: (serverId: string) => Promise<{ success: boolean; error?: string }>
