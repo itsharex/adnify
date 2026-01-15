@@ -116,8 +116,8 @@ async function restoreWorkspace(): Promise<boolean> {
   // 恢复编辑器状态
   await restoreWorkspaceState()
   
-  // 初始化 MCP 服务
-  await mcpService.initialize(workspaceConfig.roots)
+  // MCP 服务延迟初始化（不阻塞启动）
+  scheduleIdleTask(() => mcpService.initialize(workspaceConfig.roots), 1000)
   
   startupMetrics.end('restore-workspace')
   return true
