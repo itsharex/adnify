@@ -115,9 +115,9 @@ function createWindow(isEmpty = false): BrowserWindow {
     minWidth: isEmpty ? WINDOW_CONFIG.EMPTY_MIN_WIDTH : WINDOW_CONFIG.MIN_WIDTH,
     minHeight: isEmpty ? WINDOW_CONFIG.EMPTY_MIN_HEIGHT : WINDOW_CONFIG.MIN_HEIGHT,
     frame: false,
-    titleBarStyle: 'hidden',
+    titleBarStyle: 'hiddenInset',
     icon: iconPath,
-    trafficLightPosition: { x: 15, y: 15 },
+    trafficLightPosition: { x: 15, y: 14 },
     backgroundColor: WINDOW_CONFIG.BG_COLOR,
     show: false, // 先隐藏，等 DOM 渲染完成后再显示
     webPreferences: {
@@ -134,6 +134,11 @@ function createWindow(isEmpty = false): BrowserWindow {
     // 等待一帧（16ms）让 CSS 动画启动
     setTimeout(() => win.show(), 16)
   })
+
+  // Mac 上确保 traffic lights 始终显示
+  if (process.platform === 'darwin') {
+    win.setWindowButtonVisibility(true)
+  }
 
   const windowId = win.id
   windows.set(windowId, win)

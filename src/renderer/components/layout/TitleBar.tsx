@@ -5,16 +5,22 @@ import { Logo } from '../common/Logo'
 import WorkspaceDropdown from './WorkspaceDropdown'
 import UpdateIndicator from './UpdateIndicator'
 
+// 检测是否为 Mac 平台
+const isMac = typeof navigator !== 'undefined' && (
+  navigator.platform.toUpperCase().indexOf('MAC') >= 0 ||
+  (navigator as any).userAgentData?.platform?.toUpperCase().indexOf('MAC') >= 0
+)
+
 export default function TitleBar() {
   const { setShowQuickOpen, setShowAbout } = useStore()
   return (
     <div className="h-10 flex items-center justify-between px-0 drag-region select-none border-b border-border bg-background z-50">
 
       {/* Left - Branding */}
-      <div className="flex items-center gap-2 pl-3 min-w-[200px] w-1/3">
+      <div className={`flex items-center gap-2 min-w-[200px] w-1/3 h-full ${isMac ? 'pl-[80px]' : 'pl-3'}`}>
         <div className="flex items-center gap-2.5 opacity-90 hover:opacity-100 transition-all cursor-default group no-drag">
-          <Logo className="w-5 h-5 transition-transform group-hover:scale-110" glow />
-          <span className="text-[11px] font-black text-text-primary tracking-[0.2em] font-sans uppercase">ADNIFY</span>
+          <Logo className="w-5 h-5 transition-transform group-hover:scale-110 flex-shrink-0" glow />
+          <span className="text-[11px] font-black text-text-primary tracking-[0.2em] font-sans uppercase leading-tight" style={{ lineHeight: '1.2' }}>ADNIFY</span>
         </div>
         <div className="h-4 w-[1px] bg-border mx-2" />
         <div className="no-drag">
@@ -51,29 +57,34 @@ export default function TitleBar() {
             <HelpCircle className="w-4 h-4" />
           </button>
 
-          <div className="w-px h-3 bg-border mx-1 opacity-50" />
+          {/* Windows 上显示自定义窗口控制按钮，Mac 上隐藏（使用系统默认） */}
+          {!isMac && (
+            <>
+              <div className="w-px h-3 bg-border mx-1 opacity-50" />
 
-          {/* Windows Control Buttons Group */}
-          <div className="flex items-center gap-0.5">
-            <button
-              onClick={() => api.window.minimize()}
-              className="w-9 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/10 transition-colors"
-            >
-              <Minus className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => api.window.maximize()}
-              className="w-9 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/10 transition-colors"
-            >
-              <Square className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => api.window.close()}
-              className="w-9 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-white hover:bg-red-500/90 transition-all"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+              {/* Windows Control Buttons Group */}
+              <div className="flex items-center gap-0.5">
+                <button
+                  onClick={() => api.window.minimize()}
+                  className="w-9 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/10 transition-colors"
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => api.window.maximize()}
+                  className="w-9 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/10 transition-colors"
+                >
+                  <Square className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => api.window.close()}
+                  className="w-9 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-white hover:bg-red-500/90 transition-all"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
