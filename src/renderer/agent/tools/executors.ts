@@ -445,9 +445,13 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
 
     async codebase_search(args, ctx) {
         if (!ctx.workspacePath) return { success: false, result: '', error: 'No workspace open' }
-        const results = await api.index.hybridSearch(ctx.workspacePath, args.query as string, (args.top_k as number) || 10)
-        if (!results?.length) return { success: false, result: 'No results found' }
-        return { success: true, result: results.map(r => `${r.relativePath}:${r.startLine}: ${r.content.trim()}`).join('\n') }
+        try {
+            const results = await api.index.hybridSearch(ctx.workspacePath, args.query as string, (args.top_k as number) || 10)
+            if (!results?.length) return { success: true, result: 'No results found' }
+            return { success: true, result: results.map(r => `${r.relativePath}:${r.startLine}: ${r.content.trim()}`).join('\n') }
+        } catch (e) {
+            return { success: false, result: '', error: e instanceof Error ? e.message : 'Search failed' }
+        }
     },
 
     async find_references(args, ctx) {

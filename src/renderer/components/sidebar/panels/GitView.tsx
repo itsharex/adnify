@@ -842,7 +842,7 @@ Commit message:`
     }
 
     // 文件点击处理 - 打开 diff
-    const handleFileClick = async (path: string, fileStatus: string, staged: boolean) => {
+    const handleFileClick = async (path: string, fileStatus: string, _staged: boolean) => {
         try {
             const fullPath = `${workspacePath}/${path}`.replace(/\\/g, '/')
             

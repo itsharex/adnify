@@ -105,6 +105,7 @@ interface EmbeddingConfigInput {
 }
 
 interface IndexStatusData {
+  mode: 'structural' | 'semantic'
   isIndexing: boolean
   totalFiles: number
   indexedFiles: number
@@ -237,6 +238,10 @@ export interface ElectronAPI {
   indexHasIndex: (workspacePath: string) => Promise<boolean>
   indexSearch: (workspacePath: string, query: string, topK?: number) => Promise<IndexSearchResult[]>
   indexHybridSearch: (workspacePath: string, query: string, topK?: number) => Promise<IndexSearchResult[]>
+  indexSearchSymbols: (workspacePath: string, query: string, topK?: number) => Promise<any[]>
+  indexGetProjectSummary: (workspacePath: string) => Promise<any>
+  indexGetProjectSummaryText: (workspacePath: string) => Promise<string>
+  indexSetMode: (workspacePath: string, mode: 'structural' | 'semantic') => Promise<{ success: boolean; error?: string }>
   indexUpdateFile: (workspacePath: string, filePath: string) => Promise<{ success: boolean; error?: string }>
   indexClear: (workspacePath: string) => Promise<{ success: boolean; error?: string }>
   indexUpdateEmbeddingConfig: (workspacePath: string, config: EmbeddingConfigInput) => Promise<{ success: boolean; error?: string }>
@@ -482,6 +487,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   indexHasIndex: (workspacePath: string) => ipcRenderer.invoke('index:hasIndex', workspacePath),
   indexSearch: (workspacePath: string, query: string, topK?: number) => ipcRenderer.invoke('index:search', workspacePath, query, topK),
   indexHybridSearch: (workspacePath: string, query: string, topK?: number) => ipcRenderer.invoke('index:hybridSearch', workspacePath, query, topK),
+  indexSearchSymbols: (workspacePath: string, query: string, topK?: number) => ipcRenderer.invoke('index:searchSymbols', workspacePath, query, topK),
+  indexGetProjectSummary: (workspacePath: string) => ipcRenderer.invoke('index:getProjectSummary', workspacePath),
+  indexGetProjectSummaryText: (workspacePath: string) => ipcRenderer.invoke('index:getProjectSummaryText', workspacePath),
+  indexSetMode: (workspacePath: string, mode: 'structural' | 'semantic') => ipcRenderer.invoke('index:setMode', workspacePath, mode),
   indexUpdateFile: (workspacePath: string, filePath: string) => ipcRenderer.invoke('index:updateFile', workspacePath, filePath),
   indexClear: (workspacePath: string) => ipcRenderer.invoke('index:clear', workspacePath),
   indexUpdateEmbeddingConfig: (workspacePath: string, config: EmbeddingConfigInput) => ipcRenderer.invoke('index:updateEmbeddingConfig', workspacePath, config),

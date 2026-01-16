@@ -11,6 +11,9 @@ export type {
   SearchFileResult,
   IndexStatus,
   IndexSearchResult,
+  IndexMode,
+  SymbolInfo,
+  ProjectSummary,
   EmbeddingProvider,
   LspPosition,
   LspRange,
@@ -290,6 +293,10 @@ export interface ElectronAPI {
   indexHasIndex: (workspacePath: string) => Promise<boolean>
   indexSearch: (workspacePath: string, query: string, topK?: number) => Promise<IndexSearchResult[]>
   indexHybridSearch: (workspacePath: string, query: string, topK?: number) => Promise<IndexSearchResult[]>
+  indexSearchSymbols: (workspacePath: string, query: string, topK?: number) => Promise<SymbolInfo[]>
+  indexGetProjectSummary: (workspacePath: string) => Promise<ProjectSummary | null>
+  indexGetProjectSummaryText: (workspacePath: string) => Promise<string>
+  indexSetMode: (workspacePath: string, mode: 'structural' | 'semantic') => Promise<{ success: boolean; error?: string }>
   indexUpdateFile: (workspacePath: string, filePath: string) => Promise<{ success: boolean; error?: string }>
   indexClear: (workspacePath: string) => Promise<{ success: boolean; error?: string }>
   indexUpdateEmbeddingConfig: (workspacePath: string, config: EmbeddingConfigInput) => Promise<{ success: boolean; error?: string }>
