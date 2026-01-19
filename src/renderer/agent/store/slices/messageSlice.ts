@@ -175,10 +175,15 @@ export const createMessageSlice: StateCreator<
             let newParts: AssistantPart[]
             const lastPart = assistantMsg.parts[assistantMsg.parts.length - 1]
 
+            // 检查最后一个 part 是否是 text 类型
+            // 如果是，追加到该 part；否则创建新的 text part
             if (lastPart && lastPart.type === 'text') {
+                // 追加到现有的 text part
                 newParts = [...assistantMsg.parts]
                 newParts[newParts.length - 1] = { type: 'text', content: lastPart.content + content }
             } else {
+                // 最后一个 part 不是 text（可能是 tool_call 或 reasoning）
+                // 创建新的 text part，确保文本在工具调用之后显示
                 newParts = [...assistantMsg.parts, { type: 'text', content }]
             }
 
@@ -391,6 +396,14 @@ export const createMessageSlice: StateCreator<
     addToolCallPart: (messageId, toolCall) => {
         const threadId = get().currentThreadId
         if (!threadId) return
+
+        // 关键修复：在添加工具调用 part 之前，先刷新文本缓冲区
+        // 这确保了工具调用 part 会出现在正确的位置（在之前的文本之后）
+        // 注意：这个调用是同步的，不会影响性能
+        const store = get() as any
+        if (store._flushTextBuffer) {
+            store._flushTextBuffer(messageId)
+        }
 
         set(state => {
             const thread = state.threads[threadId]

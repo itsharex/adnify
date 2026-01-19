@@ -156,6 +156,11 @@ class StreamingBuffer {
 
 const streamingBuffer = new StreamingBuffer()
 
+// 导出刷新函数，供外部在关键时刻调用
+export function flushStreamingBuffer(): void {
+    streamingBuffer.flushNow()
+}
+
 // ===== Store 实现 =====
 
 export const useAgentStore = create<AgentStore>()(
@@ -255,6 +260,11 @@ export const useAgentStore = create<AgentStore>()(
                 originalFinalizeAssistant(messageId)
             }
 
+            // 添加内部方法：刷新指定消息的文本缓冲区
+            const _flushTextBuffer = (messageId: string) => {
+                streamingBuffer.flushNow()
+            }
+
             return {
                 ...threadSlice,
                 ...messageSlice,
@@ -264,6 +274,7 @@ export const useAgentStore = create<AgentStore>()(
                 ...branchSlice,
                 ...contextCompressionState,
                 ...uiState,
+                _flushTextBuffer,
             }
         },
         {
