@@ -3,10 +3,8 @@
  */
 
 import { api } from '@/renderer/services/electronAPI'
-import { useState } from 'react'
 import { Layout, Type, Sparkles, Terminal, Check, Settings2, Zap } from 'lucide-react'
 import { useStore } from '@store'
-import { getEditorConfig, saveEditorConfig, type EditorConfig } from '@renderer/settings'
 import { themes } from '@components/editor/ThemeManager'
 import { Input, Select, Switch } from '@components/ui'
 import { EditorSettingsProps } from '../types'
@@ -27,8 +25,7 @@ const TRIGGER_CHAR_OPTIONS = [
     { char: '#', label: '#' },
 ]
 
-export function EditorSettings({ settings, setSettings, language }: EditorSettingsProps) {
-    const [advancedConfig, setAdvancedConfig] = useState<EditorConfig>(getEditorConfig())
+export function EditorSettings({ settings, setSettings, advancedConfig, setAdvancedConfig, language }: EditorSettingsProps) {
     const { currentTheme, setTheme } = useStore()
     const allThemes = Object.keys(themes)
 
@@ -154,11 +151,11 @@ export function EditorSettings({ settings, setSettings, language }: EditorSettin
                         <div className="grid grid-cols-2 gap-5">
                             <div>
                                 <label className={labelClass}>{language === 'zh' ? '字体大小' : 'Font Size'}</label>
-                                <Input type="number" value={advancedConfig.terminal.fontSize} onChange={(e) => { const newConfig = { ...advancedConfig, terminal: { ...advancedConfig.terminal, fontSize: parseInt(e.target.value) || 13 } }; setAdvancedConfig(newConfig); saveEditorConfig(newConfig) }} min={10} max={24} className={inputClass} />
+                                <Input type="number" value={advancedConfig.terminal.fontSize} onChange={(e) => setAdvancedConfig({ ...advancedConfig, terminal: { ...advancedConfig.terminal, fontSize: parseInt(e.target.value) || 13 } })} min={10} max={24} className={inputClass} />
                             </div>
                             <div>
                                 <label className={labelClass}>{language === 'zh' ? '行高' : 'Line Height'}</label>
-                                <Input type="number" value={advancedConfig.terminal.lineHeight} onChange={(e) => { const newConfig = { ...advancedConfig, terminal: { ...advancedConfig.terminal, lineHeight: parseFloat(e.target.value) || 1.2 } }; setAdvancedConfig(newConfig); saveEditorConfig(newConfig) }} min={1} max={2} step={0.1} className={inputClass} />
+                                <Input type="number" value={advancedConfig.terminal.lineHeight} onChange={(e) => setAdvancedConfig({ ...advancedConfig, terminal: { ...advancedConfig.terminal, lineHeight: parseFloat(e.target.value) || 1.2 } })} min={1} max={2} step={0.1} className={inputClass} />
                             </div>
                             <div className="col-span-2">
                                 <label className={labelClass}>{language === 'zh' ? '滚动缓冲行数' : 'Scrollback Lines'}</label>
@@ -166,7 +163,7 @@ export function EditorSettings({ settings, setSettings, language }: EditorSettin
                             </div>
                         </div>
                         <div className="pt-2">
-                            <Switch label={language === 'zh' ? '光标闪烁' : 'Cursor Blink'} checked={advancedConfig.terminal.cursorBlink} onChange={(e) => { const newConfig = { ...advancedConfig, terminal: { ...advancedConfig.terminal, cursorBlink: e.target.checked } }; setAdvancedConfig(newConfig); saveEditorConfig(newConfig) }} />
+                            <Switch label={language === 'zh' ? '光标闪烁' : 'Cursor Blink'} checked={advancedConfig.terminal.cursorBlink} onChange={(e) => setAdvancedConfig({ ...advancedConfig, terminal: { ...advancedConfig.terminal, cursorBlink: e.target.checked } })} />
                         </div>
                     </section>
 
@@ -290,11 +287,7 @@ export function EditorSettings({ settings, setSettings, language }: EditorSettin
                             <Switch 
                                 label={language === 'zh' ? '自动刷新 Git 状态' : 'Auto Refresh Git Status'} 
                                 checked={advancedConfig.git?.autoRefresh ?? true} 
-                                onChange={(e) => { 
-                                    const newConfig = { ...advancedConfig, git: { ...advancedConfig.git, autoRefresh: e.target.checked } }
-                                    setAdvancedConfig(newConfig)
-                                    saveEditorConfig(newConfig) 
-                                }} 
+                                onChange={(e) => setAdvancedConfig({ ...advancedConfig, git: { ...advancedConfig.git, autoRefresh: e.target.checked } })} 
                             />
                             <p className="text-[10px] text-text-muted opacity-80 leading-relaxed">
                                 {language === 'zh' 

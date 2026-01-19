@@ -63,6 +63,8 @@ export interface EditorSettingsState {
 export interface EditorSettingsProps {
     settings: EditorSettingsState
     setSettings: (settings: EditorSettingsState) => void
+    advancedConfig: import('@renderer/settings').EditorConfig
+    setAdvancedConfig: (config: import('@renderer/settings').EditorConfig) => void
     language: Language
 }
 

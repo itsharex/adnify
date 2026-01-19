@@ -75,6 +75,8 @@ export default function SettingsModal() {
         saveDebounceMs: editorConfig.performance.saveDebounceMs,
         flushIntervalMs: editorConfig.performance.flushIntervalMs,
     })
+    // 高级编辑器配置（包含所有字段）
+    const [advancedEditorConfig, setAdvancedEditorConfig] = useState(editorConfig)
 
     useEffect(() => { setLocalConfig(llmConfig) }, [llmConfig])
     useEffect(() => { setLocalProviderConfigs(providerConfigs) }, [providerConfigs])
@@ -116,9 +118,9 @@ export default function SettingsModal() {
             setProvider(providerId, config)
         }
 
-        // 编辑器配置独立保存
-        const newEditorConfig = {
-            ...getEditorConfig(),
+        // 编辑器配置统一保存 - 合并 editorSettings 和 advancedEditorConfig
+        const finalEditorConfig = {
+            ...advancedEditorConfig,
             fontSize: editorSettings.fontSize,
             tabSize: editorSettings.tabSize,
             wordWrap: editorSettings.wordWrap,
@@ -129,23 +131,23 @@ export default function SettingsModal() {
             autoSave: editorSettings.autoSave,
             autoSaveDelay: editorSettings.autoSaveDelay,
             ai: {
-                ...getEditorConfig().ai,
+                ...advancedEditorConfig.ai,
                 completionEnabled: editorSettings.completionEnabled,
                 completionMaxTokens: editorSettings.completionMaxTokens,
                 completionTriggerChars: editorSettings.completionTriggerChars,
             },
             terminal: {
-                ...getEditorConfig().terminal,
+                ...advancedEditorConfig.terminal,
                 scrollback: editorSettings.terminalScrollback,
                 maxOutputLines: editorSettings.terminalMaxOutputLines,
             },
             lsp: {
-                ...getEditorConfig().lsp,
+                ...advancedEditorConfig.lsp,
                 timeoutMs: editorSettings.lspTimeoutMs,
                 completionTimeoutMs: editorSettings.lspCompletionTimeoutMs,
             },
             performance: {
-                ...getEditorConfig().performance,
+                ...advancedEditorConfig.performance,
                 completionDebounceMs: editorSettings.completionDebounceMs,
                 largeFileWarningThresholdMB: editorSettings.largeFileWarningThresholdMB,
                 largeFileLineCount: editorSettings.largeFileLineCount,
@@ -159,7 +161,9 @@ export default function SettingsModal() {
                 flushIntervalMs: editorSettings.flushIntervalMs,
             }
         }
-        saveEditorConfig(newEditorConfig)
+        
+        // 更新 store 的 editorConfig
+        set('editorConfig', finalEditorConfig)
 
         // 保存到文件
         await save()
@@ -272,7 +276,13 @@ export default function SettingsModal() {
                                 />
                             )}
                             {activeTab === 'editor' && (
-                                <EditorSettings settings={editorSettings} setSettings={setEditorSettings} language={language} />
+                                <EditorSettings 
+                                    settings={editorSettings} 
+                                    setSettings={setEditorSettings} 
+                                    advancedConfig={advancedEditorConfig}
+                                    setAdvancedConfig={setAdvancedEditorConfig}
+                                    language={language} 
+                                />
                             )}
                             {activeTab === 'snippets' && <SnippetSettings language={language} />}
                             {activeTab === 'agent' && (
