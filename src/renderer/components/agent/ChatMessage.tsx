@@ -505,146 +505,131 @@ const ChatMessage = React.memo(({
   }
 
   return (
-    <div className="w-full py-6 group transition-colors duration-200 border-b border-border/40 animate-fade-in overflow-hidden">
-      <div className="max-w-3xl mx-auto px-6 relative overflow-hidden">
-        {/* Header Row: Avatar + Name + Actions */}
-        <div className="flex items-center gap-3 mb-3 select-none">
-          <div className="flex-shrink-0">
-            {isUser ? (
-              <div className="w-6 h-6 rounded-lg bg-surface/50 border border-border flex items-center justify-center">
-                <User className="w-3.5 h-3.5 text-text-secondary" />
-              </div>
-            ) : (
-              <div className="w-6 h-6 rounded-lg overflow-hidden border border-accent/20 bg-black">
-                <img src={aiAvatar} alt="AI" className="w-full h-full object-cover opacity-90" />
-              </div>
-            )}
-          </div>
-
-          <div className="flex-1 min-w-0 flex items-center gap-2">
-            <span className="text-sm font-bold text-text-primary">
-              {isUser ? 'You' : 'Adnify'}
-            </span>
-            {!isUser && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-accent/10 text-accent border border-accent/20 flex items-center gap-1 uppercase tracking-wide">
-                AI
-              </span>
-            )}
-          </div>
-
-          {/* Floating Actions */}
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            {isUser && onEdit && (
-              <button onClick={handleStartEdit} className="p-1.5 text-text-muted hover:text-text-primary rounded-md hover:bg-white/10 transition-colors" title="Edit">
-                <Edit2 className="w-3.5 h-3.5" />
-              </button>
-            )}
-            {!isUser && onRegenerate && (
-              <MessageBranchActions messageId={message.id} language={language} onRegenerate={onRegenerate} />
-            )}
-            {isUser && hasCheckpoint && onRestore && (
-              <button onClick={() => onRestore(message.id)} className="p-1.5 text-text-muted hover:text-amber-400 rounded-md hover:bg-white/10 transition-colors" title="Restore Checkpoint">
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-            )}
-            <button onClick={handleCopy} className="p-1.5 text-text-muted hover:text-text-primary rounded-md hover:bg-white/10 transition-colors" title="Copy">
-              {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-            </button>
-          </div>
-        </div >
-
-        {/* Content Row - Full Width (No Padding) */}
-        <div className="w-full">
-          {/* Images */}
-          {images.length > 0 && (
-            <div className="flex flex-wrap gap-3 mb-4">
-              {images.map((img, i) => (
-                <div key={i} className="rounded-xl overflow-hidden border border-border shadow-md max-w-[240px] hover:scale-[1.02] transition-transform">
-                  <img
-                    src={`data:${img.source.media_type};base64,${img.source.data}`}
-                    alt="User upload"
-                    className="max-w-full h-auto"
-                  />
+    <div className={`
+      w-full group/msg animate-fade-in transition-colors duration-300
+      ${isUser ? 'py-1 bg-transparent' : 'py-2 bg-black/[0.02] border-y border-white/[0.01] hover:bg-black/[0.04]'}
+    `}>
+      <div className="w-full px-4 flex flex-col gap-1">
+        
+        {/* User Layout - Header aligned right, Bubble indented */}
+        {isUser && (
+          <div className="w-full flex flex-col items-end gap-1.5">
+             {/* Header Row: Name + Avatar */}
+             <div className="flex items-center gap-2.5 px-1 select-none">
+                <span className="text-[11px] font-bold text-text-muted/60 uppercase tracking-tight">You</span>
+                <div className="w-7 h-7 rounded-full bg-surface/60 border border-white/10 flex items-center justify-center text-text-muted shadow-sm flex-shrink-0">
+                  <User className="w-3.5 h-3.5" />
                 </div>
-              ))}
-            </div>
-          )}
+             </div>
 
-          {/* Editing */}
-          {isEditing ? (
-            <div className="space-y-3 bg-surface/20 p-4 rounded-2xl border border-border backdrop-blur-xl animate-scale-in">
-              <textarea
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                className="w-full bg-black/20 border border-border rounded-xl px-4 py-3 text-sm text-text-primary resize-none focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-all custom-scrollbar"
-                rows={4}
-                autoFocus
-                style={{ fontSize: `${fontSize}px` }}
-              />
-              <div className="flex items-center gap-2 justify-end">
-                <button
-                  onClick={() => setIsEditing(false)}
-                  className="px-4 py-2 text-xs font-bold text-text-muted hover:text-text-primary rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveEdit}
-                  className="px-4 py-2 bg-accent text-white text-xs font-bold rounded-lg hover:bg-accent-hover transition-colors shadow-lg shadow-accent/20"
-                >
-                  Save & Resend
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {/* User message */}
-              {isUser && <MarkdownContent content={textContent} fontSize={fontSize} />}
+             {/* Bubble - Indented from the right */}
+             <div className="flex flex-col items-end max-w-[85%] sm:max-w-[75%] min-w-0 mr-8 sm:mr-12">
+                <div className="relative bg-accent/15 text-text-primary border border-accent/20 px-4 py-2.5 rounded-[18px] rounded-tr-sm shadow-sm w-full">
+                  {/* Images */}
+                  {images.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2 justify-end">
+                      {images.map((img, i) => (
+                        <div key={i} className="rounded-lg overflow-hidden border border-white/10 shadow-md h-28 group/img relative cursor-zoom-in">
+                          <img
+                            src={`data:${img.source.media_type};base64,${img.source.data}`}
+                            alt="Upload"
+                            className="h-full w-auto object-cover"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-              {/* Assistant message - 使用 memoized groups */}
-              {isAssistantMessage(message) && message.parts && message.parts.length > 0 && (
-                <AssistantMessageContent
-                  parts={message.parts}
-                  pendingToolId={pendingToolId}
-                  onApproveTool={onApproveTool}
-                  onRejectTool={onRejectTool}
-                  onOpenDiff={onOpenDiff}
-                  fontSize={fontSize}
-                  isStreaming={message.isStreaming}
-                />
-              )}
+                  {/* Content */}
+                  <div className="text-[14px] leading-relaxed">
+                    <MarkdownContent content={textContent} fontSize={fontSize} />
+                  </div>
+                </div>
 
-              {/* Streaming indicator */}
-              {isAssistantMessage(message) && message.isStreaming && (
-                <StreamingIndicator />
-              )}
+                {/* Actions */}
+                {!isEditing && (
+                  <div className="flex items-center gap-0.5 mt-1 mr-1 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-200">
+                    <button onClick={handleCopy} className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-white/5 transition-all">
+                      {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                    </button>
+                    {onEdit && (
+                      <button onClick={handleStartEdit} className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-white/5 transition-all">
+                        <Edit2 className="w-3 h-3" />
+                      </button>
+                    )}
+                    {hasCheckpoint && onRestore && (
+                      <button onClick={() => onRestore(message.id)} className="p-1 rounded-md text-text-muted hover:text-amber-400 hover:bg-white/5 transition-all">
+                        <RotateCcw className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                )}
+             </div>
+          </div>
+        )}
 
-              {/* Interactive content (options) */}
-              {isAssistantMessage(message) && message.interactive && !message.isStreaming && (
-                <OptionCard
-                  content={message.interactive}
-                  onSelect={(selectedIds) => {
-                    const selectedLabels = message.interactive!.options
-                      .filter(opt => selectedIds.includes(opt.id))
-                      .map(opt => opt.label)
-                    const response = selectedLabels.join(', ')
-                    
-                    window.dispatchEvent(new CustomEvent('chat-update-interactive', {
-                      detail: { messageId: message.id, selectedIds }
-                    }))
-                    
-                    window.dispatchEvent(new CustomEvent('chat-send-message', { 
-                      detail: { content: response, messageId: message.id }
-                    }))
-                  }}
-                  disabled={!!message.interactive.selectedIds?.length}
-                />
-              )}
-            </div>
-          )}
-        </div >
-      </div >
-    </div >
+        {/* Assistant Layout - Full width without extra padding */}
+        {!isUser && (
+          <div className="w-full min-w-0 flex flex-col gap-2">
+             <div className="flex items-center gap-3 px-1">
+                <div className="w-9 h-9 rounded-xl overflow-hidden border border-white/10 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.3)] bg-surface/50 backdrop-blur-md relative flex-shrink-0">
+                  <div className="absolute inset-0 bg-accent/5 pointer-events-none" />
+                  <img src={aiAvatar} alt="AI" className="w-full h-full object-cover" />
+                </div>
+                <div className="flex items-center gap-2 select-none">
+                  <span className="text-[13px] font-bold tracking-tight text-text-primary">Adnify</span>
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-accent/10 text-accent uppercase tracking-widest border border-accent/20">AI</span>
+                </div>
+                
+                {!message.isStreaming && (
+                   <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                      <button onClick={handleCopy} className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-white/5 transition-all">
+                        {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                      {onRegenerate && (
+                         <MessageBranchActions messageId={message.id} language={language} onRegenerate={onRegenerate} />
+                      )}
+                   </div>
+                )}
+             </div>
+
+             <div className="w-full text-[15px] leading-relaxed text-text-primary/90 pl-1">
+                <div className="prose-custom w-full max-w-none">
+                  {message.parts && (
+                    <AssistantMessageContent
+                      parts={message.parts}
+                      pendingToolId={pendingToolId}
+                      onApproveTool={onApproveTool}
+                      onRejectTool={onRejectTool}
+                      onOpenDiff={onOpenDiff}
+                      fontSize={fontSize}
+                      isStreaming={message.isStreaming}
+                    />
+                  )}
+                  {message.isStreaming && <StreamingIndicator />}
+                </div>
+
+                {message.interactive && !message.isStreaming && (
+                  <div className="mt-2 w-full">
+                    <OptionCard
+                      content={message.interactive}
+                      onSelect={(selectedIds) => {
+                        const selectedLabels = message.interactive!.options
+                          .filter(opt => selectedIds.includes(opt.id))
+                          .map(opt => opt.label)
+                        const response = selectedLabels.join(', ')
+                        window.dispatchEvent(new CustomEvent('chat-update-interactive', { detail: { messageId: message.id, selectedIds } }))
+                        window.dispatchEvent(new CustomEvent('chat-send-message', { detail: { content: response, messageId: message.id } }))
+                      }}
+                      disabled={!!message.interactive.selectedIds?.length}
+                    />
+                  </div>
+                )}
+             </div>
+          </div>
+        )}
+      </div>
+    </div>
   )
 })
 

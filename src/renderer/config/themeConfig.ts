@@ -67,34 +67,39 @@ export const builtinThemes: Theme[] = [
     type: 'dark',
     monacoTheme: 'vs-dark',
     colors: {
-      background: '10 10 12',         // Soft Deep Dark
-      backgroundSecondary: '18 18 21',
-      backgroundTertiary: '24 24 27',
+      // 背景：极深灰带微弱紫调，更有质感
+      background: '18 18 21',         // #121215
+      backgroundSecondary: '25 25 29', // #19191D (侧边栏/面板)
+      backgroundTertiary: '32 32 37',  // #202025 (输入框/卡片背景)
       
-      surface: '18 18 21',
-      surfaceHover: '24 24 27',
-      surfaceActive: '39 39 42',
+      // 表面：提升层次感
+      surface: '25 25 29',
+      surfaceHover: '38 38 44',
+      surfaceActive: '45 45 52',
       surfaceMuted: '63 63 70',
 
-      textPrimary: '240 240 242',
-      textSecondary: '161 161 170',
-      textMuted: '113 113 122',
-      textInverted: '0 0 0',
+      // 文字：非纯白，更柔和
+      textPrimary: '242 242 247',     // 接近纯白但不刺眼
+      textSecondary: '161 161 180',   // 带冷紫调的灰色
+      textMuted: '100 100 115',
+      textInverted: '18 18 21',
 
-      border: '39 39 42',
-      borderSubtle: '24 24 27',       // Consistent with backgroundTertiary
-      borderActive: '82 82 91',
+      // 边框：极其细腻的微弱分割
+      border: '40 40 48',             // 融合度更高的边框
+      borderSubtle: '32 32 37',
+      borderActive: '82 82 100',
 
-      accent: '124 58 237',          // Violet 600
-      accentHover: '109 40 217',     // Violet 700
-      accentActive: '91 33 182',     // Violet 800
+      // 强调色：高级灰紫 (Desaturated Lavender)
+      accent: '139 92 246',          // Violet 500 (作为基准，看起来更舒服)
+      accentHover: '124 58 237',     // Violet 600
+      accentActive: '109 40 217',    // Violet 700
       accentForeground: '255 255 255',
-      accentSubtle: '139 92 246',    // Violet 500
+      accentSubtle: '167 139 250',   // Violet 400 (用于微光效果)
 
-      statusSuccess: '34 197 94',
-      statusWarning: '234 179 8',
-      statusError: '239 68 68',
-      statusInfo: '59 130 246',
+      statusSuccess: '52 211 153',    // Emerald 400 (更清新的绿)
+      statusWarning: '251 191 36',    // Amber 400
+      statusError: '248 113 113',     // Red 400 (不刺眼的红)
+      statusInfo: '96 165 250',       // Blue 400
     },
   },
   {

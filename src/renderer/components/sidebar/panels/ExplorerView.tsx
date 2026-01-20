@@ -202,29 +202,29 @@ export function ExplorerView() {
   ]
 
   return (
-    <div className="h-full flex flex-col bg-background-secondary">
-      <div className="h-10 px-4 flex items-center justify-between group border-b border-border bg-transparent sticky top-0 z-10">
-        <span className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] opacity-50">
+    <div className="h-full flex flex-col bg-transparent">
+      <div className="h-11 px-4 flex items-center justify-between group border-b border-white/5 bg-transparent sticky top-0 z-10">
+        <span className="text-[10px] font-black text-text-primary/40 uppercase tracking-[0.25em] font-sans">
           {t('explorer', language)}
         </span>
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all duration-300">
           <Tooltip content={t('revealActiveFile', language) || 'Reveal Active File'}>
-            <button onClick={handleRevealActiveFile} disabled={!activeFilePath} className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/5 text-text-muted hover:text-text-primary transition-all">
+            <button onClick={handleRevealActiveFile} disabled={!activeFilePath} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 text-text-muted hover:text-text-primary transition-all active:scale-90">
               <Crosshair className="w-3.5 h-3.5" />
             </button>
           </Tooltip>
           <Tooltip content={t('newFile', language)}>
-            <button onClick={() => handleRootCreate('file')} className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/5 text-text-muted hover:text-text-primary transition-all">
+            <button onClick={() => handleRootCreate('file')} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 text-text-muted hover:text-text-primary transition-all active:scale-90">
               <FilePlus className="w-3.5 h-3.5" />
             </button>
           </Tooltip>
           <Tooltip content={t('newFolder', language)}>
-            <button onClick={() => handleRootCreate('folder')} className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/5 text-text-muted hover:text-text-primary transition-all">
+            <button onClick={() => handleRootCreate('folder')} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 text-text-muted hover:text-text-primary transition-all active:scale-90">
               <FolderPlus className="w-3.5 h-3.5" />
             </button>
           </Tooltip>
           <Tooltip content={t('refresh', language)}>
-            <button onClick={refreshFiles} className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/5 text-text-muted hover:text-text-primary transition-all">
+            <button onClick={refreshFiles} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 text-text-muted hover:text-text-primary transition-all active:scale-90">
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
           </Tooltip>

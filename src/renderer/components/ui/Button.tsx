@@ -13,29 +13,28 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ({ className = '', variant = 'primary', size = 'md', isLoading, leftIcon, rightIcon, children, disabled, glow, ...props }, ref) => {
 
-        const baseStyles = "relative inline-flex items-center justify-center font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:pointer-events-none disabled:opacity-50 select-none active:scale-[0.96] overflow-hidden group"
+        const baseStyles = "relative inline-flex items-center justify-center font-medium transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:pointer-events-none disabled:opacity-50 select-none active:scale-[0.97] overflow-hidden group tracking-wide"
 
         const variants = {
             primary: `
                 bg-accent text-white rounded-xl border border-white/10
-                shadow-[0_4px_12px_-4px_rgba(var(--accent)/0.4)]
-                hover:bg-accent-hover hover:shadow-[0_8px_20px_-6px_rgba(var(--accent)/0.5)]
-                before:absolute before:inset-0 before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent
-                before:translate-x-[-200%] hover:before:translate-x-[200%] before:transition-transform before:duration-[1s]
+                shadow-[0_2px_8px_-2px_rgba(var(--accent)/0.5),inset_0_1px_1px_rgba(255,255,255,0.15)]
+                hover:bg-accent-hover hover:shadow-[0_8px_16px_-4px_rgba(var(--accent)/0.4),inset_0_1px_1px_rgba(255,255,255,0.2)]
+                hover:-translate-y-[1px]
             `,
-            secondary: "bg-surface/40 backdrop-blur-md text-text-primary rounded-xl border border-border hover:bg-surface/60 hover:border-accent/30",
+            secondary: "bg-surface/30 backdrop-blur-md text-text-primary rounded-xl border border-white/5 hover:bg-surface/50 hover:border-white/10 hover:shadow-sm",
             ghost: "bg-transparent text-text-secondary rounded-lg hover:bg-white/5 hover:text-text-primary",
-            icon: "bg-transparent text-text-muted rounded-lg hover:bg-white/10 hover:text-text-primary p-0 aspect-square",
-            danger: "bg-status-error/10 text-status-error rounded-xl border border-status-error/20 hover:bg-status-error/20 hover:border-status-error/30",
-            success: "bg-status-success/10 text-status-success rounded-xl border border-status-success/20 hover:bg-status-success/20 hover:border-status-success/30",
-            outline: "bg-transparent border border-border text-text-secondary rounded-xl hover:border-accent/50 hover:text-text-primary hover:bg-accent/5"
+            icon: "bg-transparent text-text-muted rounded-lg hover:bg-white/5 hover:text-text-primary p-0 aspect-square transition-colors",
+            danger: "bg-status-error/10 text-status-error rounded-xl border border-status-error/20 hover:bg-status-error/20 hover:border-status-error/30 hover:shadow-[0_4px_12px_-4px_rgba(var(--status-error)/0.2)]",
+            success: "bg-status-success/10 text-status-success rounded-xl border border-status-success/20 hover:bg-status-success/20 hover:border-status-success/30 hover:shadow-[0_4px_12px_-4px_rgba(var(--status-success)/0.2)]",
+            outline: "bg-transparent border border-border-subtle text-text-secondary rounded-xl hover:border-accent/40 hover:text-text-primary hover:bg-accent/5"
         }
 
         const sizes = {
-            sm: "h-7 px-2.5 text-xs gap-1.5",
-            md: "h-9 px-4 text-sm gap-2",
-            lg: "h-11 px-6 text-base gap-2.5",
-            icon: "w-8 h-8" 
+            sm: "h-8 px-3 text-xs gap-1.5",
+            md: "h-10 px-5 text-sm gap-2",
+            lg: "h-12 px-7 text-base gap-2.5",
+            icon: "w-9 h-9" 
         }
 
         return (
@@ -45,13 +44,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                 disabled={disabled || isLoading}
                 {...props}
             >
-                {(variant === 'primary' || glow) && (
-                    <div className="absolute inset-0 rounded-xl border border-white/10 pointer-events-none" />
-                )}
                 {isLoading && <Loader2 className="animate-spin" size={size === 'icon' || size === 'sm' ? 14 : 16} />}
-                {!isLoading && leftIcon && <span className="flex-shrink-0">{leftIcon}</span>}
+                {!isLoading && leftIcon && <span className="flex-shrink-0 transition-transform group-hover:scale-110 duration-200">{leftIcon}</span>}
                 {children && <span className="relative z-10 flex items-center gap-2">{children}</span>}
-                {!isLoading && rightIcon && <span className="flex-shrink-0">{rightIcon}</span>}
+                {!isLoading && rightIcon && <span className="flex-shrink-0 transition-transform group-hover:translate-x-0.5 duration-200">{rightIcon}</span>}
             </button>
         )
     }
