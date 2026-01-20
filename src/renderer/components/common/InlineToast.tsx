@@ -102,27 +102,39 @@ function IslandToast({ toast, onDismiss }: { toast: ToastMessage; onDismiss: (id
         ring-1 ring-white/10 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.5)]
         min-w-[220px] max-w-[450px] overflow-hidden
       `}>
-        {/* Progress Bar (Ultra Thin) */}
-        {toast.duration !== 0 && (
-          <motion.div 
-            initial={{ width: '100%' }}
-            animate={{ width: '0%' }}
-            transition={{ duration: (toast.duration || 3000) / 1000, ease: 'linear' }}
-            className={`absolute bottom-0 left-0 h-[1px] opacity-60 ${
-              toast.type === 'error' ? 'bg-red-500' : 
-              toast.type === 'success' ? 'bg-emerald-500' : 'bg-accent'
-            }`}
-          />
-        )}
+        {/* Icon with Ring Progress */}
+        <div className="relative shrink-0 w-7 h-7 flex items-center justify-center">
+          {/* Progress Ring */}
+          {toast.duration !== 0 && (
+            <svg className="absolute inset-[-3px] w-[34px] h-[34px] -rotate-90 pointer-events-none">
+              <motion.circle
+                cx="17"
+                cy="17"
+                r="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                className={
+                  toast.type === 'error' ? 'text-red-500/40' : 
+                  toast.type === 'success' ? 'text-emerald-500/40' : 
+                  'text-accent/40'
+                }
+                initial={{ pathLength: 1 }}
+                animate={{ pathLength: 0 }}
+                transition={{ duration: (toast.duration || 3000) / 1000, ease: 'linear' }}
+              />
+            </svg>
+          )}
 
-        {/* Icon with subtle background glow */}
-        <div className={`
-          w-7 h-7 rounded-full flex items-center justify-center shrink-0
-          ${toast.type === 'error' ? 'bg-red-500/20 text-red-400' : 
-            toast.type === 'success' ? 'bg-emerald-500/20 text-emerald-400' : 
-            'bg-accent/20 text-accent'}
-        `}>
-          <Icon className="w-4 h-4" strokeWidth={2.5} />
+          <div className={`
+            w-full h-full rounded-full flex items-center justify-center
+            ${toast.type === 'error' ? 'bg-red-500/20 text-red-400' : 
+              toast.type === 'success' ? 'bg-emerald-500/20 text-emerald-400' : 
+              'bg-accent/20 text-accent'}
+          `}>
+            <Icon className="w-4 h-4" strokeWidth={2.5} />
+          </div>
         </div>
 
         <span className="text-[13px] font-bold truncate flex-1 tracking-tight text-white/90">

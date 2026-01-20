@@ -505,34 +505,48 @@ const ChatMessage = React.memo(({
              {/* Bubble / Editing */}
              <div className="flex flex-col items-end max-w-[85%] sm:max-w-[75%] min-w-0 mr-8 sm:mr-12 w-full">
                 {isEditing ? (
-                  <div className="w-full bg-surface border border-accent/30 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] overflow-hidden animate-scale-in origin-right">
-                    <div className="p-1 bg-accent/5 border-b border-border/50 flex items-center justify-between px-3 py-1.5">
-                      <div className="text-[10px] font-bold text-accent uppercase tracking-widest">Editing Message</div>
-                      <button onClick={() => setIsEditing(false)} className="p-1 hover:bg-black/10 rounded-full transition-colors">
-                        <X className="w-3 h-3 text-text-muted" />
-                      </button>
-                    </div>
-                    <textarea
-                      value={editContent}
-                      onChange={(e) => setEditContent(e.target.value)}
-                      className="w-full bg-transparent border-none px-4 py-3 text-text-primary resize-none focus:ring-0 transition-all custom-scrollbar font-mono text-sm leading-relaxed"
-                      rows={Math.max(3, Math.min(15, editContent.split('\n').length))}
-                      autoFocus
-                      style={{ fontSize: `${fontSize}px` }}
-                    />
-                    <div className="flex items-center justify-end gap-2 px-3 py-2.5 bg-surface-hover/50 border-t border-border/50">
-                      <button 
-                        onClick={() => setIsEditing(false)} 
-                        className="px-3 py-1.5 text-xs font-bold text-text-muted hover:text-text-primary transition-colors"
-                      >
-                        {tt.cancel}
-                      </button>
-                      <button 
-                        onClick={handleSaveEdit} 
-                        className="px-4 py-1.5 bg-accent text-white text-xs font-bold rounded-lg shadow-lg shadow-accent/20 hover:bg-accent-hover transition-all active:scale-95"
-                      >
-                        {tt.save}
-                      </button>
+                  <div className="w-full relative group/edit">
+                    <div className="absolute inset-0 -m-1 rounded-[20px] bg-accent/5 opacity-0 group-focus-within/edit:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                    <div className="relative bg-surface/80 backdrop-blur-xl border border-accent/30 rounded-[18px] shadow-lg overflow-hidden animate-scale-in origin-right transition-all duration-200 group-focus-within/edit:border-accent group-focus-within/edit:ring-1 group-focus-within/edit:ring-accent/50">
+                      <textarea
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault()
+                            handleSaveEdit()
+                          }
+                          if (e.key === 'Escape') {
+                            setIsEditing(false)
+                          }
+                        }}
+                        className="w-full bg-transparent border-none outline-none px-4 py-3 text-text-primary resize-none focus:ring-0 focus:outline-none transition-all custom-scrollbar font-mono text-sm leading-relaxed placeholder:text-text-muted/30"
+                        rows={Math.max(2, Math.min(15, editContent.split('\n').length))}
+                        autoFocus
+                        style={{ fontSize: `${fontSize}px` }}
+                        placeholder="Type your message..."
+                      />
+                      <div className="flex items-center justify-between px-2 py-1.5 bg-black/5 border-t border-black/5">
+                        <span className="text-[10px] text-text-muted/50 ml-2 font-medium">
+                          Esc to cancel • Enter to save
+                        </span>
+                        <div className="flex gap-1">
+                          <button 
+                            onClick={() => setIsEditing(false)} 
+                            className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-black/10 transition-colors"
+                            title={tt.cancel}
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                          <button 
+                            onClick={handleSaveEdit} 
+                            className="p-1.5 rounded-lg text-accent hover:text-white hover:bg-accent transition-all shadow-sm"
+                            title={tt.save}
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ) : (

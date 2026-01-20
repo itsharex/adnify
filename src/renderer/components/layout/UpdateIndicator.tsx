@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
-import { Download, RefreshCw, CheckCircle, AlertCircle, Loader2, ExternalLink, X, ArrowUpCircle, Sparkles } from 'lucide-react'
+import { Download, RefreshCw, CheckCircle, AlertCircle, Loader2, ExternalLink, X, ArrowUpCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { updaterService, UpdateStatus } from '@services/updaterService'
 import { useStore } from '@store'
@@ -88,7 +88,7 @@ export default function UpdateIndicator() {
         ) : isError ? (
           <AlertCircle className="w-4 h-4" />
         ) : (
-          <Sparkles className="w-4 h-4 opacity-70 group-hover:opacity-100" />
+          <Download className="w-4 h-4 opacity-70 group-hover:opacity-100" />
         )}
         
         {hasUpdate && (

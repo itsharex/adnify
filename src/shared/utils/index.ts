@@ -70,3 +70,8 @@ export {
   isRetryableError,
   type RetryConfig,
 } from './retry'
+
+// 日期工具
+export {
+  getRelativeTime,
+} from './dateUtils'

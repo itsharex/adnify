@@ -7,7 +7,7 @@ import {
   Search, 
   Trash2, 
   MessageSquare, 
-  Calendar,
+  Clock,
   Check,
   Edit2,
   Plus
@@ -18,6 +18,10 @@ import { Button } from '../ui'
 import { Tooltip } from '../ui/Tooltip'
 import { ChatThread, getMessageText } from '@/renderer/agent/types'
 import { Branch } from '@/renderer/agent/store/slices/branchSlice'
+
+// 辅助 import Store
+import { useStore } from '@store'
+import { getRelativeTime } from '@shared/utils'
 
 type Tab = 'history' | 'branches'
 
@@ -124,8 +128,16 @@ export default function ConversationSidebar({ isOpen, onClose, initialTab = 'his
                   placeholder={language === 'zh' ? '搜索...' : 'Search...'}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-9 pl-9 pr-3 text-xs bg-surface/30 border border-border/30 rounded-lg focus:outline-none focus:border-accent/30 focus:bg-surface/50 transition-all placeholder:text-text-muted/40"
+                  className="w-full h-9 pl-9 pr-8 text-xs bg-surface/30 border border-border/30 rounded-lg focus:outline-none focus:border-accent/30 focus:bg-surface/50 transition-all placeholder:text-text-muted/40"
                 />
+                {searchQuery && (
+                  <button 
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-muted hover:text-text-primary hover:bg-black/10 rounded-full transition-all"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -184,6 +196,7 @@ function HistoryList({ searchQuery, onClose, language }: { searchQuery: string, 
           key={thread.id} 
           thread={thread} 
           isActive={currentThreadId === thread.id}
+          language={language}
           onSelect={() => {
             switchThread(thread.id)
             onClose()
@@ -195,25 +208,31 @@ function HistoryList({ searchQuery, onClose, language }: { searchQuery: string, 
   )
 }
 
-function ThreadItem({ thread, isActive, onSelect, onDelete }: { 
+function ThreadItem({ thread, isActive, language, onSelect, onDelete }: { 
   thread: ChatThread, 
   isActive: boolean, 
+  language: string,
   onSelect: () => void, 
   onDelete: () => void 
 }) {
   const firstUserMsg = thread.messages.find(m => m.role === 'user')
   const preview = firstUserMsg ? getMessageText(firstUserMsg.content).slice(0, 60) : 'New chat'
-  const time = new Date(thread.lastModified).toLocaleDateString()
+  const timeStr = getRelativeTime(thread.lastModified, language)
 
   return (
     <div 
-      className={`group relative flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all border ${
+      className={`group relative flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all border overflow-hidden ${
         isActive 
           ? 'bg-accent/5 border-accent/20 shadow-sm shadow-accent/5' 
           : 'bg-transparent border-transparent hover:bg-surface/40 hover:border-border/40'
       }`}
       onClick={onSelect}
     >
+      {/* Active Indicator (Left Strip) */}
+      {isActive && (
+        <div className="absolute left-0 top-3 bottom-3 w-[3px] bg-accent rounded-r-full" />
+      )}
+
       <div className={`mt-0.5 shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
         isActive ? 'bg-accent/20 text-accent' : 'bg-surface/50 text-text-muted group-hover:bg-surface group-hover:text-text-primary'
       }`}>
@@ -222,17 +241,16 @@ function ThreadItem({ thread, isActive, onSelect, onDelete }: {
       
       <div className="flex-1 min-w-0 overflow-hidden pt-0.5">
         <div className="flex items-center justify-between gap-2">
-          <h4 className={`text-sm font-medium truncate ${isActive ? 'text-accent' : 'text-text-primary'}`}>
+          <h4 className={`text-sm font-medium truncate pr-6 ${isActive ? 'text-accent' : 'text-text-primary'}`}>
             {preview || 'New Chat'}
           </h4>
-          {isActive && <Check className="w-3.5 h-3.5 text-accent shrink-0" />}
         </div>
-        <div className="flex items-center gap-2 mt-1.5">
-          <span className="text-[10px] text-text-muted flex items-center gap-1">
-            <Calendar className="w-3 h-3" />
-            {time}
+        <div className="flex items-center gap-3 mt-1.5">
+          <span className="text-[10px] text-text-muted/70 flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {timeStr}
           </span>
-          <span className="text-[10px] text-text-muted">
+          <span className="text-[10px] text-text-muted/50">
             {thread.messages.length} msgs
           </span>
         </div>
@@ -290,12 +308,17 @@ function BranchList({ searchQuery, onClose, language }: { searchQuery: string, o
             switchToMainline()
             onClose()
           }}
-          className={`relative p-3 rounded-xl border transition-all flex items-center gap-3 cursor-pointer group ${
+          className={`relative p-3 rounded-xl border transition-all flex items-center gap-3 cursor-pointer group overflow-hidden ${
             !isOnBranch 
               ? 'bg-accent/5 border-accent/20 shadow-sm shadow-accent/5' 
               : 'bg-surface/20 border-border/40 hover:bg-surface/40 hover:border-border/60'
           }`}
         >
+          {/* Active Indicator */}
+          {!isOnBranch && (
+            <div className="absolute left-0 top-3 bottom-3 w-[3px] bg-accent rounded-r-full" />
+          )}
+
           <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
             !isOnBranch ? 'bg-accent/20 text-accent' : 'bg-surface/80 text-text-muted group-hover:text-text-primary'
           }`}>
@@ -321,104 +344,116 @@ function BranchList({ searchQuery, onClose, language }: { searchQuery: string, o
       {/* Branches */}
       <div className="space-y-2">
         {filteredBranches.length > 0 && (
-          <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-2 opacity-70">
+          <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-2 opacity-70 flex items-center gap-2">
+             <GitBranch className="w-3 h-3" />
              {language === 'zh' ? '分支列表' : 'Your Branches'} ({filteredBranches.length})
           </p>
         )}
         
-        {filteredBranches.map(branch => (
-          <div
-            key={branch.id}
-            className={`group relative p-3 rounded-xl border transition-all cursor-pointer ${
-              activeBranch?.id === branch.id
-                ? 'bg-accent/5 border-accent/20 shadow-sm shadow-accent/5'
-                : 'bg-transparent border-transparent hover:bg-surface/40 hover:border-border/40'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
-                activeBranch?.id === branch.id ? 'bg-accent/20 text-accent' : 'bg-surface/50 text-text-muted group-hover:bg-surface group-hover:text-text-primary'
-              }`}>
-                <GitBranch className="w-4 h-4 stroke-[1.5]" />
-              </div>
+        {filteredBranches.map(branch => {
+          const isActive = activeBranch?.id === branch.id
+          return (
+            <div
+              key={branch.id}
+              className={`group relative p-3 rounded-xl border transition-all cursor-pointer overflow-hidden ${
+                isActive
+                  ? 'bg-accent/5 border-accent/20 shadow-sm shadow-accent/5'
+                  : 'bg-transparent border-transparent hover:bg-surface/40 hover:border-border/40'
+              }`}
+            >
+              {/* Active Indicator */}
+              {isActive && (
+                <div className="absolute left-0 top-3 bottom-3 w-[3px] bg-accent rounded-r-full" />
+              )}
 
-              <div className="flex-1 min-w-0" onClick={() => {
-                switchBranch(branch.id)
-                onClose()
-              }}>
-                {editingId === branch.id ? (
-                   <div className="flex items-center gap-1">
-                      <input
-                        autoFocus
-                        value={editName}
-                        onChange={e => setEditName(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') handleSaveEdit()
-                          if (e.key === 'Escape') setEditingId(null)
-                        }}
-                        className="w-full bg-surface text-sm px-2 py-1 rounded border border-accent/50 focus:outline-none"
-                        onClick={e => e.stopPropagation()}
-                      />
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-green-400 hover:bg-green-500/10" onClick={(e) => {
-                        e.stopPropagation()
-                        handleSaveEdit()
-                      }}>
-                        <Check className="w-3.5 h-3.5" />
-                      </Button>
-                   </div>
-                ) : (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <span className={`text-sm font-medium truncate ${
-                        activeBranch?.id === branch.id ? 'text-accent' : 'text-text-primary'
-                      }`}>
-                        {branch.name}
-                      </span>
-                      {activeBranch?.id === branch.id && (
-                        <Check className="w-3.5 h-3.5 text-accent shrink-0" />
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1 text-[10px] text-text-muted">
-                      <span>{new Date(branch.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                      <span>•</span>
-                      <span>{branch.messages.length} msgs</span>
-                    </div>
-                  </>
-                )}
-              </div>
+              <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+                  isActive ? 'bg-accent/20 text-accent' : 'bg-surface/50 text-text-muted group-hover:bg-surface group-hover:text-text-primary'
+                }`}>
+                  <GitBranch className="w-4 h-4 stroke-[1.5]" />
+                </div>
 
-              {/* Actions */}
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 top-2">
-                 {editingId !== branch.id && (
-                   <>
-                      <Tooltip content="Rename">
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleStartEdit(branch)
+                <div className="flex-1 min-w-0" onClick={() => {
+                  switchBranch(branch.id)
+                  onClose()
+                }}>
+                  {editingId === branch.id ? (
+                     <div className="flex items-center gap-1">
+                        <input
+                          autoFocus
+                          value={editName}
+                          onChange={e => setEditName(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleSaveEdit()
+                            if (e.key === 'Escape') setEditingId(null)
                           }}
-                          className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-white/5 transition-colors"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                      </Tooltip>
-                      <Tooltip content="Delete">
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            deleteBranch(branch.id)
-                          }}
-                          className="p-1.5 rounded-lg text-text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </Tooltip>
-                   </>
-                 )}
+                          className="w-full bg-surface text-sm px-2 py-1 rounded border border-accent/50 focus:outline-none"
+                          onClick={e => e.stopPropagation()}
+                        />
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-green-400 hover:bg-green-500/10" onClick={(e) => {
+                          e.stopPropagation()
+                          handleSaveEdit()
+                        }}>
+                          <Check className="w-3.5 h-3.5" />
+                        </Button>
+                     </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-sm font-medium truncate ${
+                          isActive ? 'text-accent' : 'text-text-primary'
+                        }`}>
+                          {branch.name}
+                        </span>
+                        {isActive && (
+                          <Check className="w-3.5 h-3.5 text-accent shrink-0" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 text-[10px] text-text-muted/70">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {getRelativeTime(branch.createdAt, language)}
+                        </span>
+                        <span>•</span>
+                        <span>{branch.messages.length} msgs</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 top-2 bg-background/50 backdrop-blur-sm rounded-lg">
+                   {editingId !== branch.id && (
+                     <>
+                        <Tooltip content="Rename">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleStartEdit(branch)
+                            }}
+                            className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-white/5 transition-colors"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        </Tooltip>
+                        <Tooltip content="Delete">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              deleteBranch(branch.id)
+                            }}
+                            className="p-1.5 rounded-lg text-text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </Tooltip>
+                     </>
+                   )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
         
         {filteredBranches.length === 0 && (
            <EmptyState 
@@ -443,6 +478,3 @@ function EmptyState({ icon: Icon, text, subText }: { icon: any, text: string, su
     </div>
   )
 }
-
-// 辅助 import Store
-import { useStore } from '@store'
