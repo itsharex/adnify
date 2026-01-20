@@ -215,7 +215,7 @@ const UnifiedRow = memo(function UnifiedRow({
     <div
       style={style}
       className={`flex text-sm font-mono ${
-        line.type === 'add' ? 'bg-green-500/10' : line.type === 'remove' ? 'bg-red-500/10' : ''
+        line.type === 'add' ? 'bg-status-success/10' : line.type === 'remove' ? 'bg-status-error/10' : ''
       }`}
     >
       <span className="w-12 px-2 py-0.5 text-right text-text-primary-muted select-none border-r border-border text-xs flex-shrink-0">
@@ -225,12 +225,12 @@ const UnifiedRow = memo(function UnifiedRow({
         {line.newLineNum || ''}
       </span>
       <span className="w-6 px-1 py-0.5 text-center select-none flex-shrink-0">
-        {line.type === 'add' && <span className="text-green-400">+</span>}
-        {line.type === 'remove' && <span className="text-red-400">-</span>}
+        {line.type === 'add' && <span className="text-status-success">+</span>}
+        {line.type === 'remove' && <span className="text-status-error">-</span>}
       </span>
       <span className="px-3 py-0.5 whitespace-pre overflow-hidden text-ellipsis flex-1">
         <span className={`${
-          line.type === 'add' ? 'text-green-300' : line.type === 'remove' ? 'text-red-300' : 'text-text-primary'
+          line.type === 'add' ? 'text-status-success' : line.type === 'remove' ? 'text-status-error' : 'text-text-primary'
         }`}>
           {line.content}
         </span>
@@ -246,8 +246,8 @@ const SplitRow = memo(function SplitRow({
   line: SplitDiffLine
   style: React.CSSProperties
 }) {
-  const leftBg = line.left.type === 'remove' ? 'bg-red-500/10' : line.left.type === 'empty' ? 'bg-background/30' : ''
-  const rightBg = line.right.type === 'add' ? 'bg-green-500/10' : line.right.type === 'empty' ? 'bg-background/30' : ''
+  const leftBg = line.left.type === 'remove' ? 'bg-status-error/10' : line.left.type === 'empty' ? 'bg-background/30' : ''
+  const rightBg = line.right.type === 'add' ? 'bg-status-success/10' : line.right.type === 'empty' ? 'bg-background/30' : ''
 
   return (
     <div style={style} className="flex text-sm font-mono">
@@ -255,7 +255,7 @@ const SplitRow = memo(function SplitRow({
         {line.left.lineNum || ''}
       </span>
       <span className={`flex-1 px-3 py-0.5 whitespace-pre overflow-hidden text-ellipsis border-r border-border ${leftBg}`}>
-        <span className={line.left.type === 'remove' ? 'text-red-300' : 'text-text-primary'}>
+        <span className={line.left.type === 'remove' ? 'text-status-error' : 'text-text-primary'}>
           {line.left.content}
         </span>
       </span>
@@ -263,7 +263,7 @@ const SplitRow = memo(function SplitRow({
         {line.right.lineNum || ''}
       </span>
       <span className={`flex-1 px-3 py-0.5 whitespace-pre overflow-hidden text-ellipsis ${rightBg}`}>
-        <span className={line.right.type === 'add' ? 'text-green-300' : 'text-text-primary'}>
+        <span className={line.right.type === 'add' ? 'text-status-success' : 'text-text-primary'}>
           {line.right.content}
         </span>
       </span>
@@ -423,13 +423,13 @@ export default function DiffViewer({
           <FileEdit className="w-5 h-5 text-editor-accent" />
           <span className="font-medium text-text-primary">{fileName}</span>
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-green-400">+{stats.added}</span>
-            <span className="text-red-400">-{stats.removed}</span>
+            <span className="text-status-success">+{stats.added}</span>
+            <span className="text-status-error">-{stats.removed}</span>
             {isStreaming && (
-              <span className="text-yellow-400 animate-pulse">● {t('streaming', language)}</span>
+              <span className="text-status-warning animate-pulse">● {t('streaming', language)}</span>
             )}
             {isComputing && (
-              <span className="text-blue-400 animate-pulse">● Computing...</span>
+              <span className="text-status-info animate-pulse">● Computing...</span>
             )}
           </div>
         </div>
@@ -481,7 +481,7 @@ export default function DiffViewer({
         <div className="flex items-center gap-2">
           <button
             onClick={onReject}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-status-error hover:bg-status-error/10 transition-colors"
             disabled={isStreaming || isComputing}
           >
             <X className="w-4 h-4" />
@@ -489,7 +489,7 @@ export default function DiffViewer({
           </button>
           <button
             onClick={onAccept}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-status-success text-white hover:bg-status-success/80 transition-colors disabled:opacity-50"
             disabled={isStreaming || isComputing}
           >
             <Check className="w-4 h-4" />

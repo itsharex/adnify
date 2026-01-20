@@ -150,8 +150,8 @@ export default function InlineEdit({
 					<div className="px-3 py-1.5 flex justify-between items-center bg-surface/50 border-b border-border-subtle">
                         <span className="text-[10px] uppercase tracking-wider text-text-muted font-medium">{t('diffPreview', language)}</span>
                         <div className="flex gap-2">
-                            <span className="flex items-center gap-1 text-[10px] text-red-400"><span className="w-2 h-2 rounded-full bg-red-400/20 flex items-center justify-center">-</span> {t('original', language)}</span>
-                            <span className="flex items-center gap-1 text-[10px] text-green-400"><span className="w-2 h-2 rounded-full bg-green-400/20 flex items-center justify-center">+</span> {t('modified', language)}</span>
+                            <span className="flex items-center gap-1 text-[10px] text-status-error"><span className="w-2 h-2 rounded-full bg-status-error/20 flex items-center justify-center">-</span> {t('original', language)}</span>
+                            <span className="flex items-center gap-1 text-[10px] text-status-success"><span className="w-2 h-2 rounded-full bg-status-success/20 flex items-center justify-center">+</span> {t('modified', language)}</span>
                         </div>
                     </div>
 					<div className="flex-1 overflow-auto p-0 min-h-[150px]">
@@ -173,7 +173,7 @@ export default function InlineEdit({
 					<div className="p-2 bg-status-error/10 border border-status-error/20 rounded-lg flex items-center gap-2">
                         <X className="w-4 h-4 text-status-error" />
 						<p className="text-xs text-status-error flex-1">{error}</p>
-                        <button onClick={handleRetry} className="text-xs underline text-status-error hover:text-red-400">{t('retry', language)}</button>
+                        <button onClick={handleRetry} className="text-xs underline text-status-error hover:text-status-error/80">{t('retry', language)}</button>
 					</div>
 				</div>
 			)}

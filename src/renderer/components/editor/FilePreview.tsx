@@ -253,7 +253,7 @@ export function ImagePreview({ path }: ImagePreviewProps) {
     }
 
     return (
-        <div className="h-full flex flex-col bg-[#1a1a1a]">
+        <div className="h-full flex flex-col bg-background">
             {/* 工具栏 */}
             <div className="flex-shrink-0 flex items-center justify-center gap-2 p-2 border-b border-border bg-surface/50">
                 <Button

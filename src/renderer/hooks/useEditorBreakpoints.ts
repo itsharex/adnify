@@ -28,7 +28,7 @@ function injectBreakpointStyles() {
   style.id = styleId
   style.textContent = `
     .breakpoint-glyph {
-      background: #e51400;
+      background: rgb(var(--status-error));
       border-radius: 50%;
       width: 10px !important;
       height: 10px !important;
@@ -37,7 +37,7 @@ function injectBreakpointStyles() {
       cursor: pointer;
     }
     .breakpoint-glyph-disabled {
-      background: #848484;
+      background: rgb(var(--surface-muted));
       border-radius: 50%;
       width: 10px !important;
       height: 10px !important;
@@ -50,7 +50,7 @@ function injectBreakpointStyles() {
       cursor: pointer;
     }
     .breakpoint-candidate {
-      background: rgba(229, 20, 0, 0.3);
+      background: rgb(var(--status-error) / 0.3);
       border-radius: 50%;
       width: 10px !important;
       height: 10px !important;

@@ -24,7 +24,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             hover:bg-black/30 hover:border-white/20
             focus:outline-none focus:bg-black/40 focus:border-accent/50 focus:ring-2 focus:ring-accent/10
             disabled:cursor-not-allowed disabled:opacity-50
-            ${error ? 'border-red-500/50 focus:ring-red-500/20 focus:border-red-500' : ''}
+            ${error ? 'border-status-error/50 focus:ring-status-error/20 focus:border-status-error' : ''}
             ${leftIcon ? 'pl-10' : ''}
             ${rightIcon ? 'pr-10' : ''}
             ${className}

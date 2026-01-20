@@ -145,9 +145,9 @@ export default function FileChangeCard({
 
     // 计算卡片样式
     const cardStyle = useMemo(() => {
-        if (isAwaitingApproval) return 'border-yellow-500/30 bg-yellow-500/5 shadow-[0_0_15px_-3px_rgba(234,179,8,0.1)]'
-        if (isError) return 'border-red-500/20 bg-red-500/5 shadow-[0_0_15px_-3px_rgba(239,68,68,0.1)]'
-        if (isStreaming || isRunning) return 'border-accent/30 bg-accent/5 shadow-[0_0_15px_-3px_rgba(var(--accent)/0.15)]'
+        if (isAwaitingApproval) return 'border-status-warning/30 bg-status-warning/5 shadow-[0_0_15px_-3px_rgba(var(--status-warning),0.1)]'
+        if (isError) return 'border-status-error/20 bg-status-error/5 shadow-[0_0_15px_-3px_rgba(var(--status-error),0.1)]'
+        if (isStreaming || isRunning) return 'border-accent/30 bg-accent/5 shadow-[0_0_15px_-3px_rgba(var(--accent),0.15)]'
         return 'border-border bg-surface/30 backdrop-blur-sm hover:bg-surface/50 hover:border-border hover:shadow-lg hover:shadow-black/20'
     }, [isAwaitingApproval, isError, isStreaming, isRunning])
 

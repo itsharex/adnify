@@ -32,44 +32,44 @@
 :root {
   color-scheme: dark;
 
-  /* --- Deep Space Theme Variables (Unified & Immersive) --- */
+  /* --- Adnify Dark Theme (Default) --- */
 
-  /* Level 1: Main Background (Deepest) */
-  --background: 9 9 11;             /* #09090b - Zinc 950 */
+  /* Level 1: Main Background */
+  --background: 10 10 12;           /* Soft Deep Dark */
 
-  /* Level 2: Sidebar / Panels / Terminal (Unified) */
-  --background-secondary: 9 9 11;   /* #09090b - Same as background for immersion */
-  --background-tertiary: 20 20 23;  /* #141417 - Very subtle lift */
+  /* Level 2: Sidebar / Panels / Terminal */
+  --background-secondary: 18 18 21;
+  --background-tertiary: 24 24 27;
 
   /* Level 3: Surfaces (Inputs, Dropdowns) */
-  --surface: 24 24 27;              /* #18181b */
-  --surface-hover: 39 39 42;        /* #27272a */
-  --surface-active: 63 63 70;       /* #3f3f46 */
-  --surface-muted: 113 113 122;     /* #71717a */
+  --surface: 18 18 21;
+  --surface-hover: 24 24 27;
+  --surface-active: 39 39 42;
+  --surface-muted: 63 63 70;
 
-  /* Borders - Standard Border variable */
-  --border: 39 39 42;               /* #27272a - Zinc 800 */
-  --border-subtle: 24 24 27;        /* #18181b - Zinc 900 */
-  --border-active: 82 82 91;        /* #52525b */
+  /* Borders */
+  --border: 39 39 42;
+  --border-subtle: 24 24 27;
+  --border-active: 82 82 91;
 
   /* Text */
-  --text-primary: 250 250 250;      /* #fafafa */
-  --text-secondary: 161 161 170;    /* #a1a1aa */
-  --text-muted: 113 113 122;        /* #71717a */
-  --text-inverted: 9 9 11;          /* #09090b */
+  --text-primary: 240 240 242;
+  --text-secondary: 161 161 170;
+  --text-muted: 113 113 122;
+  --text-inverted: 0 0 0;
 
-  /* Accent (Violet 500) */
-  --accent: 139 92 246;             /* #8b5cf6 */
-  --accent-hover: 124 58 237;       /* #7c3aed */
-  --accent-active: 109 40 217;      /* #6d28d9 */
+  /* Accent (Violet 600) */
+  --accent: 124 58 237;
+  --accent-hover: 109 40 217;
+  --accent-active: 91 33 182;
   --accent-foreground: 255 255 255;
-  --accent-subtle: 167 139 250;     /* #a78bfa */
+  --accent-subtle: 139 92 246;
 
   /* Status */
-  --status-success: 34 197 94;      /* #22c55e */
-  --status-warning: 234 179 8;      /* #eab308 */
-  --status-error: 239 68 68;        /* #ef4444 */
-  --status-info: 59 130 246;        /* #3b82f6 */
+  --status-success: 34 197 94;
+  --status-warning: 234 179 8;
+  --status-error: 239 68 68;
+  --status-info: 59 130 246;
 
   /* Radius */
   --radius-sm: 0.25rem;

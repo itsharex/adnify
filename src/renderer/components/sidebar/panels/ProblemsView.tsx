@@ -73,7 +73,7 @@ export function ProblemsView() {
   const getSeverityIcon = (severity: number | undefined) => {
     if (severity === 1) return <AlertCircle className="w-3.5 h-3.5 text-status-error" />
     if (severity === 2) return <AlertTriangle className="w-3.5 h-3.5 text-status-warning" />
-    return <Info className="w-3.5 h-3.5 text-blue-400" />
+    return <Info className="w-3.5 h-3.5 text-status-info" />
   }
 
   return (
@@ -124,8 +124,8 @@ export function ProblemsView() {
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         {filteredDiagnostics.size === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center animate-fade-in select-none">
-            <div className="w-12 h-12 bg-green-500/10 rounded-2xl flex items-center justify-center mb-3 border border-green-500/20 shadow-sm">
-              <CheckCircle2 className="w-6 h-6 text-green-500" />
+            <div className="w-12 h-12 bg-status-success/10 rounded-2xl flex items-center justify-center mb-3 border border-status-success/20 shadow-sm">
+              <CheckCircle2 className="w-6 h-6 text-status-success" />
             </div>
             <p className="text-xs font-medium text-text-primary">
               {language === 'zh' ? '未发现问题' : 'No problems detected'}

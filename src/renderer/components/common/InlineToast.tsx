@@ -34,30 +34,30 @@ const TOAST_CONFIG = {
   success: {
     icon: CheckCircle2,
     bg: 'bg-background/80',
-    border: 'border-green-500/30',
-    text: 'text-green-400',
-    glow: 'shadow-[0_8px_32px_-12px_rgba(34,197,94,0.3)]'
+    border: 'border-status-success/30',
+    text: 'text-status-success',
+    glow: 'shadow-[0_8px_32px_-12px_rgba(var(--status-success),0.3)]'
   },
   error: {
     icon: XCircle,
     bg: 'bg-background/80',
-    border: 'border-red-500/30',
-    text: 'text-red-400',
-    glow: 'shadow-[0_8px_32px_-12px_rgba(239,68,68,0.3)]'
+    border: 'border-status-error/30',
+    text: 'text-status-error',
+    glow: 'shadow-[0_8px_32px_-12px_rgba(var(--status-error),0.3)]'
   },
   warning: {
     icon: AlertTriangle,
     bg: 'bg-background/80',
-    border: 'border-yellow-500/30',
-    text: 'text-yellow-400',
-    glow: 'shadow-[0_8px_32px_-12px_rgba(234,179,8,0.3)]'
+    border: 'border-status-warning/30',
+    text: 'text-status-warning',
+    glow: 'shadow-[0_8px_32px_-12px_rgba(var(--status-warning),0.3)]'
   },
   info: {
     icon: Info,
     bg: 'bg-background/80',
-    border: 'border-blue-500/30',
-    text: 'text-blue-400',
-    glow: 'shadow-[0_8px_32_px_-12px_rgba(59,130,246,0.3)]'
+    border: 'border-status-info/30',
+    text: 'text-status-info',
+    glow: 'shadow-[0_8px_32_px_-12px_rgba(var(--status-info),0.3)]'
   }
 }
 

@@ -26,8 +26,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             secondary: "bg-surface/40 backdrop-blur-md text-text-primary rounded-xl border border-border hover:bg-surface/60 hover:border-accent/30",
             ghost: "bg-transparent text-text-secondary rounded-lg hover:bg-white/5 hover:text-text-primary",
             icon: "bg-transparent text-text-muted rounded-lg hover:bg-white/10 hover:text-text-primary p-0 aspect-square",
-            danger: "bg-red-500/10 text-red-500 rounded-xl border border-red-500/20 hover:bg-red-500/20 hover:border-red-500/30",
-            success: "bg-green-500/10 text-green-400 rounded-xl border border-green-500/20 hover:bg-green-500/20 hover:border-green-500/30",
+            danger: "bg-status-error/10 text-status-error rounded-xl border border-status-error/20 hover:bg-status-error/20 hover:border-status-error/30",
+            success: "bg-status-success/10 text-status-success rounded-xl border border-status-success/20 hover:bg-status-success/20 hover:border-status-success/30",
             outline: "bg-transparent border border-border text-text-secondary rounded-xl hover:border-accent/50 hover:text-text-primary hover:bg-accent/5"
         }
 

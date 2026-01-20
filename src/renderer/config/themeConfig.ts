@@ -82,7 +82,7 @@ export const builtinThemes: Theme[] = [
       textInverted: '0 0 0',
 
       border: '39 39 42',
-      borderSubtle: '34 34 38',       // Dark subtle border (fixed from white)
+      borderSubtle: '24 24 27',       // Consistent with backgroundTertiary
       borderActive: '82 82 91',
 
       accent: '124 58 237',          // Violet 600
@@ -118,7 +118,7 @@ export const builtinThemes: Theme[] = [
       textInverted: '0 0 0',
 
       border: '30 41 59',
-      borderSubtle: '248 250 252',
+      borderSubtle: '15 23 42',       // Fixed: should be dark, not white
       borderActive: '71 85 105',
 
       accent: '56 189 248',          // Sky 400
@@ -154,8 +154,8 @@ export const builtinThemes: Theme[] = [
       textInverted: '0 0 0',
 
       border: '60 60 80',
-      borderSubtle: '255 0 255',      // Neon Pink hint
-      borderActive: '0 255 255',      // Neon Cyan hint
+      borderSubtle: '30 30 45',       // Fixed: subtle border should be dark
+      borderActive: '100 100 120',    // Fixed: brighter for active state
 
       accent: '255 0 128',            // Neon Pink
       accentHover: '255 50 150',
@@ -190,7 +190,7 @@ export const builtinThemes: Theme[] = [
       textInverted: '255 255 255',
 
       border: '226 232 240',
-      borderSubtle: '15 23 42',
+      borderSubtle: '241 245 249',    // Fixed: should be light gray, not dark
       borderActive: '203 213 225',
 
       accent: '79 70 229',

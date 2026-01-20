@@ -40,7 +40,7 @@ const XTERM_STYLE = `
 .xterm-selection-layer { position: absolute; top: 0; left: 0; z-index: 1; pointer-events: none; }
 .xterm-cursor-layer { position: absolute; top: 0; left: 0; z-index: 2; pointer-events: none; }
 .xterm-link-layer { position: absolute; top: 0; left: 0; z-index: 11; pointer-events: none; }
-.xterm-link-layer a { cursor: pointer; color: #3b82f6; text-decoration: underline; }
+.xterm-link-layer a { cursor: pointer; color: rgb(var(--accent)); text-decoration: underline; }
 `
 
 // 生成终端主题
@@ -56,14 +56,14 @@ function getTerminalTheme(themeName: string) {
         foreground: rgbToHex(themeVars['--text-primary']),
         cursor: rgbToHex(themeVars['--text-secondary']),
         selectionBackground: rgbToHex(themeVars['--accent']),
-        selectionForeground: '#ffffff',
+        selectionForeground: rgbToHex(themeVars['--text-inverted']),
         black: rgbToHex(themeVars['--surface']),
-        red: '#ef4444',
-        green: '#22c55e',
-        yellow: '#eab308',
-        blue: rgbToHex(themeVars['--accent']),
-        magenta: '#a855f7',
-        cyan: '#06b6d4',
+        red: rgbToHex(themeVars['--status-error']),
+        green: rgbToHex(themeVars['--status-success']),
+        yellow: rgbToHex(themeVars['--status-warning']),
+        blue: rgbToHex(themeVars['--status-info']),
+        magenta: rgbToHex(themeVars['--accent-subtle']),
+        cyan: rgbToHex(themeVars['--accent']),
         white: rgbToHex(themeVars['--text-primary']),
     }
 }
@@ -324,8 +324,8 @@ export default function TerminalPanel() {
                                     className={`relative flex items-center gap-2 px-3 h-full my-auto text-xs cursor-pointer min-w-[120px] max-w-[200px] flex-shrink-0 group transition-all mr-1 border-r border-border ${activeId === term.id ? 'bg-transparent text-text-primary font-medium' : 'text-text-muted hover:bg-white/5 hover:text-text-secondary'}`}
                                 >
                                     <span className="truncate flex-1">{term.name}</span>
-                                    {activeId === term.id && <div className="absolute top-0 left-0 right-0 h-[2px] bg-accent shadow-[0_0_8px_rgba(139,92,246,0.6)]" />}
-                                    <Button variant="ghost" size="icon" onClick={(e) => closeTerminal(term.id, e)} className="h-4 w-4 opacity-0 group-hover:opacity-100 text-text-muted hover:text-red-400 hover:bg-white/10">
+                                    {activeId === term.id && <div className="absolute top-0 left-0 right-0 h-[2px] bg-accent shadow-[0_0_8px_rgba(var(--accent),0.6)]" />}
+                                    <Button variant="ghost" size="icon" onClick={(e) => closeTerminal(term.id, e)} className="h-4 w-4 opacity-0 group-hover:opacity-100 text-text-muted hover:text-status-error hover:bg-white/10">
                                         <X className="w-3 h-3" />
                                     </Button>
                                 </div>
