@@ -27,7 +27,7 @@ import {
 export default function SettingsModal() {
     const {
         llmConfig, language, autoApprove, providerConfigs, promptTemplateId,
-        agentConfig, aiInstructions, webSearchConfig, mcpConfig,
+        agentConfig, aiInstructions, webSearchConfig, mcpConfig, enableFileLogging,
         set, setProvider, setShowSettings, save
     } = useStore()
 
@@ -42,6 +42,7 @@ export default function SettingsModal() {
     const [localAiInstructions, setLocalAiInstructions] = useState(aiInstructions)
     const [localWebSearchConfig, setLocalWebSearchConfig] = useState(webSearchConfig)
     const [localMcpConfig, setLocalMcpConfig] = useState(mcpConfig)
+    const [localEnableFileLogging, setLocalEnableFileLogging] = useState(enableFileLogging)
     const [saved, setSaved] = useState(false)
 
     const editorConfig = getEditorConfig()
@@ -86,6 +87,7 @@ export default function SettingsModal() {
     useEffect(() => { setLocalAiInstructions(aiInstructions) }, [aiInstructions])
     useEffect(() => { setLocalWebSearchConfig(webSearchConfig) }, [webSearchConfig])
     useEffect(() => { setLocalMcpConfig(mcpConfig) }, [mcpConfig])
+    useEffect(() => { setLocalEnableFileLogging(enableFileLogging) }, [enableFileLogging])
 
     const handleSave = async () => {
         // 合并当前 provider 的配置
@@ -112,6 +114,7 @@ export default function SettingsModal() {
         set('aiInstructions', localAiInstructions)
         set('webSearchConfig', localWebSearchConfig)
         set('mcpConfig', localMcpConfig)
+        set('enableFileLogging', localEnableFileLogging)
 
         // 批量更新所有 provider configs
         for (const [providerId, config] of Object.entries(finalProviderConfigs)) {
@@ -306,7 +309,7 @@ export default function SettingsModal() {
                             {activeTab === 'lsp' && <LspSettings language={language} />}
                             {activeTab === 'indexing' && <IndexSettings language={language} />}
                             {activeTab === 'security' && <SecuritySettings language={language} />}
-                            {activeTab === 'system' && <SystemSettings language={language} />}
+                            {activeTab === 'system' && <SystemSettings language={language} enableFileLogging={localEnableFileLogging} setEnableFileLogging={setLocalEnableFileLogging} />}
                         </div>
                     </div>
 

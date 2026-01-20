@@ -241,6 +241,7 @@ export interface AppSettingsSchema {
   providerConfigs?: Record<string, unknown>
   aiInstructions?: string
   onboardingCompleted?: boolean
+  enableFileLogging?: boolean
   webSearchConfig?: {
     googleApiKey?: string
     googleCx?: string
@@ -285,6 +286,7 @@ export function cleanAppSettings(config: Record<string, unknown>): AppSettingsSc
 
   if (typeof config.aiInstructions === 'string') cleaned.aiInstructions = config.aiInstructions
   if (typeof config.onboardingCompleted === 'boolean') cleaned.onboardingCompleted = config.onboardingCompleted
+  if (typeof config.enableFileLogging === 'boolean') cleaned.enableFileLogging = config.enableFileLogging
 
   // webSearchConfig
   if (config.webSearchConfig && typeof config.webSearchConfig === 'object') {

@@ -17,6 +17,8 @@ import type { ProviderModelConfig, SettingsState } from '@shared/config/settings
 
 interface SystemSettingsProps {
     language: Language
+    enableFileLogging: boolean
+    setEnableFileLogging: (enabled: boolean) => void
 }
 
 function DataPathDisplay() {
@@ -28,15 +30,12 @@ function DataPathDisplay() {
     return <span>{path || '...'}</span>
 }
 
-export function SystemSettings({ language }: SystemSettingsProps) {
+export function SystemSettings({ language, enableFileLogging, setEnableFileLogging }: SystemSettingsProps) {
     const [isClearing, setIsClearing] = useState(false)
     const [includeApiKeys, setIncludeApiKeys] = useState(false)
     const [logPath, setLogPath] = useState('')
     const fileInputRef = useRef<HTMLInputElement>(null)
     const store = useStore()
-    
-    // 从 store 中获取 enableFileLogging
-    const enableFileLogging = store.enableFileLogging
 
     // 获取日志文件路径
     useEffect(() => {
@@ -53,21 +52,8 @@ export function SystemSettings({ language }: SystemSettingsProps) {
         getLogPath()
     }, [])
 
-    const handleToggleFileLogging = async (enabled: boolean) => {
-        try {
-            // 使用 store 的统一 API
-            store.set('enableFileLogging', enabled)
-            await store.save()
-            
-            if (enabled) {
-                toast.success(language === 'zh' ? '文件日志已启用，重启后生效' : 'File logging enabled, restart required')
-            } else {
-                toast.success(language === 'zh' ? '文件日志已禁用，重启后生效' : 'File logging disabled, restart required')
-            }
-        } catch (err) {
-            logger.settings.error('Failed to toggle file logging:', err)
-            toast.error(language === 'zh' ? '设置失败' : 'Failed to update setting')
-        }
+    const handleToggleFileLogging = (enabled: boolean) => {
+        setEnableFileLogging(enabled)
     }
 
     // 构建当前设置对象（直接从 settingsService 缓存获取）
