@@ -934,9 +934,15 @@ export function generateZodSchema(config: ToolConfig): z.ZodSchema {
 
         switch (prop.type) {
             case 'string':
-                schema = prop.enum
-                    ? z.enum(prop.enum as [string, ...string[]])
-                    : z.string().min(1, `${key} is required`)
+                if (prop.enum) {
+                    schema = z.enum(prop.enum as [string, ...string[]])
+                } else {
+                    // 对于必需的字符串参数，使用 min(1) 验证
+                    // 但如果模型没有传递参数，我们在执行前会提供空对象
+                    schema = prop.required 
+                        ? z.string().min(1, `${key} is required`)
+                        : z.string()
+                }
                 break
             case 'number':
                 schema = z.number().int()
@@ -964,7 +970,8 @@ export function generateZodSchema(config: ToolConfig): z.ZodSchema {
         shape[key] = schema
     }
 
-    const objectSchema = z.object(shape)
+    // 使用 passthrough() 允许额外的字段（如 _meta）
+    const objectSchema = z.object(shape).passthrough()
 
     // 添加自定义验证
     if (config.validate) {

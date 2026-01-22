@@ -234,7 +234,9 @@ export class ResponseParser {
     for (const [index, tc] of this.toolCallBuffers) {
       if (tc.name) {
         let args: Record<string, unknown> = {}
-        if (tc.argsBuffer) {
+        
+        // 如果有参数缓冲区，尝试解析
+        if (tc.argsBuffer && tc.argsBuffer.trim()) {
           try {
             args = JSON.parse(tc.argsBuffer)
           } catch {
@@ -246,9 +248,15 @@ export class ResponseParser {
                 .replace(/\t/g, '\\t')
               args = JSON.parse(fixed)
             } catch {
-              // 忽略解析错误
+              // 如果解析失败，记录警告但继续使用空对象
+              console.warn(`[ResponseParser] Failed to parse tool arguments for ${tc.name}:`, tc.argsBuffer)
             }
           }
+        }
+        
+        // 确保 args 是一个对象（即使模型没有传递参数）
+        if (!args || typeof args !== 'object' || Array.isArray(args)) {
+          args = {}
         }
 
         results.push({
@@ -333,11 +341,22 @@ export class AnthropicResponseParser {
           const tc = this.toolCallBuffers.get(this.currentBlockId)
           if (tc) {
             let args: Record<string, unknown> = {}
-            try {
-              args = JSON.parse(tc.argsBuffer || '{}')
-            } catch {
-              // 忽略解析错误
+            
+            // 如果有参数缓冲区，尝试解析
+            if (tc.argsBuffer && tc.argsBuffer.trim()) {
+              try {
+                args = JSON.parse(tc.argsBuffer)
+              } catch {
+                // 如果解析失败，记录警告但继续使用空对象
+                console.warn(`[AnthropicResponseParser] Failed to parse tool arguments for ${tc.name}:`, tc.argsBuffer)
+              }
             }
+            
+            // 确保 args 是一个对象
+            if (!args || typeof args !== 'object' || Array.isArray(args)) {
+              args = {}
+            }
+            
             results.push({
               type: 'tool_call_end',
               toolCall: { id: tc.id, name: tc.name, arguments: args },

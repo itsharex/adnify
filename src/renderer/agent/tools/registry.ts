@@ -123,6 +123,11 @@ class ToolRegistry {
     const tool = this.tools.get(name)
     if (!tool) return { success: false, error: `Unknown tool: ${name}` }
 
+    // 确保 args 是一个对象
+    if (!args || typeof args !== 'object' || Array.isArray(args)) {
+      args = {}
+    }
+
     const result = tool.schema.safeParse(args)
     if (result.success) return { success: true, data: result.data as T }
 
@@ -142,8 +147,14 @@ class ToolRegistry {
     if (!tool) return { success: false, result: '', error: `Unknown tool: ${name}` }
     if (!tool.enabled) return { success: false, result: '', error: `Tool "${name}" is disabled` }
 
+    // 确保 args 是一个对象
+    if (!args || typeof args !== 'object' || Array.isArray(args)) {
+      args = {}
+    }
+
     const validation = this.validate(name, args)
     if (!validation.success) {
+      logger.agent.warn(`[ToolRegistry] Validation failed for ${name}:`, validation.error)
       return { success: false, result: '', error: `Validation failed: ${validation.error}` }
     }
 
@@ -156,6 +167,7 @@ class ToolRegistry {
     try {
       return await executor(validation.data as Record<string, unknown>, context)
     } catch (error: any) {
+      logger.agent.error(`[ToolRegistry] Execution error for ${name}:`, error)
       return { success: false, result: '', error: `Execution error: ${error.message}` }
     }
   }

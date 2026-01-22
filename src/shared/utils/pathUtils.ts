@@ -87,7 +87,8 @@ export function getPathSeparator(path: string): string {
   return path.includes('\\') ? '\\' : '/'
 }
 
-export function getFileName(path: string): string {
+export function getFileName(path: string | undefined | null): string {
+  if (!path) return ''
   return path.split(/[/\\]/).pop() || ''
 }
 

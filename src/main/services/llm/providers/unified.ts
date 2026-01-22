@@ -308,9 +308,21 @@ export class UnifiedProvider extends BaseProvider {
       for (const tc of message.tool_calls) {
         if (tc.type === 'function') {
           let args: Record<string, unknown> = {}
-          try {
-            args = JSON.parse(tc.function.arguments || '{}')
-          } catch { /* ignore */ }
+          
+          // 如果有参数字符串，尝试解析
+          if (tc.function.arguments && tc.function.arguments.trim()) {
+            try {
+              args = JSON.parse(tc.function.arguments)
+            } catch {
+              console.warn(`[OpenAI] Failed to parse tool arguments for ${tc.function.name}:`, tc.function.arguments)
+            }
+          }
+          
+          // 确保 args 是一个对象
+          if (!args || typeof args !== 'object' || Array.isArray(args)) {
+            args = {}
+          }
+          
           const toolCall: LLMToolCall = { id: tc.id, name: tc.function.name, arguments: args }
           toolCalls.push(toolCall)
           onStream({ type: 'tool_call_end', toolCall })
@@ -478,10 +490,16 @@ export class UnifiedProvider extends BaseProvider {
     if (toolCalls.length === 0) {
       for (const block of finalMessage.content) {
         if (block.type === 'tool_use') {
+          // 确保 input 是一个对象
+          let args = block.input as Record<string, unknown>
+          if (!args || typeof args !== 'object' || Array.isArray(args)) {
+            args = {}
+          }
+          
           const toolCall: LLMToolCall = {
             id: block.id,
             name: block.name,
-            arguments: block.input as Record<string, unknown>,
+            arguments: args,
           }
           toolCalls.push(toolCall)
           onToolCall(toolCall)
@@ -518,10 +536,16 @@ export class UnifiedProvider extends BaseProvider {
         fullContent += block.text
         onStream({ type: 'text', content: block.text })
       } else if (block.type === 'tool_use') {
+        // 确保 input 是一个对象
+        let args = block.input as Record<string, unknown>
+        if (!args || typeof args !== 'object' || Array.isArray(args)) {
+          args = {}
+        }
+        
         const toolCall: LLMToolCall = {
           id: block.id,
           name: block.name,
-          arguments: block.input as Record<string, unknown>,
+          arguments: args,
         }
         toolCalls.push(toolCall)
         onStream({ type: 'tool_call_end', toolCall })
@@ -614,10 +638,16 @@ export class UnifiedProvider extends BaseProvider {
           const functionCallsInChunk = chunk.functionCalls
           if (functionCallsInChunk) {
             for (const fc of functionCallsInChunk) {
+              // 确保 arguments 是一个对象
+              let args = fc.args || {}
+              if (!args || typeof args !== 'object' || Array.isArray(args)) {
+                args = {}
+              }
+              
               const toolCall: LLMToolCall = {
                 id: fc.id || `gemini-${Date.now()}-${Math.random().toString(36).slice(2)}`,
                 name: fc.name || '',
-                arguments: fc.args || {},
+                arguments: args,
               }
               toolCalls.push(toolCall)
               // 发送完整的工具调用事件
@@ -650,10 +680,16 @@ export class UnifiedProvider extends BaseProvider {
         const functionCallsInResponse = response.functionCalls
         if (functionCallsInResponse) {
           for (const fc of functionCallsInResponse) {
+            // 确保 arguments 是一个对象
+            let args = fc.args || {}
+            if (!args || typeof args !== 'object' || Array.isArray(args)) {
+              args = {}
+            }
+            
             const toolCall: LLMToolCall = {
               id: fc.id || `gemini-${Date.now()}-${Math.random().toString(36).slice(2)}`,
               name: fc.name || '',
-              arguments: fc.args || {},
+              arguments: args,
             }
             toolCalls.push(toolCall)
             onStream({ type: 'tool_call_end', toolCall })
@@ -1157,10 +1193,16 @@ export class UnifiedProvider extends BaseProvider {
                 break
               case 'tool_call_end':
                 if (chunk.toolCall) {
+                  // 确保 arguments 是一个对象
+                  let args = chunk.toolCall.arguments as Record<string, unknown>
+                  if (!args || typeof args !== 'object' || Array.isArray(args)) {
+                    args = {}
+                  }
+                  
                   const tc: LLMToolCall = {
                     id: chunk.toolCall.id || '',
                     name: chunk.toolCall.name || '',
-                    arguments: chunk.toolCall.arguments as Record<string, unknown> || {},
+                    arguments: args,
                   }
                   this.log('info', 'tool_call_end', { id: tc.id, name: tc.name })
                   toolCalls.push(tc)
@@ -1180,10 +1222,16 @@ export class UnifiedProvider extends BaseProvider {
       const finalChunks = parser.finalize()
       for (const chunk of finalChunks) {
         if (chunk.type === 'tool_call_end' && chunk.toolCall) {
+          // 确保 arguments 是一个对象
+          let args = chunk.toolCall.arguments as Record<string, unknown>
+          if (!args || typeof args !== 'object' || Array.isArray(args)) {
+            args = {}
+          }
+          
           const tc: LLMToolCall = {
             id: chunk.toolCall.id || '',
             name: chunk.toolCall.name || '',
-            arguments: chunk.toolCall.arguments as Record<string, unknown> || {},
+            arguments: args,
           }
           toolCalls.push(tc)
           onStream({ type: 'tool_call_end', toolCall: tc })
@@ -1245,10 +1293,23 @@ export class UnifiedProvider extends BaseProvider {
           const argsData = this.getNestedValue(tc, responseConfig.toolArgsPath || 'function.arguments')
 
           let args: Record<string, unknown> = {}
-          if (typeof argsData === 'string') {
-            try { args = JSON.parse(argsData) } catch { /* ignore */ }
-          } else if (typeof argsData === 'object' && argsData !== null) {
-            args = argsData as Record<string, unknown>
+          
+          // 如果有参数数据，尝试解析
+          if (argsData) {
+            if (typeof argsData === 'string' && argsData.trim()) {
+              try {
+                args = JSON.parse(argsData)
+              } catch {
+                console.warn(`[Custom] Failed to parse tool arguments for ${name}:`, argsData)
+              }
+            } else if (typeof argsData === 'object' && argsData !== null) {
+              args = argsData as Record<string, unknown>
+            }
+          }
+          
+          // 确保 args 是一个对象
+          if (!args || typeof args !== 'object' || Array.isArray(args)) {
+            args = {}
           }
 
           if (name) {
@@ -1296,15 +1357,28 @@ export class UnifiedProvider extends BaseProvider {
   private finalizeToolCall(tc: { id?: string; name?: string; argsString: string }): LLMToolCall | null {
     if (!tc.id || !tc.name) return null
     let args: Record<string, unknown> = {}
-    try {
-      args = JSON.parse(tc.argsString || '{}')
-    } catch {
-      // 尝试修复
+    
+    // 如果有参数字符串，尝试解析
+    if (tc.argsString && tc.argsString.trim()) {
       try {
-        const fixed = tc.argsString.replace(/\n/g, '\\n').replace(/\r/g, '\\r')
-        args = JSON.parse(fixed)
-      } catch { /* ignore */ }
+        args = JSON.parse(tc.argsString)
+      } catch {
+        // 尝试修复
+        try {
+          const fixed = tc.argsString.replace(/\n/g, '\\n').replace(/\r/g, '\\r')
+          args = JSON.parse(fixed)
+        } catch {
+          // 如果解析失败，记录警告但继续使用空对象
+          console.warn(`[UnifiedProvider] Failed to parse tool arguments for ${tc.name}:`, tc.argsString)
+        }
+      }
     }
+    
+    // 确保 args 是一个对象（即使模型没有传递参数）
+    if (!args || typeof args !== 'object' || Array.isArray(args)) {
+      args = {}
+    }
+    
     return { id: tc.id, name: tc.name, arguments: args }
   }
 

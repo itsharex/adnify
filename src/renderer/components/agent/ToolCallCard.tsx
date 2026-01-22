@@ -300,10 +300,10 @@ const ToolCallCard = memo(function ToolCallCard({
 
         // 文件/文件夹创建删除（简洁显示）
         if (['create_file_or_folder', 'delete_file_or_folder'].includes(name)) {
-            const path = args.path as string
+            const path = args.path as string | undefined
             const isDelete = name === 'delete_file_or_folder'
             const isFolder = path?.endsWith('/')
-            const displayName = getFileName(path) || path
+            const displayName = path ? (getFileName(path) || path) : '<no path>'
             return (
                 <div className={`bg-surface/50 rounded-md border overflow-hidden ${isDelete ? 'border-status-error/30' : 'border-border'}`}>
                     <div className="px-3 py-2 flex items-center gap-2 text-xs">
@@ -324,8 +324,10 @@ const ToolCallCard = memo(function ToolCallCard({
 
         // 读取文件（显示文件内容预览）
         if (['read_file', 'read_multiple_files'].includes(name)) {
-            const filePath = name === 'read_file' ? args.path as string : ''
-            const displayName = name === 'read_file' ? getFileName(filePath) : `${(args.paths as string[])?.length || 0} files`
+            const filePath = name === 'read_file' ? (args.path as string | undefined) : undefined
+            const displayName = name === 'read_file' 
+                ? (filePath ? getFileName(filePath) : '<no path>') 
+                : `${(args.paths as string[])?.length || 0} files`
             return (
                 <div className="bg-surface/50 rounded-md border border-border overflow-hidden">
                     <div className="px-3 py-2 border-b border-border flex items-center gap-2 text-xs text-text-muted">
@@ -344,9 +346,13 @@ const ToolCallCard = memo(function ToolCallCard({
 
         // URL 读取
         if (name === 'read_url') {
-            const url = args.url as string
+            const url = args.url as string | undefined
             let hostname = ''
-            try { hostname = new URL(url).hostname } catch { hostname = url }
+            if (url) {
+                try { hostname = new URL(url).hostname } catch { hostname = url }
+            } else {
+                hostname = '<no url>'
+            }
             return (
                 <div className="bg-surface/50 rounded-md border border-border overflow-hidden">
                     <div className="px-3 py-2 border-b border-border flex items-center gap-2 text-xs text-text-muted">
@@ -365,13 +371,14 @@ const ToolCallCard = memo(function ToolCallCard({
 
         // LSP 工具（简洁显示）
         if (['get_lint_errors', 'find_references', 'go_to_definition', 'get_hover_info', 'get_document_symbols'].includes(name)) {
-            const path = args.path as string
+            const path = args.path as string | undefined
             const line = args.line as number | undefined
+            const displayName = path ? getFileName(path) : '<no path>'
             return (
                 <div className="bg-surface/50 rounded-md border border-border overflow-hidden">
                     <div className="px-3 py-2 border-b border-border flex items-center gap-2 text-xs text-text-muted">
                         <FileCode className="w-3 h-3" />
-                        <span className="text-text-primary font-medium">{getFileName(path)}</span>
+                        <span className="text-text-primary font-medium">{displayName}</span>
                         {line && <span className="text-text-muted/60">:{line}</span>}
                     </div>
                     {toolCall.result && (
