@@ -9,12 +9,9 @@ declare global {
     }
     __settingsUnsubscribe?: () => void
     __errorUnsubscribe?: () => void
-    electronAPI?: {
-      invalidateProviders?: () => void
-    }
   }
 
   var __PROD__: boolean
 }
 
-export {}
+export { }

@@ -42,11 +42,9 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
     provider: 'openai',
     model: 'gpt-4o',
     apiKey: '',
-    parameters: {
-      temperature: LLM_DEFAULTS.temperature,
-      topP: LLM_DEFAULTS.topP,
-      maxTokens: LLM_DEFAULTS.maxTokens,
-    },
+    temperature: LLM_DEFAULTS.temperature,
+    topP: LLM_DEFAULTS.topP,
+    maxTokens: LLM_DEFAULTS.maxTokens,
   })
   const [showApiKey, setShowApiKey] = useState(false)
   const [direction, setDirection] = useState(0)
@@ -84,24 +82,34 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       useStore.getState().set('onboardingCompleted', true)
     }
 
-    await settingsService.save({
-      llmConfig: providerConfig as any,
-      language: selectedLanguage,
-      autoApprove: defaultAutoApprove,
-      agentConfig: defaultAgentConfig,
-      providerConfigs: {},
-      aiInstructions: '',
-      onboardingCompleted: true,
-      editorConfig: defaultEditorConfig,
-      securitySettings: defaultSecuritySettings,
-      webSearchConfig: defaultWebSearchConfig,
-      mcpConfig: defaultMcpConfig,
-      promptTemplateId: 'default',
-      enableFileLogging: false,
-    })
+    try {
+      await settingsService.save({
+        llmConfig: providerConfig as any,
+        language: selectedLanguage,
+        autoApprove: defaultAutoApprove,
+        agentConfig: defaultAgentConfig,
+        providerConfigs: {},
+        aiInstructions: '',
+        onboardingCompleted: true,
+        editorConfig: defaultEditorConfig,
+        securitySettings: defaultSecuritySettings,
+        webSearchConfig: defaultWebSearchConfig,
+        mcpConfig: defaultMcpConfig,
+        promptTemplateId: 'default',
+        enableFileLogging: false,
+      })
 
-    setIsExiting(true)
-    setTimeout(onComplete, 500)
+      // Double check store update
+      useStore.getState().set('onboardingCompleted', true)
+
+      setIsExiting(true)
+      setTimeout(onComplete, 500)
+    } catch (error) {
+      console.error('Failed to save onboarding settings:', error)
+      // Fallback: try to set store at least so UI updates
+      useStore.getState().set('onboardingCompleted', true)
+      onComplete()
+    }
   }
 
   const handleOpenFolder = async () => {
@@ -245,11 +253,10 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               <button
                 onClick={goPrev}
                 disabled={currentStepIndex === 0}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
-                  currentStepIndex === 0
-                    ? 'opacity-0 pointer-events-none'
-                    : 'text-text-muted hover:text-text-primary hover:bg-white/5 active:scale-95'
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${currentStepIndex === 0
+                  ? 'opacity-0 pointer-events-none'
+                  : 'text-text-muted hover:text-text-primary hover:bg-white/5 active:scale-95'
+                  }`}
               >
                 <ChevronLeft className="w-4 h-4" />
                 {isZh ? '上一步' : 'Back'}
@@ -409,11 +416,10 @@ function LanguageStep({
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => onSelect(lang.id)}
-            className={`relative p-8 rounded-3xl border-2 text-left transition-all duration-300 group flex flex-col justify-center gap-2 ${
-              selectedLanguage === lang.id
-                ? 'border-accent bg-accent/5 shadow-xl shadow-accent/5'
-                : 'border-border hover:border-accent/30 bg-white/5 hover:bg-white/10'
-            }`}
+            className={`relative p-8 rounded-3xl border-2 text-left transition-all duration-300 group flex flex-col justify-center gap-2 ${selectedLanguage === lang.id
+              ? 'border-accent bg-accent/5 shadow-xl shadow-accent/5'
+              : 'border-border hover:border-accent/30 bg-white/5 hover:bg-white/10'
+              }`}
           >
             <div className="text-5xl mb-4 group-hover:scale-110 transition-transform duration-500 ease-out origin-left">
               {lang.id === 'zh' ? '🇨🇳' : '🇺🇸'}
@@ -473,11 +479,10 @@ function ThemeStep({
             whileHover={{ y: -5 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => onSelect(theme.id)}
-            className={`relative p-3 rounded-2xl border-2 text-left transition-all duration-300 ${
-              selectedTheme === theme.id
-                ? 'border-accent bg-accent/5 shadow-lg shadow-accent/10'
-                : 'border-border hover:border-accent/30 bg-white/5'
-            }`}
+            className={`relative p-3 rounded-2xl border-2 text-left transition-all duration-300 ${selectedTheme === theme.id
+              ? 'border-accent bg-accent/5 shadow-lg shadow-accent/10'
+              : 'border-border hover:border-accent/30 bg-white/5'
+              }`}
           >
             <div
               className="h-24 rounded-xl mb-3 border border-border overflow-hidden shadow-sm flex flex-col"
@@ -487,27 +492,27 @@ function ThemeStep({
                 className="h-5 w-full border-b border-border flex items-center px-2 gap-1"
                 style={{ backgroundColor: `rgb(${theme.colors.backgroundSecondary})` }}
               >
-                 <div className="w-1.5 h-1.5 rounded-full bg-red-400/50" />
-                 <div className="w-1.5 h-1.5 rounded-full bg-yellow-400/50" />
-                 <div className="w-1.5 h-1.5 rounded-full bg-green-400/50" />
+                <div className="w-1.5 h-1.5 rounded-full bg-red-400/50" />
+                <div className="w-1.5 h-1.5 rounded-full bg-yellow-400/50" />
+                <div className="w-1.5 h-1.5 rounded-full bg-green-400/50" />
               </div>
               <div className="flex-1 p-2 flex gap-2">
-                 <div className="w-1/4 h-full rounded bg-white/5 border border-border" />
-                 <div className="flex-1 flex flex-col gap-1.5">
-                    <div className="w-1/2 h-1.5 rounded bg-white/10" />
-                    <div className="w-3/4 h-1.5 rounded bg-white/10" />
-                    <div className="w-full h-1.5 rounded bg-white/5" />
-                    <div className="flex gap-1 mt-auto">
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: `rgb(${theme.colors.accent})` }} />
-                        <span className="text-[6px] opacity-50 font-mono">print("Hello")</span>
-                    </div>
-                 </div>
+                <div className="w-1/4 h-full rounded bg-white/5 border border-border" />
+                <div className="flex-1 flex flex-col gap-1.5">
+                  <div className="w-1/2 h-1.5 rounded bg-white/10" />
+                  <div className="w-3/4 h-1.5 rounded bg-white/10" />
+                  <div className="w-full h-1.5 rounded bg-white/5" />
+                  <div className="flex gap-1 mt-auto">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: `rgb(${theme.colors.accent})` }} />
+                    <span className="text-[6px] opacity-50 font-mono">print("Hello")</span>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="flex items-center justify-between">
               <div>
-                 <div className="font-bold text-sm text-text-primary">{theme.name}</div>
-                 <div className="text-[10px] text-text-muted capitalize opacity-70">{theme.type}</div>
+                <div className="font-bold text-sm text-text-primary">{theme.name}</div>
+                <div className="text-[10px] text-text-muted capitalize opacity-70">{theme.type}</div>
               </div>
             </div>
             {selectedTheme === theme.id && (
@@ -575,16 +580,15 @@ function ProviderStep({
                   model: p.models[0],
                   baseUrl: undefined
                 })}
-                className={`px-3 py-4 rounded-xl border text-sm font-medium transition-all flex flex-col items-center gap-2 ${
-                  config.provider === p.id
-                    ? 'border-accent bg-accent/10 text-accent shadow-lg shadow-accent/5 ring-1 ring-accent/50'
-                    : 'border-border hover:border-white/20 text-text-muted bg-white/5'
-                }`}
+                className={`px-3 py-4 rounded-xl border text-sm font-medium transition-all flex flex-col items-center gap-2 ${config.provider === p.id
+                  ? 'border-accent bg-accent/10 text-accent shadow-lg shadow-accent/5 ring-1 ring-accent/50'
+                  : 'border-border hover:border-white/20 text-text-muted bg-white/5'
+                  }`}
               >
-                 {/* 这里的 Icon 可以在 providers 配置中增加，暂时用文字首字母代替图形 */}
-                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold ${config.provider === p.id ? 'bg-accent text-white' : 'bg-white/10'}`}>
-                    {p.displayName[0]}
-                 </div>
+                {/* 这里的 Icon 可以在 providers 配置中增加，暂时用文字首字母代替图形 */}
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold ${config.provider === p.id ? 'bg-accent text-white' : 'bg-white/10'}`}>
+                  {p.displayName[0]}
+                </div>
                 <span>{p.displayName}</span>
               </motion.button>
             ))}
@@ -634,15 +638,15 @@ function ProviderStep({
           </div>
           {selectedProvider?.auth.helpUrl && (
             <div className="flex justify-end">
-                <a
-                  href={selectedProvider.auth.helpUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-accent hover:text-accent-hover hover:underline inline-flex items-center gap-1 transition-colors"
-                >
-                  <span>{isZh ? '获取 API Key' : 'Get API Key'}</span>
-                  <ChevronRight className="w-3 h-3" />
-                </a>
+              <a
+                href={selectedProvider.auth.helpUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-accent hover:text-accent-hover hover:underline inline-flex items-center gap-1 transition-colors"
+              >
+                <span>{isZh ? '获取 API Key' : 'Get API Key'}</span>
+                <ChevronRight className="w-3 h-3" />
+              </a>
             </div>
           )}
         </div>
@@ -685,8 +689,8 @@ function WorkspaceStep({
             className="text-center w-full max-w-md"
           >
             <div className="w-24 h-24 rounded-[2rem] bg-gradient-to-br from-status-success/20 to-status-success/5 flex items-center justify-center mb-6 mx-auto shadow-xl shadow-status-success/10 border border-status-success/20 relative">
-               <div className="absolute inset-0 rounded-[2rem] blur-xl bg-status-success/20 -z-10" />
-               <Check className="w-12 h-12 text-status-success" />
+              <div className="absolute inset-0 rounded-[2rem] blur-xl bg-status-success/20 -z-10" />
+              <Check className="w-12 h-12 text-status-success" />
             </div>
             <h3 className="text-text-primary font-bold text-xl mb-3">{isZh ? '项目已就绪' : 'Project Ready'}</h3>
             <div className="text-sm text-text-muted font-mono bg-white/5 px-6 py-4 rounded-2xl border border-border break-all shadow-inner">
@@ -773,27 +777,27 @@ function CompleteStep({ isZh }: { isZh: boolean }) {
             {isZh ? '提示：高级功能' : 'Tip: Advanced Features'}
           </span>
         </div>
-        
+
         <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-xs mb-4">
-           {[
-             isZh ? 'Agent 自动化' : 'Agent Automation',
-             isZh ? '工作区安全' : 'Workspace Security',
-             isZh ? '向量索引' : 'Vector Indexing',
-             isZh ? '性能调优' : 'Performance Tuning'
-           ].map((item, i) => (
-             <div key={i} className="flex items-center gap-2 text-text-secondary">
-               <div className="w-1.5 h-1.5 rounded-full bg-accent/50" />
-               <span>{item}</span>
-             </div>
-           ))}
+          {[
+            isZh ? 'Agent 自动化' : 'Agent Automation',
+            isZh ? '工作区安全' : 'Workspace Security',
+            isZh ? '向量索引' : 'Vector Indexing',
+            isZh ? '性能调优' : 'Performance Tuning'
+          ].map((item, i) => (
+            <div key={i} className="flex items-center gap-2 text-text-secondary">
+              <div className="w-1.5 h-1.5 rounded-full bg-accent/50" />
+              <span>{item}</span>
+            </div>
+          ))}
         </div>
 
         <div className="pt-4 border-t border-border flex items-center justify-between text-xs">
           <span className="text-text-muted">{isZh ? '稍后在设置中探索' : 'Explore in Settings later'}</span>
           <div className="flex items-center gap-1">
-             <kbd className="px-2 py-1 bg-black/20 rounded-md border border-border font-mono text-text-muted">Ctrl</kbd>
-             <span className="text-text-muted/50">+</span>
-             <kbd className="px-2 py-1 bg-black/20 rounded-md border border-border font-mono text-text-muted">,</kbd>
+            <kbd className="px-2 py-1 bg-black/20 rounded-md border border-border font-mono text-text-muted">Ctrl</kbd>
+            <span className="text-text-muted/50">+</span>
+            <kbd className="px-2 py-1 bg-black/20 rounded-md border border-border font-mono text-text-muted">,</kbd>
           </div>
         </div>
       </motion.div>

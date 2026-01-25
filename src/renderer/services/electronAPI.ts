@@ -20,7 +20,7 @@ function createGroupedAPI() {
       toggleDevTools: () => raw.toggleDevTools(),
       new: () => raw.newWindow(),
       getId: () => raw.getWindowId(),
-      resize: (width: number, height: number, minWidth?: number, minHeight?: number) => 
+      resize: (width: number, height: number, minWidth?: number, minHeight?: number) =>
         raw.resizeWindow(width, height, minWidth, minHeight),
     },
 
@@ -41,7 +41,7 @@ function createGroupedAPI() {
       delete: (path: string) => raw.deleteFile(path),
       rename: (oldPath: string, newPath: string) => raw.renameFile(oldPath, newPath),
       showInFolder: (path: string) => raw.showItemInFolder(path),
-      search: (query: string, rootPath: string | string[], options?: Parameters<typeof raw.searchFiles>[2]) => 
+      search: (query: string, rootPath: string | string[], options?: Parameters<typeof raw.searchFiles>[2]) =>
         raw.searchFiles(query, rootPath, options),
       onChanged: (callback: Parameters<typeof raw.onFileChanged>[0]) => raw.onFileChanged(callback),
     },
@@ -76,8 +76,6 @@ function createGroupedAPI() {
       send: (params: Parameters<typeof raw.sendMessage>[0]) => raw.sendMessage(params),
       compactContext: (params: Parameters<typeof raw.compactContext>[0]) => raw.compactContext(params),
       abort: () => raw.abortMessage(),
-      invalidateProviders: () => raw.invalidateProviders(),
-      invalidateProvider: (providerId: string) => raw.invalidateProvider(providerId),
       onStream: (callback: Parameters<typeof raw.onLLMStream>[0]) => raw.onLLMStream(callback),
       onToolCall: (callback: Parameters<typeof raw.onLLMToolCall>[0]) => raw.onLLMToolCall(callback),
       onError: (callback: Parameters<typeof raw.onLLMError>[0]) => raw.onLLMError(callback),
@@ -130,7 +128,7 @@ function createGroupedAPI() {
       setMode: (workspacePath: string, mode: 'structural' | 'semantic') => raw.indexSetMode(workspacePath, mode),
       updateFile: (workspacePath: string, filePath: string) => raw.indexUpdateFile(workspacePath, filePath),
       clear: (workspacePath: string) => raw.indexClear(workspacePath),
-      updateEmbeddingConfig: (workspacePath: string, config: Parameters<typeof raw.indexUpdateEmbeddingConfig>[1]) => 
+      updateEmbeddingConfig: (workspacePath: string, config: Parameters<typeof raw.indexUpdateEmbeddingConfig>[1]) =>
         raw.indexUpdateEmbeddingConfig(workspacePath, config),
       testConnection: (workspacePath: string) => raw.indexTestConnection(workspacePath),
       getProviders: () => raw.indexGetProviders(),
@@ -236,7 +234,7 @@ function createGroupedAPI() {
       stepInto: (sessionId: string) => raw.debugStepInto(sessionId),
       stepOut: (sessionId: string) => raw.debugStepOut(sessionId),
       pause: (sessionId: string) => raw.debugPause(sessionId),
-      setBreakpoints: (sessionId: string, file: string, breakpoints: Parameters<typeof raw.debugSetBreakpoints>[2]) => 
+      setBreakpoints: (sessionId: string, file: string, breakpoints: Parameters<typeof raw.debugSetBreakpoints>[2]) =>
         raw.debugSetBreakpoints(sessionId, file, breakpoints),
       getStackTrace: (sessionId: string, threadId: number) => raw.debugGetStackTrace(sessionId, threadId),
       getScopes: (sessionId: string, frameId: number) => raw.debugGetScopes(sessionId, frameId),

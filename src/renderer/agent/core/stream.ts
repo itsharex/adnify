@@ -1,8 +1,8 @@
 /**
  * 流式处理模块
- * 
+ *
  * 职责：
- * - 处理 LLM 流式响应
+ * - 处理 LLM 流式响应（AI SDK 事件格式）
  * - 解析文本、推理、工具调用
  * - 发布事件到 EventBus
  */
@@ -17,40 +17,35 @@ import type { LLMCallResult } from './types'
 // 解析部分 JSON 参数，提取已完成的字段
 function parsePartialJsonArgs(argsString: string): Record<string, unknown> | null {
   if (!argsString) return null
-  
+
   try {
-    // 尝试直接解析完整 JSON
     return JSON.parse(argsString)
   } catch {
-    // 尝试提取已完成的字段
     const result: Record<string, unknown> = {}
-    
-    // 匹配简单字符串字段（如 "path": "xxx"）
-    // 使用更宽松的正则，支持转义字符
+
+    // 匹配简单字符串字段
     const stringFieldRegex = /"(\w+)":\s*"((?:[^"\\]|\\.)*)"/g
     let match
     while ((match = stringFieldRegex.exec(argsString)) !== null) {
       try {
-        // 使用 JSON.parse 来正确处理转义字符
         result[match[1]] = JSON.parse(`"${match[2]}"`)
       } catch {
-        // 如果解析失败，使用原始值
         result[match[1]] = match[2].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
       }
     }
-    
+
     // 匹配布尔值字段
     const boolFieldRegex = /"(\w+)":\s*(true|false)/g
     while ((match = boolFieldRegex.exec(argsString)) !== null) {
       result[match[1]] = match[2] === 'true'
     }
-    
+
     // 匹配数字字段
     const numFieldRegex = /"(\w+)":\s*(-?\d+(?:\.\d+)?)/g
     while ((match = numFieldRegex.exec(argsString)) !== null) {
       result[match[1]] = parseFloat(match[2])
     }
-    
+
     return Object.keys(result).length > 0 ? result : null
   }
 }
@@ -73,7 +68,7 @@ export function createStreamProcessor(assistantId: string | null): StreamProcess
   let usage: TokenUsage | undefined
   let error: string | undefined
 
-  // 工具调用流式状态 - 使用 Map 支持多个并行工具调用
+  // 工具调用流式状态
   const streamingToolCalls = new Map<string, { id: string; name: string; argsString: string }>()
 
   // 清理函数列表
@@ -81,23 +76,25 @@ export function createStreamProcessor(assistantId: string | null): StreamProcess
 
   const cleanup = () => {
     for (const fn of cleanups) {
-      try { fn() } catch {}
+      try {
+        fn()
+      } catch { }
     }
     cleanups.length = 0
   }
 
-  // 处理流式数据
+  // 处理流式数据（AI SDK 格式）
   const handleStream = (data: {
     type: string
     content?: string
-    reasoning?: string
-    toolCall?: unknown
-    toolCallDelta?: { id?: string; name?: string; args?: string }
+    id?: string
+    name?: string
+    arguments?: unknown
+    argumentsDelta?: string
     usage?: unknown
   }) => {
     switch (data.type) {
       case 'text':
-      case 'content':
         if (data.content) {
           // 收到文本内容时，结束 reasoning 状态
           if (isInReasoning && assistantId && reasoningPartId) {
@@ -105,7 +102,7 @@ export function createStreamProcessor(assistantId: string | null): StreamProcess
             EventBus.emit({ type: 'stream:reasoning', text: '', phase: 'end' })
             isInReasoning = false
           }
-          
+
           content += data.content
           if (assistantId) {
             store.appendToAssistant(assistantId, data.content)
@@ -115,7 +112,7 @@ export function createStreamProcessor(assistantId: string | null): StreamProcess
           // 检测 XML 工具调用
           const detected = parseXMLToolCalls(content)
           for (const tc of detected) {
-            if (!toolCalls.find(t => t.id === tc.id)) {
+            if (!toolCalls.find((t) => t.id === tc.id)) {
               const toolCall: ToolCall = { ...tc, status: 'pending' }
               toolCalls.push(toolCall)
               if (assistantId) {
@@ -128,26 +125,23 @@ export function createStreamProcessor(assistantId: string | null): StreamProcess
         break
 
       case 'reasoning': {
-        // 后端发送的是 { type: 'reasoning', content: xxx }
-        const reasoningContent = data.content || data.reasoning
+        const reasoningContent = data.content
         if (reasoningContent) {
           if (!isInReasoning) {
             isInReasoning = true
             if (assistantId) {
-              // 创建 ReasoningPart 并获取 partId
               reasoningPartId = store.addReasoningPart(assistantId)
-              store.updateMessage(assistantId, { 
-                reasoningStartTime: Date.now() 
+              store.updateMessage(assistantId, {
+                reasoningStartTime: Date.now(),
               } as Partial<import('../types').AssistantMessage>)
             }
             EventBus.emit({ type: 'stream:reasoning', text: '', phase: 'start' })
           }
           reasoning += reasoningContent
           if (assistantId && reasoningPartId) {
-            // 更新 ReasoningPart 内容
             store.updateReasoningPart(assistantId, reasoningPartId, reasoningContent, true)
-            store.updateMessage(assistantId, { 
-              reasoning 
+            store.updateMessage(assistantId, {
+              reasoning,
             } as Partial<import('../types').AssistantMessage>)
           }
           EventBus.emit({ type: 'stream:reasoning', text: reasoningContent, phase: 'delta' })
@@ -155,38 +149,40 @@ export function createStreamProcessor(assistantId: string | null): StreamProcess
         break
       }
 
-      case 'tool_call_start':
-        if (data.toolCallDelta) {
-          // 收到工具调用时，结束 reasoning 状态
-          if (isInReasoning && assistantId && reasoningPartId) {
-            store.finalizeReasoningPart(assistantId, reasoningPartId)
-            EventBus.emit({ type: 'stream:reasoning', text: '', phase: 'end' })
-            isInReasoning = false
-          }
-          
-          const toolId = data.toolCallDelta.id || `tool-${Date.now()}`
-          const toolName = data.toolCallDelta.name || ''
-          streamingToolCalls.set(toolId, { id: toolId, name: toolName, argsString: '' })
-          
-          // 立即添加到 UI
-          if (assistantId) {
-            store.addToolCallPart(assistantId, {
-              id: toolId,
-              name: toolName || '...',
-              arguments: { _streaming: true },
-            })
-          }
-          EventBus.emit({ type: 'stream:tool_start', id: toolId, name: toolName })
-        }
-        break
+      case 'tool_call_start': {
+        const toolId = data.id || `tool-${Date.now()}`
+        const toolName = data.name || ''
 
-      case 'tool_call_delta':
-        if (data.toolCallDelta?.id) {
-          const tc = streamingToolCalls.get(data.toolCallDelta.id)
+        // 收到工具调用时，结束 reasoning 状态
+        if (isInReasoning && assistantId && reasoningPartId) {
+          store.finalizeReasoningPart(assistantId, reasoningPartId)
+          EventBus.emit({ type: 'stream:reasoning', text: '', phase: 'end' })
+          isInReasoning = false
+        }
+
+        streamingToolCalls.set(toolId, { id: toolId, name: toolName, argsString: '' })
+
+        // 立即添加到 UI
+        if (assistantId) {
+          store.addToolCallPart(assistantId, {
+            id: toolId,
+            name: toolName || '...',
+            arguments: { _streaming: true },
+          })
+        }
+        EventBus.emit({ type: 'stream:tool_start', id: toolId, name: toolName })
+        break
+      }
+
+      case 'tool_call_delta': {
+        const tcId = data.id
+        const argsDelta = data.argumentsDelta
+
+        if (tcId) {
+          const tc = streamingToolCalls.get(tcId)
           if (tc) {
-            if (data.toolCallDelta.args) {
-              tc.argsString += data.toolCallDelta.args
-              // 尝试解析参数并更新 UI（提取 path 等关键字段）
+            if (argsDelta) {
+              tc.argsString += argsDelta
               if (assistantId) {
                 const partialArgs = parsePartialJsonArgs(tc.argsString)
                 if (partialArgs && Object.keys(partialArgs).length > 0) {
@@ -196,40 +192,17 @@ export function createStreamProcessor(assistantId: string | null): StreamProcess
                 }
               }
             }
-            if (data.toolCallDelta.name && data.toolCallDelta.name !== tc.name) {
-              tc.name = data.toolCallDelta.name
+            if (data.name && data.name !== tc.name) {
+              tc.name = data.name
               if (assistantId) {
-                store.updateToolCall(assistantId, tc.id, { name: data.toolCallDelta.name })
+                store.updateToolCall(assistantId, tc.id, { name: data.name })
               }
             }
             EventBus.emit({ type: 'stream:tool_delta', id: tc.id, args: tc.argsString })
           }
         }
         break
-
-      case 'tool_call_end':
-        // 优先处理 data.toolCall（完整工具调用，包含正确的 name）
-        if (data.toolCall) {
-          const tc = data.toolCall as ToolCall
-          // 清除流式状态
-          streamingToolCalls.delete(tc.id)
-          
-          // 检查是否已存在于本地数组
-          if (!toolCalls.find(t => t.id === tc.id)) {
-            toolCalls.push({ ...tc, status: 'pending' })
-          }
-          
-          // 更新 UI - 直接使用 updateToolCall，它会处理不存在的情况
-          if (assistantId) {
-            store.updateToolCall(assistantId, tc.id, {
-              name: tc.name,
-              arguments: tc.arguments,
-              status: 'pending',
-            })
-          }
-          EventBus.emit({ type: 'stream:tool_end', id: tc.id, args: tc.arguments })
-        }
-        break
+      }
 
       case 'usage':
         if (data.usage) {
@@ -239,14 +212,24 @@ export function createStreamProcessor(assistantId: string | null): StreamProcess
     }
   }
 
-  // 处理工具调用（通过 onToolCall 回调发送的完整工具调用）
-  const handleToolCall = (tc: unknown) => {
-    const toolCall = tc as ToolCall
-    // 检查是否已存在于本地数组
-    if (!toolCalls.find(t => t.id === toolCall.id)) {
+  // 处理完整工具调用（AI SDK tool-call 事件）
+  const handleToolCall = (tc: { type?: string; id: string; name: string; arguments?: unknown }) => {
+    // 清除流式状态
+    streamingToolCalls.delete(tc.id)
+
+    const toolCall: ToolCall = {
+      id: tc.id,
+      name: tc.name,
+      arguments: (tc.arguments as Record<string, unknown>) || {},
+      status: 'pending',
+    }
+
+    // 检查是否已存在
+    if (!toolCalls.find((t) => t.id === toolCall.id)) {
       toolCalls.push(toolCall)
     }
-    // 更新 UI - 直接使用 updateToolCall
+
+    // 更新 UI
     if (assistantId) {
       store.updateToolCall(assistantId, toolCall.id, {
         name: toolCall.name,
@@ -260,7 +243,9 @@ export function createStreamProcessor(assistantId: string | null): StreamProcess
   // 订阅 IPC 事件
   const unsubStream = api.llm.onStream(handleStream)
   const unsubToolCall = api.llm.onToolCall(handleToolCall)
-  const unsubError = api.llm.onError((err: string) => { error = err })
+  const unsubError = api.llm.onError((err: string) => {
+    error = err
+  })
 
   cleanups.push(unsubStream, unsubToolCall, unsubError)
 
@@ -268,7 +253,7 @@ export function createStreamProcessor(assistantId: string | null): StreamProcess
   const wait = (): Promise<LLMCallResult> => {
     return new Promise((resolve) => {
       let resolved = false
-      
+
       const doResolve = (result: LLMCallResult) => {
         if (resolved) return
         resolved = true
@@ -287,16 +272,16 @@ export function createStreamProcessor(assistantId: string | null): StreamProcess
         }
       }
 
-      // 处理错误事件 - 立即 resolve
+      // 处理错误事件
       const handleError = (err: { message?: string; code?: string } | string) => {
-        const errorMsg = typeof err === 'string' ? err : (err.message || 'Unknown error')
+        const errorMsg = typeof err === 'string' ? err : err.message || 'Unknown error'
         finalizeReasoning()
         EventBus.emit({ type: 'llm:error', error: errorMsg })
         doResolve({ content, toolCalls, usage, error: errorMsg })
       }
-      
+
       // 替换原来的错误处理
-      const errorCleanupIdx = cleanups.findIndex(fn => fn === unsubError)
+      const errorCleanupIdx = cleanups.findIndex((fn) => fn === unsubError)
       if (errorCleanupIdx !== -1) {
         cleanups.splice(errorCleanupIdx, 1)
         unsubError()
@@ -309,7 +294,7 @@ export function createStreamProcessor(assistantId: string | null): StreamProcess
           usage = result.usage as TokenUsage
         }
         finalizeReasoning()
-        
+
         if (error) {
           EventBus.emit({ type: 'llm:error', error })
         } else {

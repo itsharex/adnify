@@ -33,9 +33,8 @@ import type {
   WebSearchConfig,
   McpConfig,
   ProviderConfig,
-  LLMParameters,
 } from './types'
-import { BUILTIN_PROVIDERS, getAdapterConfig } from './providers'
+import { BUILTIN_PROVIDERS } from './providers'
 import type { ApiProtocol } from './providers'
 
 // ============================================
@@ -66,18 +65,17 @@ export interface SettingMeta<T> {
 // 默认值构建
 // ============================================
 
-const defaultLLMParameters: LLMParameters = {
-  temperature: LLM_DEFAULTS.temperature,
-  topP: LLM_DEFAULTS.topP,
-  maxTokens: LLM_DEFAULTS.maxTokens,
-}
-
 const defaultLLMConfig: LLMConfig = {
   provider: LLM_DEFAULTS.defaultProvider,
   model: LLM_DEFAULTS.defaultModel,
   apiKey: '',
-  parameters: defaultLLMParameters,
-  adapterConfig: getAdapterConfig(LLM_DEFAULTS.defaultProvider),
+  temperature: LLM_DEFAULTS.temperature,
+  maxTokens: LLM_DEFAULTS.maxTokens,
+  topP: LLM_DEFAULTS.topP,
+  topK: LLM_DEFAULTS.topK,
+  seed: LLM_DEFAULTS.seed,
+  logitBias: undefined,
+  enableThinking: false,
 }
 
 const defaultAgentConfig: AgentConfig = {
@@ -154,7 +152,6 @@ function generateDefaultProviderConfigs(): Record<string, ProviderModelConfig> {
   for (const [id, provider] of Object.entries(BUILTIN_PROVIDERS)) {
     configs[id] = {
       customModels: [],
-      adapterConfig: provider.adapter,
       model: provider.defaultModel || '',
       baseUrl: provider.baseUrl,
     }
@@ -169,7 +166,7 @@ function generateDefaultProviderConfigs(): Record<string, ProviderModelConfig> {
 export const SETTINGS = {
   llmConfig: {
     default: defaultLLMConfig,
-    persistFields: ['provider', 'model'] as const,
+    // 注意：完整的 llmConfig 由 settingsService 单独处理
   },
   language: {
     default: 'en' as const,
@@ -281,7 +278,6 @@ export function getMainSyncSettings(): SettingKey[] {
 
 export {
   defaultLLMConfig,
-  defaultLLMParameters,
   defaultAgentConfig,
   defaultEditorConfig,
   defaultSecuritySettings,

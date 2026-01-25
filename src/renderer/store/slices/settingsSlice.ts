@@ -49,12 +49,6 @@ export const createSettingsSlice: StateCreator<SettingsSlice, [], [], SettingsSl
 
   set: (key, value) => {
     set({ [key]: value } as Partial<SettingsState>)
-    if (key === 'llmConfig') {
-      const config = value as SettingsState['llmConfig']
-      if (config.apiKey !== undefined || config.baseUrl !== undefined) {
-        window.electronAPI?.invalidateProviders?.()
-      }
-    }
   },
 
   update: (key, partial) => {

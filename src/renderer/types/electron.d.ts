@@ -250,8 +250,6 @@ export interface ElectronAPI {
   sendMessage: (params: LLMSendMessageParams) => Promise<void>
   compactContext: (params: LLMSendMessageParams) => Promise<{ content: string; error?: string }>
   abortMessage: () => void
-  invalidateProviders: () => Promise<void>
-  invalidateProvider: (providerId: string) => Promise<void>
   onLLMStream: (callback: (chunk: LLMStreamChunk) => void) => () => void
   onLLMToolCall: (callback: (toolCall: LLMToolCall) => void) => () => void
   onLLMError: (callback: (error: LLMError) => void) => () => void

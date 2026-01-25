@@ -84,7 +84,7 @@ export default function ModelSelector({ className = '' }: ModelSelectorProps) {
       if (modelIds.length === 0) continue
 
       const models = modelIds.map(id => ({ id, name: id }))
-      const providerName = config.adapterConfig?.name || providerId
+      const providerName = config.displayName || providerId
 
       groups.push({ providerId, providerName, models })
     }
@@ -102,11 +102,9 @@ export default function ModelSelector({ className = '' }: ModelSelectorProps) {
     if (builtinProvider) {
       newConfig.apiKey = config?.apiKey || (llmConfig.provider === providerId ? llmConfig.apiKey : undefined)
       newConfig.baseUrl = config?.baseUrl || builtinProvider.baseUrl
-      newConfig.adapterConfig = config?.adapterConfig || builtinProvider.adapter
     } else if (providerId.startsWith('custom-') && config) {
       newConfig.apiKey = config.apiKey || (llmConfig.provider === providerId ? llmConfig.apiKey : undefined)
       newConfig.baseUrl = config.baseUrl
-      newConfig.adapterConfig = config.adapterConfig
     }
 
     update('llmConfig', newConfig)

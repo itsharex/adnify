@@ -23,12 +23,12 @@ import { pathStartsWith, joinPath } from '@shared/utils/pathUtils'
 import { createStreamProcessor } from './stream'
 import { executeTools } from './tools'
 import { EventBus } from './EventBus'
-import { 
+import {
   generateSummary,
   generateHandoffDocument,
 } from '../context'
 import { updateStats, LEVEL_NAMES } from '../context/CompressionManager'
-import type { OpenAIMessage } from '../llm/MessageConverter'
+import type { LLMMessage } from '@/shared/types'
 import type { WorkMode } from '@/renderer/modes/types'
 import type { LLMConfig, LLMCallResult, ExecutionContext } from './types'
 
@@ -36,7 +36,7 @@ import type { LLMConfig, LLMCallResult, ExecutionContext } from './types'
 
 async function callLLM(
   config: LLMConfig,
-  messages: OpenAIMessage[],
+  messages: LLMMessage[],
   chatMode: WorkMode,
   assistantId: string | null
 ): Promise<LLMCallResult> {
@@ -55,11 +55,11 @@ async function callLLM(
   const tools = chatMode === 'chat' ? [] : toolManager.getAllToolDefinitions()
 
   // 发送请求
-  api.llm.send({ 
-    config: config as import('@shared/types/llm').LLMConfig, 
-    messages: messages as import('../llm/MessageConverter').OpenAIMessage[], 
-    tools, 
-    systemPrompt: '' 
+  api.llm.send({
+    config: config as import('@shared/types/llm').LLMConfig,
+    messages: messages as LLMMessage[],
+    tools,
+    systemPrompt: ''
   }).catch(() => {
     processor.cleanup()
   })
@@ -69,8 +69,8 @@ async function callLLM(
 
   // 更新 usage
   if (assistantId && result.usage) {
-    useAgentStore.getState().updateMessage(assistantId, { 
-      usage: result.usage 
+    useAgentStore.getState().updateMessage(assistantId, {
+      usage: result.usage
     } as Partial<import('../types').AssistantMessage>)
   }
 
@@ -79,7 +79,7 @@ async function callLLM(
 
 async function callLLMWithRetry(
   config: LLMConfig,
-  messages: OpenAIMessage[],
+  messages: LLMMessage[],
   chatMode: WorkMode,
   assistantId: string | null,
   abortSignal?: AbortSignal
@@ -178,7 +178,7 @@ async function checkAndHandleCompression(
 ): Promise<CompressionCheckResult> {
   const thread = store.getCurrentThread()
   const messageCount = thread?.messages.length || 0
-  
+
   // 使用 CompressionManager 更新统计
   const previousStats = store.compressionStats
   const newStats = updateStats(
@@ -187,25 +187,25 @@ async function checkAndHandleCompression(
     previousStats,
     messageCount
   )
-  
+
   // 使用真实 usage 计算的等级
   // 注意：这里不再强制"只升不降"，让 MessageBuilder 在发送前动态调整
   // 但如果之前应用了更高等级的压缩，保留那个等级用于 L3/L4 的特殊处理
   const previousLevel = (previousStats?.level ?? 0) as 0 | 1 | 2 | 3 | 4
   const calculatedLevel = newStats.level
-  
+
   // 只有 L3/L4 需要特殊处理（生成摘要/handoff），其他情况用计算出的等级
   const finalLevel = calculatedLevel >= 3 || previousLevel >= 3
     ? Math.max(previousLevel, calculatedLevel) as 0 | 1 | 2 | 3 | 4
     : calculatedLevel
-  
+
   // 更新为最终等级
   newStats.level = finalLevel
   newStats.levelName = LEVEL_NAMES[finalLevel]
   newStats.needsHandoff = finalLevel >= 4
-  
+
   const { ratio, inputTokens, outputTokens } = newStats
-  
+
   logger.agent.info(
     `[Compression] L${finalLevel} (${LEVEL_NAMES[finalLevel]}), ` +
     `ratio: ${(ratio * 100).toFixed(1)}%, ` +
@@ -272,13 +272,13 @@ async function checkAndHandleCompression(
 
 export async function runLoop(
   config: LLMConfig,
-  llmMessages: OpenAIMessage[],
+  llmMessages: LLMMessage[],
   context: ExecutionContext,
   assistantId: string
 ): Promise<void> {
   const store = useAgentStore.getState()
   const mainStore = useStore.getState()
-  
+
   // 一次性获取所有配置，避免重复调用 getState()
   const agentConfig = getAgentConfig()
   const maxIterations = mainStore.agentConfig.maxToolLoops || agentConfig.maxToolLoops
@@ -431,7 +431,7 @@ export async function runLoop(
       const meta = toolResult.meta
       if (meta?.filePath && typeof meta.filePath === 'string' && typeof meta.newContent === 'string') {
         loopDetector.updateContentHash(meta.filePath, meta.newContent)
-        
+
         // 添加待确认的文件变更
         store.addPendingChange({
           filePath: meta.filePath,

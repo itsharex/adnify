@@ -5,10 +5,10 @@
  */
 
 // 服务
-export { 
-  settingsService, 
-  getEditorConfig, 
-  saveEditorConfig, 
+export {
+  settingsService,
+  getEditorConfig,
+  saveEditorConfig,
   resetEditorConfig,
 } from './service'
 
@@ -23,7 +23,6 @@ export {
   getDefault,
   // 默认值
   defaultLLMConfig,
-  defaultLLMParameters,
   defaultAgentConfig,
   defaultEditorConfig,
   defaultSecuritySettings,
@@ -35,7 +34,6 @@ export {
 // 类型重新导出
 export type {
   LLMConfig,
-  LLMParameters,
   AgentConfig,
   AutoApproveSettings,
   EditorConfig,

@@ -82,7 +82,7 @@ const ToolCallCard = memo(function ToolCallCard({
     const [isExpanded, setIsExpanded] = useState(defaultExpanded)
     const { language, setTerminalVisible } = useStore()
 
-    const args = toolCall.arguments as Record<string, unknown>
+    const args = (toolCall.arguments || {}) as Record<string, unknown>
     const isStreaming = args._streaming === true
     const isRunning = toolCall.status === 'running' || toolCall.status === 'pending'
     const isSuccess = toolCall.status === 'success'
@@ -215,10 +215,10 @@ const ToolCallCard = memo(function ToolCallCard({
         // 搜索类工具（统一样式）
         if (['search_files', 'codebase_search', 'web_search', 'uiux_search'].includes(name)) {
             const query = (args.pattern || args.query) as string
-            const searchType = name === 'codebase_search' ? 'Semantic' 
+            const searchType = name === 'codebase_search' ? 'Semantic'
                 : name === 'web_search' ? 'Web'
-                : name === 'uiux_search' ? 'UI/UX'
-                : 'Files'
+                    : name === 'uiux_search' ? 'UI/UX'
+                        : 'Files'
             return (
                 <div className="bg-surface/50 rounded-md border border-border overflow-hidden">
                     <div className="px-3 py-2 border-b border-border flex items-center gap-2 text-xs text-text-muted">
@@ -325,8 +325,8 @@ const ToolCallCard = memo(function ToolCallCard({
         // 读取文件（显示文件内容预览）
         if (['read_file', 'read_multiple_files'].includes(name)) {
             const filePath = name === 'read_file' ? (args.path as string | undefined) : undefined
-            const displayName = name === 'read_file' 
-                ? (filePath ? getFileName(filePath) : '<no path>') 
+            const displayName = name === 'read_file'
+                ? (filePath ? getFileName(filePath) : '<no path>')
                 : `${(args.paths as string[])?.length || 0} files`
             return (
                 <div className="bg-surface/50 rounded-md border border-border overflow-hidden">
@@ -531,34 +531,34 @@ const ToolCallCard = memo(function ToolCallCard({
         </div>
     )
 },
-(prevProps, nextProps) => {
-    // 名称变化时必须重新渲染
-    if (prevProps.toolCall.name !== nextProps.toolCall.name) {
-        return false
-    }
-    
-    const prevArgs = prevProps.toolCall.arguments as Record<string, unknown>
-    const nextArgs = nextProps.toolCall.arguments as Record<string, unknown>
-    const prevStreaming = prevArgs?._streaming
-    const nextStreaming = nextArgs?._streaming
-    
-    // 流式传输中，检查关键参数是否变化
-    if (prevStreaming || nextStreaming) {
-        // 检查 path 等关键字段是否变化
-        if (prevArgs?.path !== nextArgs?.path) return false
-        if (prevArgs?.command !== nextArgs?.command) return false
-        if (prevArgs?.query !== nextArgs?.query) return false
-        if (prevArgs?.pattern !== nextArgs?.pattern) return false
-        return prevProps.toolCall.id === nextProps.toolCall.id && prevStreaming === nextStreaming
-    }
-    
-    return (
-        prevProps.toolCall.id === nextProps.toolCall.id &&
-        prevProps.toolCall.status === nextProps.toolCall.status &&
-        prevProps.isAwaitingApproval === nextProps.isAwaitingApproval &&
-        prevProps.toolCall.result === nextProps.toolCall.result &&
-        prevProps.defaultExpanded === nextProps.defaultExpanded
-    )
-})
+    (prevProps, nextProps) => {
+        // 名称变化时必须重新渲染
+        if (prevProps.toolCall.name !== nextProps.toolCall.name) {
+            return false
+        }
+
+        const prevArgs = prevProps.toolCall.arguments as Record<string, unknown>
+        const nextArgs = nextProps.toolCall.arguments as Record<string, unknown>
+        const prevStreaming = prevArgs?._streaming
+        const nextStreaming = nextArgs?._streaming
+
+        // 流式传输中，检查关键参数是否变化
+        if (prevStreaming || nextStreaming) {
+            // 检查 path 等关键字段是否变化
+            if (prevArgs?.path !== nextArgs?.path) return false
+            if (prevArgs?.command !== nextArgs?.command) return false
+            if (prevArgs?.query !== nextArgs?.query) return false
+            if (prevArgs?.pattern !== nextArgs?.pattern) return false
+            return prevProps.toolCall.id === nextProps.toolCall.id && prevStreaming === nextStreaming
+        }
+
+        return (
+            prevProps.toolCall.id === nextProps.toolCall.id &&
+            prevProps.toolCall.status === nextProps.toolCall.status &&
+            prevProps.isAwaitingApproval === nextProps.isAwaitingApproval &&
+            prevProps.toolCall.result === nextProps.toolCall.result &&
+            prevProps.defaultExpanded === nextProps.defaultExpanded
+        )
+    })
 
 export default ToolCallCard

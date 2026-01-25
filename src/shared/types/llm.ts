@@ -3,8 +3,6 @@
  * 单一来源 - 所有 LLM 相关类型从此文件导出
  */
 
-import type { LLMAdapterConfig, AdvancedConfig } from '@/shared/config/providers'
-
 // ============================================
 // 消息内容类型
 // ============================================
@@ -32,7 +30,8 @@ export type MessageContent = string | MessageContentPart[]
 
 export interface LLMMessage {
     role: 'user' | 'assistant' | 'system' | 'tool'
-    content: MessageContent
+    /** 消息内容，assistant 有 tool_calls 时可为 null */
+    content: MessageContent | null
     /** OpenAI 格式的工具调用 */
     tool_calls?: LLMToolCallMessage[]
     /** 工具结果对应的调用 ID */
@@ -57,18 +56,36 @@ export interface LLMToolCallMessage {
 
 export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'deepseek' | 'groq' | 'mistral' | 'ollama' | 'custom'
 
+/**
+ * 统一的 LLM 配置接口
+ */
 export interface LLMConfig {
     provider: string
     model: string
     apiKey: string
     baseUrl?: string
     timeout?: number
+
+    // LLM 参数
     maxTokens?: number
     temperature?: number
     topP?: number
-    adapterConfig?: LLMAdapterConfig
-    /** 高级配置（认证、请求、响应、视觉覆盖） */
-    advanced?: AdvancedConfig
+    frequencyPenalty?: number
+    presencePenalty?: number
+    stopSequences?: string[]
+    topK?: number
+    seed?: number
+    logitBias?: Record<string, number>
+
+    // Provider 高级配置
+    advanced?: import('@shared/config/providers').AdvancedConfig
+
+    /** 协议类型 - 用于 AI SDK provider 选择 */
+    protocol?: 'openai' | 'anthropic' | 'google' | 'custom'
+    /** 启用深度思考（如 Claude extended thinking） */
+    enableThinking?: boolean
+    /** 启用视觉能力 */
+    enableVision?: boolean
 }
 
 export interface LLMParameters {
@@ -77,6 +94,9 @@ export interface LLMParameters {
     maxTokens: number
     frequencyPenalty?: number
     presencePenalty?: number
+    topK?: number
+    seed?: number
+    logitBias?: Record<string, number>
 }
 
 // ============================================

@@ -2,7 +2,7 @@
  * 上下文管理类型定义
  */
 
-import type { OpenAIMessage } from '../llm/MessageConverter'
+import type { LLMMessage } from '@/shared/types'
 
 // 从 CompressionManager.ts 导入 CompressionLevel，避免重复定义
 export type { CompressionLevel } from './CompressionManager'
@@ -82,7 +82,7 @@ export type ContextStats = CompressionStats
 
 /** 优化后的上下文 */
 export interface OptimizedContext {
-  messages: OpenAIMessage[]
+  messages: LLMMessage[]
   summary: StructuredSummary | null
   stats: CompressionStats
   handoff?: HandoffDocument

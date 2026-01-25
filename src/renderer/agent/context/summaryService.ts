@@ -9,7 +9,6 @@
 import { api } from '@/renderer/services/electronAPI'
 import { logger } from '@utils/Logger'
 import { useStore } from '@store'
-import { getAdapterConfig } from '@/shared/config/providers'
 import { getAgentConfig } from '../utils/AgentConfig'
 import type { StructuredSummary, HandoffDocument, FileChangeRecord } from './types'
 import type { ChatMessage, AssistantMessage, UserMessage } from '../types'
@@ -63,14 +62,14 @@ function extractFileChanges(messages: ChatMessage[]): FileChangeRecord[] {
 
   for (const msg of messages) {
     if (msg.role === 'user') turnIndex++
-    
+
     if (msg.role === 'assistant') {
       const assistantMsg = msg as AssistantMessage
       for (const tc of assistantMsg.toolCalls || []) {
         if (tc.status === 'success') {
           const args = tc.arguments as Record<string, unknown>
           const path = args.path as string
-          
+
           if (tc.name === 'write_file' || tc.name === 'create_file') {
             changes.push({
               path,
@@ -106,12 +105,12 @@ function extractFileChanges(messages: ChatMessage[]): FileChangeRecord[] {
  */
 function extractUserRequests(messages: ChatMessage[]): string[] {
   const requests: string[] = []
-  
+
   for (const msg of messages) {
     if (msg.role === 'user') {
       const userMsg = msg as UserMessage
       const content = getMessageText(userMsg.content)
-      
+
       if (content.trim()) {
         requests.push(content.slice(0, 200))
       }
@@ -141,7 +140,7 @@ function buildConversationText(messages: ChatMessage[], maxLength = 8000): strin
     } else if (msg.role === 'assistant') {
       const assistantMsg = msg as AssistantMessage
       text = `Assistant: ${(assistantMsg.content || '').slice(0, 500)}`
-      
+
       // 添加工具调用摘要
       if (assistantMsg.toolCalls?.length) {
         const toolSummary = assistantMsg.toolCalls
@@ -176,7 +175,7 @@ export async function generateSummary(
   } = { type: 'quick' }
 ): Promise<SummaryResult> {
   const { llmConfig } = useStore.getState()
-  
+
   // 如果没有配置 API Key，返回基于规则的摘要
   if (!llmConfig.apiKey) {
     return generateRuleBasedSummary(messages)
@@ -208,7 +207,6 @@ export async function generateSummary(
         timeout: llmConfig.timeout,
         maxTokens: options.maxTokens || 500,
         temperature: 0.3,
-        adapterConfig: llmConfig.adapterConfig || getAdapterConfig(llmConfig.provider),
       },
       messages: [
         { role: 'system', content: prompt },
@@ -222,7 +220,7 @@ export async function generateSummary(
     }
 
     const summary = result.content || ''
-    
+
     return {
       summary,
       objective: userRequests[0] || 'Unknown objective',
@@ -247,7 +245,7 @@ async function generateHandoffSummary(
   llmConfig: import('@store').LLMConfig
 ): Promise<SummaryResult> {
   const lastUserRequest = userRequests[userRequests.length - 1] || ''
-  
+
   const userPrompt = `Analyze the following conversation and extract structured information:\n\n${conversationText}\n\nLast user request: "${lastUserRequest}"`
 
   try {
@@ -260,7 +258,6 @@ async function generateHandoffSummary(
         timeout: llmConfig.timeout,
         maxTokens: 1000,
         temperature: 0.2, // 更低的温度以获得更结构化的输出
-        adapterConfig: llmConfig.adapterConfig || getAdapterConfig(llmConfig.provider),
       },
       messages: [
         { role: 'system', content: HANDOFF_PROMPT },
@@ -276,7 +273,7 @@ async function generateHandoffSummary(
     // 尝试解析 JSON 响应
     const content = result.content || ''
     let parsed: any
-    
+
     try {
       // 移除可能的 markdown 代码块标记
       const cleaned = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
@@ -290,10 +287,10 @@ async function generateHandoffSummary(
     const objective = parsed.objective || userRequests[0] || 'Unknown objective'
     const completedSteps = Array.isArray(parsed.completedSteps) ? parsed.completedSteps : extractCompletedSteps(messages)
     let pendingSteps = Array.isArray(parsed.pendingSteps) ? parsed.pendingSteps : []
-    
+
     // 确保最后一个未完成的请求在 pendingSteps 中
     if (parsed.lastRequestStatus !== 'completed' && lastUserRequest) {
-      const lastRequestInPending = pendingSteps.some((step: string) => 
+      const lastRequestInPending = pendingSteps.some((step: string) =>
         step.toLowerCase().includes(lastUserRequest.slice(0, 30).toLowerCase())
       )
       if (!lastRequestInPending) {
@@ -333,11 +330,11 @@ function generateRuleBasedSummary(messages: ChatMessage[], lastUserRequest?: str
   if (lastUserRequest) {
     // 简单启发式：如果最后几条消息中没有成功的工具调用，认为请求未完成
     const lastMessages = messages.slice(-5)
-    const hasRecentSuccess = lastMessages.some(m => 
-      m.role === 'assistant' && 
+    const hasRecentSuccess = lastMessages.some(m =>
+      m.role === 'assistant' &&
       (m as import('../types').AssistantMessage).toolCalls?.some(tc => tc.status === 'success')
     )
-    
+
     if (!hasRecentSuccess) {
       pendingSteps.push(`Continue: ${lastUserRequest.slice(0, 100)}${lastUserRequest.length > 100 ? '...' : ''}`)
     }
@@ -345,16 +342,16 @@ function generateRuleBasedSummary(messages: ChatMessage[], lastUserRequest?: str
 
   // 构建简单摘要
   const parts: string[] = []
-  
+
   if (userRequests.length > 0) {
     parts.push(`Objective: ${userRequests[0].slice(0, 100)}`)
   }
-  
+
   if (fileChanges.length > 0) {
     parts.push(`Files modified: ${fileChanges.length}`)
     parts.push(fileChanges.slice(-5).map(f => `- ${f.action}: ${f.path}`).join('\n'))
   }
-  
+
   if (completedSteps.length > 0) {
     parts.push(`Completed: ${completedSteps.length} steps`)
   }
@@ -384,7 +381,7 @@ function extractCompletedSteps(messages: ChatMessage[]): string[] {
       for (const tc of assistantMsg.toolCalls || []) {
         if (tc.status === 'success') {
           const args = tc.arguments as Record<string, unknown>
-          
+
           switch (tc.name) {
             case 'write_file':
             case 'create_file':

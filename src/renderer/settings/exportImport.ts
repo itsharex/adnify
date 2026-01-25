@@ -37,17 +37,16 @@ export function exportSettings(settings: SettingsState, includeApiKeys = false):
       customModels: config.customModels,
       advanced: config.advanced,
     }
-    
+
     if (includeApiKeys && config.apiKey) {
       cleanedConfig.apiKey = config.apiKey
     }
-    
+
     if (!isBuiltinProvider(id)) {
       cleanedConfig.displayName = config.displayName
       cleanedConfig.protocol = config.protocol
-      cleanedConfig.adapterConfig = config.adapterConfig
     }
-    
+
     exported.providerConfigs![id] = cleanedConfig as ProviderModelConfig
   }
 
@@ -64,15 +63,15 @@ export function exportSettings(settings: SettingsState, includeApiKeys = false):
 export function importSettings(json: string): { success: boolean; settings?: Partial<AppSettings>; error?: string } {
   try {
     const parsed = JSON.parse(json) as ExportedSettings
-    
+
     if (!parsed.version || !parsed.settings) {
       return { success: false, error: 'Invalid settings file format' }
     }
-    
+
     if (typeof parsed.settings !== 'object') {
       return { success: false, error: 'Invalid settings data' }
     }
-    
+
     return { success: true, settings: parsed.settings }
   } catch (e) {
     return { success: false, error: `Failed to parse JSON: ${e instanceof Error ? e.message : 'Unknown error'}` }
@@ -87,7 +86,7 @@ export function downloadSettings(settings: SettingsState, includeApiKeys = false
   const json = JSON.stringify(exported, null, 2)
   const blob = new Blob([json], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
-  
+
   const a = document.createElement('a')
   a.href = url
   a.download = `adnify-settings-${new Date().toISOString().split('T')[0]}.json`

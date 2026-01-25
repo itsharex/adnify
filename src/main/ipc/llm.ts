@@ -1,5 +1,7 @@
 /**
  * LLM IPC handlers
+ * 
+ * 使用 AI SDK 后的简化版本
  * 支持多窗口隔离：每个窗口有独立的 LLM 服务实例
  */
 
@@ -13,7 +15,7 @@ const llmServices = new Map<number, LLMService>()
 const compactionServices = new Map<number, LLMService>()
 
 export function registerLLMHandlers(_getMainWindow: () => BrowserWindow | null) {
-  // 发送消息
+  // 发送消息（流式）
   ipcMain.handle('llm:sendMessage', async (event, params) => {
     const webContentsId = event.sender.id
     const window = BrowserWindow.fromWebContents(event.sender)
@@ -30,12 +32,12 @@ export function registerLLMHandlers(_getMainWindow: () => BrowserWindow | null) 
 
     try {
       await llmServices.get(webContentsId)!.sendMessage(params)
-    } catch (error: any) {
+    } catch (error: unknown) {
       throw error
     }
   })
 
-  // 独立的压缩请求（不使用流式，直接返回结果）
+  // 独立的压缩请求（同步，直接返回结果）
   ipcMain.handle('llm:compactContext', async (event, params) => {
     const webContentsId = event.sender.id
     const window = BrowserWindow.fromWebContents(event.sender)
@@ -53,9 +55,10 @@ export function registerLLMHandlers(_getMainWindow: () => BrowserWindow | null) 
     try {
       const result = await compactionServices.get(webContentsId)!.sendMessageSync(params)
       return result
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string }
       logger.ipc.error('[LLMService] Compaction error:', error)
-      return { error: error.message }
+      return { error: err.message }
     }
   })
 
@@ -64,32 +67,20 @@ export function registerLLMHandlers(_getMainWindow: () => BrowserWindow | null) 
     const webContentsId = event.sender.id
     llmServices.get(webContentsId)?.abort()
   })
-
-  // 使所有 Provider 缓存失效（API Key 变更时调用）
-  ipcMain.handle('llm:invalidateProviders', (event) => {
-    const webContentsId = event.sender.id
-    const service = llmServices.get(webContentsId)
-    if (service) {
-      service.invalidateAllProviders()
-      logger.ipc.info('[LLMService] Providers invalidated for window:', webContentsId)
-    }
-  })
-
-  // 使指定 Provider 缓存失效
-  ipcMain.handle('llm:invalidateProvider', (event, providerId: string) => {
-    const webContentsId = event.sender.id
-    const service = llmServices.get(webContentsId)
-    if (service) {
-      service.invalidateProvider(providerId)
-      logger.ipc.info('[LLMService] Provider invalidated:', providerId, 'for window:', webContentsId)
-    }
-  })
 }
 
 // 清理指定窗口的 LLM 服务（窗口关闭时调用）
 export function cleanupLLMService(webContentsId: number) {
-  if (llmServices.has(webContentsId)) {
+  const service = llmServices.get(webContentsId)
+  if (service) {
     logger.ipc.info('[LLMService] Cleaning up service for window:', webContentsId)
+    service.destroy()
     llmServices.delete(webContentsId)
+  }
+
+  const compactionService = compactionServices.get(webContentsId)
+  if (compactionService) {
+    compactionService.destroy()
+    compactionServices.delete(webContentsId)
   }
 }

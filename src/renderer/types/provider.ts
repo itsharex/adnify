@@ -6,7 +6,7 @@
  * - 自定义厂商：存储完整配置，通过 id 以 "custom-" 前缀区分
  */
 
-import type { LLMAdapterConfig, AdvancedConfig, ApiProtocol } from '@/shared/config/providers'
+import type { AdvancedConfig, ApiProtocol } from '@/shared/config/providers'
 
 export type { AdvancedConfig }
 
@@ -20,9 +20,8 @@ export interface ProviderModelConfig {
   timeout?: number
   model?: string
   customModels?: string[]           // 模型列表（内置厂商是额外添加的，自定义厂商是全部模型）
-  adapterConfig?: LLMAdapterConfig
   advanced?: AdvancedConfig
-  
+
   // 自定义厂商专用字段（custom- 前缀的 provider）
   displayName?: string              // 显示名称
   protocol?: ApiProtocol            // API 协议：openai/anthropic/gemini/custom

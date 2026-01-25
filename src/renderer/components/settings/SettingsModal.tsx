@@ -100,7 +100,6 @@ export default function SettingsModal() {
                 baseUrl: localConfig.baseUrl,
                 timeout: localConfig.timeout,
                 model: localConfig.model,
-                adapterConfig: currentProviderLocalConfig.adapterConfig || localConfig.adapterConfig,
                 advanced: currentProviderLocalConfig.advanced,
             }
         }
@@ -164,7 +163,7 @@ export default function SettingsModal() {
                 flushIntervalMs: editorSettings.flushIntervalMs,
             }
         }
-        
+
         // 更新 store 的 editorConfig
         set('editorConfig', finalEditorConfig)
 
@@ -217,17 +216,16 @@ export default function SettingsModal() {
                             {language === 'zh' ? '设置' : 'Settings'}
                         </h2>
                     </div>
-                    
+
                     <nav className="flex-1 px-4 space-y-1 overflow-y-auto no-scrollbar">
                         {tabs.map(tab => (
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group ${
-                                    activeTab === tab.id
-                                    ? 'bg-accent text-white shadow-md shadow-accent/20'
-                                    : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
-                                }`}
+                                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group ${activeTab === tab.id
+                                        ? 'bg-accent text-white shadow-md shadow-accent/20'
+                                        : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
+                                    }`}
                             >
                                 <span className={`transition-colors duration-200 ${activeTab === tab.id ? 'text-white' : 'text-text-muted group-hover:text-text-primary'}`}>
                                     {tab.icon}
@@ -279,12 +277,12 @@ export default function SettingsModal() {
                                 />
                             )}
                             {activeTab === 'editor' && (
-                                <EditorSettings 
-                                    settings={editorSettings} 
-                                    setSettings={setEditorSettings} 
+                                <EditorSettings
+                                    settings={editorSettings}
+                                    setSettings={setEditorSettings}
                                     advancedConfig={advancedEditorConfig}
                                     setAdvancedConfig={setAdvancedEditorConfig}
-                                    language={language} 
+                                    language={language}
                                 />
                             )}
                             {activeTab === 'snippets' && <SnippetSettings language={language} />}
@@ -322,14 +320,13 @@ export default function SettingsModal() {
                             <Button variant="ghost" onClick={() => setShowSettings(false)} className="hover:bg-black/5 dark:hover:bg-white/10 text-text-secondary rounded-lg">
                                 {language === 'zh' ? '取消' : 'Cancel'}
                             </Button>
-                            <Button 
-                                variant={saved ? 'success' : 'primary'} 
+                            <Button
+                                variant={saved ? 'success' : 'primary'}
                                 onClick={handleSave}
-                                className={`min-w-[140px] shadow-lg transition-all duration-300 rounded-xl ${
-                                    saved 
-                                    ? 'bg-status-success hover:bg-status-success/90 text-white' 
-                                    : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20'
-                                }`}
+                                className={`min-w-[140px] shadow-lg transition-all duration-300 rounded-xl ${saved
+                                        ? 'bg-status-success hover:bg-status-success/90 text-white'
+                                        : 'bg-accent hover:bg-accent-hover text-white shadow-accent/20'
+                                    }`}
                             >
                                 {saved ? (
                                     <span className="flex items-center gap-2 justify-center font-bold">

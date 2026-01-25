@@ -21,6 +21,8 @@ export const LLM_DEFAULTS = {
   presencePenalty: 0,
   defaultProvider: 'openai',
   defaultModel: 'gpt-4o',
+  topK: 0,
+  seed: undefined,
 } as const
 
 // ============================================
@@ -157,14 +159,14 @@ export const AGENT_DEFAULTS = {
   maxImportantOldTurns: 3,
   enableLLMSummary: true,
   autoHandoff: true,
-  
+
   // 摘要生成配置
   summaryMaxContextChars: {
     quick: 8000,      // 快速摘要：8k 字符
     detailed: 12000,  // 详细摘要：12k 字符
     handoff: 16000,   // Handoff 摘要：16k 字符（需要更多上下文）
   },
-  
+
   // Prune 配置（工具结果清理）
   pruneMinimumTokens: 20000,      // 开始 prune 的最小 token 阈值
   pruneProtectTokens: 40000,      // 保护最近多少 token 的工具调用不被 prune

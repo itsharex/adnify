@@ -30,8 +30,10 @@
     "rebuild:all": "npx electron-rebuild -f -w"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.71.2",
-    "@google/genai": "^1.35.0",
+    "@ai-sdk/anthropic": "^3.0.23",
+    "@ai-sdk/google": "^3.0.13",
+    "@ai-sdk/openai": "^3.0.18",
+    "@ai-sdk/openai-compatible": "^2.0.18",
     "@lancedb/lancedb": "^0.23.0",
     "@modelcontextprotocol/sdk": "^1.25.1",
     "@monaco-editor/react": "^4.6.0",
@@ -42,6 +44,7 @@
     "@xterm/addon-webgl": "^0.18.0",
     "@xterm/xterm": "^5.5.0",
     "adm-zip": "^0.5.16",
+    "ai": "^6.0.49",
     "diff": "^8.0.2",
     "dugite": "^2.7.1",
     "electron-store": "^8.1.0",
@@ -53,7 +56,6 @@
     "lucide-react": "^0.562.0",
     "monaco-editor": "^0.55.1",
     "node-pty": "^1.1.0",
-    "openai": "^6.16.0",
     "p-limit": "^3.1.0",
     "picomatch": "^4.0.3",
     "png2icons": "^2.0.1",

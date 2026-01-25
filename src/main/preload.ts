@@ -181,8 +181,6 @@ export interface ElectronAPI {
   // LLM
   sendMessage: (params: LLMSendMessageParams) => Promise<void>
   abortMessage: () => void
-  invalidateProviders: () => Promise<void>
-  invalidateProvider: (providerId: string) => Promise<void>
   onLLMStream: (callback: (data: LLMStreamChunk) => void) => () => void
   onLLMToolCall: (callback: (toolCall: LLMToolCall) => void) => () => void
   onLLMError: (callback: (error: LLMError) => void) => () => void
@@ -368,7 +366,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   toggleDevTools: () => ipcRenderer.send('window:toggleDevTools'),
   newWindow: () => ipcRenderer.invoke('window:new'),
   getWindowId: () => ipcRenderer.invoke('window:getId'),
-  resizeWindow: (width: number, height: number, minWidth?: number, minHeight?: number) => 
+  resizeWindow: (width: number, height: number, minWidth?: number, minHeight?: number) =>
     ipcRenderer.invoke('window:resize', width, height, minWidth, minHeight),
 
   openFile: () => ipcRenderer.invoke('file:open'),
@@ -414,8 +412,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sendMessage: (params: LLMSendMessageParams) => ipcRenderer.invoke('llm:sendMessage', params),
   compactContext: (params: LLMSendMessageParams) => ipcRenderer.invoke('llm:compactContext', params),
   abortMessage: () => ipcRenderer.send('llm:abort'),
-  invalidateProviders: () => ipcRenderer.invoke('llm:invalidateProviders'),
-  invalidateProvider: (providerId: string) => ipcRenderer.invoke('llm:invalidateProvider', providerId),
   onLLMStream: (callback: (data: LLMStreamChunk) => void) => {
     const handler = (_: IpcRendererEvent, data: LLMStreamChunk) => callback(data)
     ipcRenderer.on('llm:stream', handler)

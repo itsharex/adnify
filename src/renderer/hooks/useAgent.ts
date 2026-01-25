@@ -78,7 +78,7 @@ export function useAgent() {
   // 消息检查点操作
   const restoreToCheckpoint = useAgentStore(state => state.restoreToCheckpoint)
   const getCheckpointForMessage = useAgentStore(state => state.getCheckpointForMessage)
-  
+
   // 清空消息（包括工具调用日志和 handoff 状态）
   const clearMessages = useCallback(() => {
     clearMessagesAction()
@@ -129,11 +129,10 @@ export function useAgent() {
         apiKey: llmConfig.apiKey,
         baseUrl: llmConfig.baseUrl,
         timeout: llmConfig.timeout,
-        maxTokens: llmConfig.parameters?.maxTokens,
-        temperature: llmConfig.parameters?.temperature,
-        topP: llmConfig.parameters?.topP,
-        adapterConfig: llmConfig.adapterConfig,
-        advanced: llmConfig.advanced,
+        maxTokens: llmConfig.maxTokens,
+        temperature: llmConfig.temperature,
+        topP: llmConfig.topP,
+        enableThinking: llmConfig.enableThinking,
         // 传递上下文限制（用于压缩判断）
         contextLimit: agentConfig.maxContextTokens,
       },

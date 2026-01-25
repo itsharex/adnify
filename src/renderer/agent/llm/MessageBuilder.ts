@@ -7,7 +7,8 @@
 
 import { logger } from '@utils/Logger'
 import { useAgentStore } from '../store/AgentStore'
-import { buildOpenAIMessages, validateOpenAIMessages, OpenAIMessage } from './MessageConverter'
+import { buildLLMApiMessages, validateLLMMessages } from './MessageConverter'
+import type { LLMMessage } from '@/shared/types'
 import { prepareMessages, estimateMessagesTokens, CompressionLevel, LEVEL_NAMES, calculateLevel } from '../context/CompressionManager'
 import { MessageContent, ChatMessage } from '../types'
 
@@ -23,11 +24,11 @@ export async function buildLLMMessages(
   currentMessage: MessageContent,
   contextContent: string,
   systemPrompt: string
-): Promise<OpenAIMessage[]> {
+): Promise<LLMMessage[]> {
   const store = useAgentStore.getState()
   const historyMessages = store.getMessages()
   const currentThread = store.getCurrentThread()
-  
+
   // 获取上下文限制
   const agentConfig = (await import('../utils/AgentConfig')).getAgentConfig()
   const contextLimit = agentConfig.maxContextTokens || 128_000
@@ -46,7 +47,7 @@ export async function buildLLMMessages(
   // 预估当前用户消息的 token（包括 context）
   const { buildUserContent } = await import('./ContextBuilder')
   const userContent = buildUserContent(currentMessage, contextContent)
-  
+
   // 正确估算用户消息 token（支持图片）
   let userMessageTokens = 0
   if (typeof userContent === 'string') {
@@ -108,18 +109,18 @@ export async function buildLLMMessages(
 
   // 排除最后一条用户消息（会在后面重新添加带上下文的版本）
   const lastMsg = preparedMessages[preparedMessages.length - 1]
-  const messagesToConvert = lastMsg?.role === 'user' 
-    ? preparedMessages.slice(0, -1) 
+  const messagesToConvert = lastMsg?.role === 'user'
+    ? preparedMessages.slice(0, -1)
     : preparedMessages
 
-  // 转换为 OpenAI 格式
-  const openaiMessages = buildOpenAIMessages(messagesToConvert, enhancedSystemPrompt)
+  // 转换为 LLM API 格式
+  const llmMessages = buildLLMApiMessages(messagesToConvert, enhancedSystemPrompt)
 
   // 添加当前用户消息（复用已构建的 userContent）
-  openaiMessages.push({ role: 'user', content: userContent })
+  llmMessages.push({ role: 'user', content: userContent })
 
   // 验证消息格式
-  const validation = validateOpenAIMessages(openaiMessages)
+  const validation = validateLLMMessages(llmMessages)
   if (!validation.valid) {
     logger.agent.warn('[MessageBuilder] Validation warning:', validation.error)
   }
@@ -137,17 +138,17 @@ export async function buildLLMMessages(
     contextLimit,
     savedTokens: 0,
     savedPercent: 0,
-    messageCount: openaiMessages.length,
+    messageCount: llmMessages.length,
     needsHandoff: displayLevel >= 4,
     lastUpdatedAt: Date.now(),
   })
 
   logger.agent.info(
-    `[MessageBuilder] Built ${openaiMessages.length} messages, ` +
+    `[MessageBuilder] Built ${llmMessages.length} messages, ` +
     `L${appliedLevel} (${LEVEL_NAMES[appliedLevel]}), ` +
     `~${estimatedTokens}/${contextLimit} tokens (${(finalRatio * 100).toFixed(1)}%), ` +
     `compressed: ${truncatedToolCalls + clearedToolResults + removedMessages > 0}`
   )
 
-  return openaiMessages
+  return llmMessages
 }

@@ -24,7 +24,6 @@ import {
 import {
   isBuiltinProvider,
   getBuiltinProvider,
-  getAdapterConfig,
   cleanAdvancedConfig,
 } from '@shared/config/providers'
 import type { ProviderConfig, LLMConfig } from '@shared/config/types'
@@ -99,18 +98,6 @@ function cleanProviderConfig(
   }
 
   if (!isBuiltin) {
-    if (config.adapterConfig) {
-      const cleanedAdapter = { ...config.adapterConfig }
-      if (cleanedAdapter.request?.headers) {
-        const cleanedHeaders = { ...cleanedAdapter.request.headers }
-        delete cleanedHeaders['Authorization']
-        delete cleanedHeaders['authorization']
-        delete cleanedHeaders['x-api-key']
-        delete cleanedHeaders['X-Api-Key']
-        cleanedAdapter.request = { ...cleanedAdapter.request, headers: cleanedHeaders }
-      }
-      cleaned.adapterConfig = cleanedAdapter
-    }
     if (config.displayName) cleaned.displayName = config.displayName
     if (config.protocol) cleaned.protocol = config.protocol
     if (config.createdAt) cleaned.createdAt = config.createdAt
@@ -132,54 +119,42 @@ function mergeProviderConfigs(
     if (isBuiltinProvider(id)) {
       merged[id] = { ...defaults[id], ...config }
     } else {
-      merged[id] = { ...config, adapterConfig: config.adapterConfig || getAdapterConfig('openai') }
+      merged[id] = { ...config }
     }
   }
   return merged
 }
 
 function mergeLLMConfig(
-  saved: { provider: string; model: string } | undefined,
+  saved: Partial<LLMConfig> | undefined,
   providerConfigs: Record<string, ProviderConfig>
 ): LLMConfig {
   const defaults = SETTINGS.llmConfig.default
   if (!saved) return defaults
 
-  const providerId = saved.provider || 'openai'
-  const providerConfig = providerConfigs[providerId] || {}
+  const providerId = saved.provider ?? defaults.provider
+  const providerConfig = providerConfigs[providerId] ?? {}
   const builtinDef = getBuiltinProvider(providerId)
 
-  const merged: LLMConfig = {
-    ...defaults,
+  // 优先级：saved > providerConfig > builtinDef > defaults
+  return {
     provider: providerId,
-    model: saved.model || providerConfig.model || builtinDef?.defaultModel || defaults.model,
-    apiKey: providerConfig.apiKey || '',
-    baseUrl: providerConfig.baseUrl || builtinDef?.baseUrl,
-    timeout: providerConfig.timeout || builtinDef?.defaults.timeout || 120000,
-    parameters: { ...defaults.parameters },
+    model: saved.model ?? providerConfig.model ?? builtinDef?.defaultModel ?? defaults.model,
+    apiKey: providerConfig.apiKey ?? defaults.apiKey,
+    baseUrl: providerConfig.baseUrl ?? builtinDef?.baseUrl ?? defaults.baseUrl,
+    timeout: providerConfig.timeout ?? builtinDef?.defaults.timeout ?? defaults.timeout,
+    enableThinking: saved.enableThinking ?? defaults.enableThinking,
+    temperature: saved.temperature ?? defaults.temperature,
+    maxTokens: saved.maxTokens ?? defaults.maxTokens,
+    topP: saved.topP ?? defaults.topP,
+    frequencyPenalty: saved.frequencyPenalty,
+    presencePenalty: saved.presencePenalty,
+    stopSequences: saved.stopSequences,
+    topK: saved.topK ?? defaults.topK,
+    seed: saved.seed ?? defaults.seed,
+    logitBias: saved.logitBias,
+    advanced: providerConfig.advanced,
   }
-
-  if (isBuiltinProvider(providerId)) {
-    merged.adapterConfig = { ...getAdapterConfig(providerId) }
-  } else {
-    merged.adapterConfig = providerConfig.adapterConfig || { ...getAdapterConfig('openai') }
-  }
-
-  if (providerConfig.advanced && merged.adapterConfig) {
-    if (providerConfig.advanced.request) {
-      merged.adapterConfig.request = {
-        ...merged.adapterConfig.request,
-        ...providerConfig.advanced.request,
-        headers: { ...merged.adapterConfig.request.headers, ...providerConfig.advanced.request.headers },
-      }
-    }
-    if (providerConfig.advanced.response) {
-      merged.adapterConfig.response = { ...merged.adapterConfig.response, ...providerConfig.advanced.response }
-    }
-    merged.advanced = providerConfig.advanced
-  }
-
-  return merged
 }
 
 // ============================================
@@ -237,11 +212,24 @@ class SettingsService {
         if (cleaned) cleanedProviderConfigs[id] = cleaned as ProviderConfig
       }
 
+      // DEBUG: 查看保存时 llmConfig 的实际值
+      console.log('[SettingsService] Saving llmConfig:', JSON.stringify(settings.llmConfig, null, 2))
+
       // 构建 app-settings
       const appSettings = {
         llmConfig: {
           provider: settings.llmConfig.provider,
           model: settings.llmConfig.model,
+          enableThinking: settings.llmConfig.enableThinking,
+          temperature: settings.llmConfig.temperature,
+          maxTokens: settings.llmConfig.maxTokens,
+          topP: settings.llmConfig.topP,
+          frequencyPenalty: settings.llmConfig.frequencyPenalty,
+          presencePenalty: settings.llmConfig.presencePenalty,
+          stopSequences: settings.llmConfig.stopSequences,
+          topK: settings.llmConfig.topK,
+          seed: settings.llmConfig.seed,
+          logitBias: settings.llmConfig.logitBias,
         },
         language: settings.language,
         autoApprove: settings.autoApprove,
@@ -320,8 +308,8 @@ class SettingsService {
       webSearchConfig: { ...defaults.webSearchConfig, ...(saved.webSearchConfig as object || {}) },
       mcpConfig: { ...defaults.mcpConfig, ...(saved.mcpConfig as object || {}) },
       aiInstructions: (saved.aiInstructions as string) || defaults.aiInstructions,
-      onboardingCompleted: typeof saved.onboardingCompleted === 'boolean' 
-        ? saved.onboardingCompleted 
+      onboardingCompleted: typeof saved.onboardingCompleted === 'boolean'
+        ? saved.onboardingCompleted
         : defaults.onboardingCompleted,
       enableFileLogging: typeof saved.enableFileLogging === 'boolean'
         ? saved.enableFileLogging
@@ -354,7 +342,20 @@ class SettingsService {
   private saveToLocalStorage(settings: SettingsState): void {
     try {
       localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify({
-        llmConfig: { provider: settings.llmConfig.provider, model: settings.llmConfig.model },
+        llmConfig: {
+          provider: settings.llmConfig.provider,
+          model: settings.llmConfig.model,
+          enableThinking: settings.llmConfig.enableThinking,
+          temperature: settings.llmConfig.temperature,
+          maxTokens: settings.llmConfig.maxTokens,
+          topP: settings.llmConfig.topP,
+          frequencyPenalty: settings.llmConfig.frequencyPenalty,
+          presencePenalty: settings.llmConfig.presencePenalty,
+          stopSequences: settings.llmConfig.stopSequences,
+          topK: settings.llmConfig.topK,
+          seed: settings.llmConfig.seed,
+          logitBias: settings.llmConfig.logitBias,
+        },
         language: settings.language,
         autoApprove: settings.autoApprove,
         promptTemplateId: settings.promptTemplateId,

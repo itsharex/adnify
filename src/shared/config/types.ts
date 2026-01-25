@@ -5,28 +5,18 @@
  * 其他文件应从此处导入类型，而非重复定义
  */
 
-import type { LLMAdapterConfig, AdvancedConfig } from './providers'
+import type { AdvancedConfig } from './providers'
+import type { LLMConfig } from '@/shared/types/llm'
 
 // ============================================
-// LLM 配置
+// LLM 配置（从 shared/types/llm 重新导出）
 // ============================================
 
-export interface LLMParameters {
-  temperature: number
-  topP: number
-  maxTokens: number
-}
+// 重新导出统一的 LLM 类型，避免重复定义
+export type { LLMConfig }
 
-export interface LLMConfig {
-  provider: string
-  model: string
-  apiKey: string
-  baseUrl?: string
-  timeout?: number
-  parameters: LLMParameters
-  adapterConfig?: LLMAdapterConfig
-  advanced?: AdvancedConfig
-}
+// 导出 Provider 相关类型供其他模块使用
+export type { AdvancedConfig }
 
 // ============================================
 // Provider 配置（保存到文件的格式）
@@ -39,7 +29,6 @@ export interface ProviderConfig {
   timeout?: number
   customModels?: string[]
   advanced?: AdvancedConfig
-  adapterConfig?: LLMAdapterConfig
   // 自定义 Provider 元数据
   displayName?: string
   protocol?: string

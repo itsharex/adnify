@@ -1,49 +1,29 @@
 /**
  * Provider 设置组件
  * 
- * 逻辑说明：
- * 1. 内置 Provider（OpenAI/Anthropic/Gemini）：显示标准配置 + AdapterOverridesEditor
- * 2. 自定义 Provider（custom- 前缀）：从 providerConfigs 读取，显示标准配置
- * 3. 点击"+"添加时：显示 CustomProviderEditor 表单
+ * 重构后版本：移除 CustomProviderEditor 和 AdapterOverridesEditor 依赖
+ * 使用内联表单添加自定义厂商，使用 AI SDK 原生配置
  */
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Plus, Trash, Eye, EyeOff, Check, AlertTriangle, X, Server, Sliders, Box } from 'lucide-react'
 import { useStore } from '@store'
-import { PROVIDERS, getAdapterConfig, getBuiltinProvider, type LLMAdapterConfig, type AdvancedConfig } from '@/shared/config/providers'
+import { PROVIDERS } from '@/shared/config/providers'
 import { toast } from '@components/common/ToastProvider'
 import { Button, Input, Select } from '@components/ui'
 import { ProviderSettingsProps } from '../types'
-import { CustomProviderEditor } from './CustomProviderEditor'
-import { AdapterOverridesEditor } from '../AdapterOverridesEditor'
 import { isCustomProvider } from '@renderer/types/provider'
 
 // 内置厂商 ID
-const BUILTIN_PROVIDER_IDS = ['openai', 'anthropic', 'gemini']
+const BUILTIN_PROVIDER_IDS = ['openai', 'anthropic', 'gemini', 'deepseek', 'groq']
 
-/**
- * 将 LLMAdapterConfig 转换为 AdvancedConfig（用于回显）
- */
-function adapterConfigToAdvanced(config: LLMAdapterConfig | undefined, isCustom: boolean): AdvancedConfig | undefined {
-  if (!config) return undefined
-  if (!isCustom) {
-    if (!config.request?.bodyTemplate || Object.keys(config.request.bodyTemplate).length === 0) {
-      return undefined
-    }
-  }
-  return {
-    request: {
-      endpoint: config.request?.endpoint,
-      bodyTemplate: config.request?.bodyTemplate,
-    },
-    response: {
-      contentField: config.response?.contentField,
-      reasoningField: config.response?.reasoningField,
-      toolCallField: config.response?.toolCallField,
-      doneMarker: config.response?.doneMarker,
-    },
-  }
-}
+// 协议类型选项
+const PROTOCOL_OPTIONS = [
+  { value: 'openai', label: 'OpenAI Compatible' },
+  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'google', label: 'Google (Gemini)' },
+  { value: 'custom', label: 'Custom' },
+]
 
 function TestConnectionButton({ localConfig, language }: { localConfig: any; language: 'en' | 'zh' }) {
   const [testing, setTesting] = useState(false)
@@ -105,6 +85,105 @@ function TestConnectionButton({ localConfig, language }: { localConfig: any; lan
   )
 }
 
+// 内联的添加自定义 Provider 表单
+function InlineCustomProviderForm({
+  language,
+  onSave,
+  onCancel
+}: {
+  language: 'en' | 'zh'
+  onSave: (config: { displayName: string; baseUrl: string; apiKey: string; protocol: string; model: string }) => void
+  onCancel: () => void
+}) {
+  const [displayName, setDisplayName] = useState('')
+  const [baseUrl, setBaseUrl] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [protocol, setProtocol] = useState('openai')
+  const [model, setModel] = useState('')
+
+  const handleSubmit = () => {
+    if (!displayName.trim() || !baseUrl.trim()) {
+      toast.error(language === 'zh' ? '请填写名称和 API 端点' : 'Please enter name and API endpoint')
+      return
+    }
+    onSave({ displayName: displayName.trim(), baseUrl: baseUrl.trim(), apiKey, protocol, model: model.trim() })
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-text-secondary">
+            {language === 'zh' ? '显示名称' : 'Display Name'}
+          </label>
+          <Input
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder={language === 'zh' ? '例如: 智谱 GLM' : 'e.g. My Provider'}
+            className="bg-background/50 border-border text-sm"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-text-secondary">
+            {language === 'zh' ? '协议类型' : 'Protocol'}
+          </label>
+          <Select
+            value={protocol}
+            onChange={setProtocol}
+            options={PROTOCOL_OPTIONS}
+            className="bg-background/50 border-border"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-text-secondary">
+          {language === 'zh' ? 'API 端点' : 'API Endpoint'}
+        </label>
+        <Input
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+          placeholder="https://api.example.com/v1"
+          className="bg-background/50 border-border font-mono text-xs"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-text-secondary">API Key</label>
+          <Input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="sk-..."
+            className="bg-background/50 border-border font-mono text-xs"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-text-secondary">
+            {language === 'zh' ? '默认模型' : 'Default Model'}
+          </label>
+          <Input
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            placeholder={language === 'zh' ? '例如: gpt-4' : 'e.g. gpt-4'}
+            className="bg-background/50 border-border text-xs"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2 pt-2">
+        <Button variant="ghost" size="sm" onClick={onCancel}>
+          {language === 'zh' ? '取消' : 'Cancel'}
+        </Button>
+        <Button variant="primary" size="sm" onClick={handleSubmit}>
+          {language === 'zh' ? '添加' : 'Add'}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function ProviderSettings({
   localConfig,
   setLocalConfig,
@@ -116,9 +195,15 @@ export function ProviderSettings({
   providers,
   language,
 }: ProviderSettingsProps) {
-  const { addModel, removeModel, providerConfigs, removeProvider } = useStore()
+  const { addModel, removeModel, providerConfigs, removeProvider, setProvider } = useStore()
   const [newModelName, setNewModelName] = useState('')
   const [isAddingCustom, setIsAddingCustom] = useState(false)
+  const [logitBiasString, setLogitBiasString] = useState('')
+
+  // Sync logitBiasString with localConfig
+  useEffect(() => {
+    setLogitBiasString(localConfig.logitBias ? JSON.stringify(localConfig.logitBias, null, 2) : '')
+  }, [localConfig.logitBias])
 
   // 从 providerConfigs 获取自定义厂商列表
   const customProviders = useMemo(() => {
@@ -130,9 +215,6 @@ export function ProviderSettings({
   // 当前选中的是自定义 Provider 吗？
   const isCustomSelected = isCustomProvider(localConfig.provider)
   const selectedCustomConfig = isCustomSelected ? providerConfigs[localConfig.provider] : null
-
-  // 获取当前 Provider 的 adapterConfig（用于回显）
-  const currentAdapterConfig = localProviderConfigs[localConfig.provider]?.adapterConfig
 
   const handleAddModel = () => {
     if (newModelName.trim()) {
@@ -151,7 +233,6 @@ export function ProviderSettings({
         apiKey: localConfig.apiKey,
         baseUrl: localConfig.baseUrl,
         timeout: localConfig.timeout,
-        adapterConfig: localConfig.adapterConfig,
         model: localConfig.model,
       },
     }
@@ -166,7 +247,6 @@ export function ProviderSettings({
       apiKey: nextConfig.apiKey || '',
       baseUrl: nextConfig.baseUrl || providerInfo?.endpoint.default || '',
       timeout: nextConfig.timeout || providerInfo?.defaults.timeout || 120000,
-      adapterConfig: nextConfig.adapterConfig || getAdapterConfig(providerId),
       model: nextConfig.model || providerInfo?.models[0] || '',
     })
     setIsAddingCustom(false)
@@ -182,7 +262,6 @@ export function ProviderSettings({
         apiKey: localConfig.apiKey,
         baseUrl: localConfig.baseUrl,
         timeout: localConfig.timeout,
-        adapterConfig: localConfig.adapterConfig,
         model: localConfig.model,
       },
     }
@@ -198,10 +277,29 @@ export function ProviderSettings({
       apiKey: customConfig.apiKey || '',
       baseUrl: customConfig.baseUrl || '',
       timeout: customConfig.timeout || 120000,
-      adapterConfig: customConfig.adapterConfig || getAdapterConfig('openai'),
       model: customConfig.model || models[0] || '',
     })
     setIsAddingCustom(false)
+  }
+
+  // 添加自定义 Provider
+  const handleAddCustomProvider = (config: { displayName: string; baseUrl: string; apiKey: string; protocol: string; model: string }) => {
+    const id = `custom-${Date.now()}`
+    const newConfig = {
+      displayName: config.displayName,
+      baseUrl: config.baseUrl,
+      apiKey: config.apiKey,
+      protocol: config.protocol as 'openai' | 'anthropic' | 'gemini' | 'custom',
+      model: config.model,
+      customModels: config.model ? [config.model] : [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }
+    setProvider(id, newConfig)
+    toast.success(language === 'zh' ? `已添加 ${config.displayName}` : `Added ${config.displayName}`)
+    setIsAddingCustom(false)
+    // 自动选择新添加的 Provider
+    handleSelectCustomProvider(id)
   }
 
   // 删除自定义 Provider
@@ -221,54 +319,6 @@ export function ProviderSettings({
     }
   }
 
-  // 更新 adapterOverrides 并同步到 adapterConfig
-  const handleAdvancedConfigChange = (advanced: AdvancedConfig | undefined) => {
-    const newConfigs = { ...localProviderConfigs }
-    if (!newConfigs[localConfig.provider]) {
-      newConfigs[localConfig.provider] = { customModels: [] }
-    }
-
-    newConfigs[localConfig.provider] = {
-      ...newConfigs[localConfig.provider],
-      advanced: advanced,
-    }
-
-    if (advanced) {
-      const baseConfig = localConfig.adapterConfig || getAdapterConfig(localConfig.provider) || getAdapterConfig('openai')
-      
-      const updatedAdapterConfig: LLMAdapterConfig = {
-        ...baseConfig,
-        request: {
-          ...baseConfig.request,
-          endpoint: advanced.request?.endpoint || baseConfig.request.endpoint,
-          headers: { ...baseConfig.request.headers, ...advanced.request?.headers },
-          bodyTemplate: advanced.request?.bodyTemplate || baseConfig.request.bodyTemplate,
-        },
-        response: {
-          ...baseConfig.response,
-          contentField: advanced.response?.contentField || baseConfig.response.contentField,
-          reasoningField: advanced.response?.reasoningField,
-          toolCallField: advanced.response?.toolCallField,
-          doneMarker: advanced.response?.doneMarker || baseConfig.response.doneMarker,
-        },
-        toolFormat: advanced.toolFormat ? {
-          wrapMode: advanced.toolFormat.wrapMode || baseConfig.toolFormat?.wrapMode || 'function',
-          wrapField: advanced.toolFormat.wrapField ?? baseConfig.toolFormat?.wrapField,
-          parameterField: advanced.toolFormat.parameterField || baseConfig.toolFormat?.parameterField || 'parameters',
-          includeType: advanced.toolFormat.includeType ?? baseConfig.toolFormat?.includeType ?? true,
-        } : baseConfig.toolFormat,
-      }
-      newConfigs[localConfig.provider].adapterConfig = updatedAdapterConfig
-      setLocalConfig({ ...localConfig, adapterConfig: updatedAdapterConfig })
-    } else {
-      const defaultConfig = getAdapterConfig(localConfig.provider)
-      newConfigs[localConfig.provider].adapterConfig = defaultConfig
-      setLocalConfig({ ...localConfig, adapterConfig: defaultConfig })
-    }
-
-    setLocalProviderConfigs(newConfigs)
-  }
-
   const builtinProviders = providers.filter((p) => BUILTIN_PROVIDER_IDS.includes(p.id))
 
   return (
@@ -281,18 +331,17 @@ export function ProviderSettings({
             {language === 'zh' ? '选择提供商' : 'Select Provider'}
           </h4>
         </div>
-        
+
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {/* 内置厂商 */}
           {builtinProviders.map((p) => (
             <button
               key={p.id}
               onClick={() => handleSelectBuiltinProvider(p.id)}
-              className={`group relative flex flex-col items-center justify-center p-5 rounded-2xl border transition-all duration-300 ${
-                localConfig.provider === p.id
-                  ? 'border-accent bg-accent/5 text-accent shadow-xl shadow-accent/5 ring-1 ring-accent/20'
-                  : 'border-border bg-surface/30 text-text-secondary hover:bg-surface/50 hover:border-accent/30 hover:text-text-primary'
-              }`}
+              className={`group relative flex flex-col items-center justify-center p-5 rounded-2xl border transition-all duration-300 ${localConfig.provider === p.id
+                ? 'border-accent bg-accent/5 text-accent shadow-xl shadow-accent/5 ring-1 ring-accent/20'
+                : 'border-border bg-surface/30 text-text-secondary hover:bg-surface/50 hover:border-accent/30 hover:text-text-primary'
+                }`}
             >
               <span className={`font-bold text-sm ${localConfig.provider === p.id ? 'text-text-primary' : ''}`}>{p.name}</span>
               {localConfig.provider === p.id && (
@@ -310,11 +359,10 @@ export function ProviderSettings({
               <div
                 key={id}
                 onClick={() => handleSelectCustomProvider(id)}
-                className={`group relative flex flex-col items-center justify-center p-5 rounded-2xl border transition-all duration-300 cursor-pointer ${
-                  localConfig.provider === id
-                    ? 'border-accent bg-accent/5 text-accent shadow-xl shadow-accent/5 ring-1 ring-accent/20'
-                    : 'border-border bg-surface/30 text-text-secondary hover:bg-surface/50 hover:border-accent/30 hover:text-text-primary'
-                }`}
+                className={`group relative flex flex-col items-center justify-center p-5 rounded-2xl border transition-all duration-300 cursor-pointer ${localConfig.provider === id
+                  ? 'border-accent bg-accent/5 text-accent shadow-xl shadow-accent/5 ring-1 ring-accent/20'
+                  : 'border-border bg-surface/30 text-text-secondary hover:bg-surface/50 hover:border-accent/30 hover:text-text-primary'
+                  }`}
               >
                 <span className={`font-bold text-sm truncate w-full text-center ${localConfig.provider === id ? 'text-text-primary' : ''}`}>{displayName}</span>
                 {localConfig.provider === id && (
@@ -336,11 +384,10 @@ export function ProviderSettings({
           {/* 添加按钮 */}
           <button
             onClick={() => setIsAddingCustom(true)}
-            className={`flex flex-col items-center justify-center p-5 rounded-2xl border-2 border-dashed transition-all duration-300 ${
-              isAddingCustom
-                ? 'border-accent bg-accent/5 text-accent shadow-inner'
-                : 'border-border bg-white/5 text-text-muted hover:border-accent/50 hover:text-accent hover:bg-accent/5'
-            }`}
+            className={`flex flex-col items-center justify-center p-5 rounded-2xl border-2 border-dashed transition-all duration-300 ${isAddingCustom
+              ? 'border-accent bg-accent/5 text-accent shadow-inner'
+              : 'border-border bg-white/5 text-text-muted hover:border-accent/50 hover:text-accent hover:bg-accent/5'
+              }`}
           >
             <Plus className="w-6 h-6 mb-1" />
             <span className="text-xs font-bold uppercase tracking-tighter">{language === 'zh' ? '添加自定义' : 'Add Custom'}</span>
@@ -358,10 +405,9 @@ export function ProviderSettings({
                 <X className="w-4 h-4" />
               </Button>
             </div>
-            <CustomProviderEditor
+            <InlineCustomProviderForm
               language={language}
-              isNew
-              onSave={() => setIsAddingCustom(false)}
+              onSave={handleAddCustomProvider}
               onCancel={() => setIsAddingCustom(false)}
             />
           </div>
@@ -381,7 +427,7 @@ export function ProviderSettings({
                   {language === 'zh' ? '模型配置' : 'Model Configuration'}
                 </h5>
               </div>
-              
+
               <div className="space-y-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-text-secondary">
@@ -419,7 +465,7 @@ export function ProviderSettings({
                       <Plus className="w-4 h-4" />
                     </Button>
                   </div>
-                  
+
                   {(providerConfigs[localConfig.provider]?.customModels?.length ?? 0) > 0 && (
                     <div className="flex flex-wrap gap-2 mt-3">
                       {providerConfigs[localConfig.provider]?.customModels?.map((model: string) => (
@@ -428,8 +474,8 @@ export function ProviderSettings({
                           className="group flex items-center gap-1.5 px-2 py-1 bg-surface/50 rounded-md border border-border text-xs text-text-secondary hover:border-border"
                         >
                           <span>{model}</span>
-                          <button 
-                            onClick={() => removeModel(localConfig.provider, model)} 
+                          <button
+                            onClick={() => removeModel(localConfig.provider, model)}
                             className="text-text-muted hover:text-red-400 opacity-50 group-hover:opacity-100 transition-opacity"
                           >
                             <Trash className="w-3 h-3" />
@@ -456,7 +502,7 @@ export function ProviderSettings({
                 <div className="flex items-center justify-between">
                   <label className="text-xs text-text-secondary">{language === 'zh' ? '最大 Token' : 'Max Tokens'}</label>
                   <span className="text-xs font-mono bg-background/50 px-1.5 py-0.5 rounded text-accent">
-                    {localConfig.parameters?.maxTokens || 8192}
+                    {localConfig.maxTokens || 8192}
                   </span>
                 </div>
                 <input
@@ -464,10 +510,10 @@ export function ProviderSettings({
                   min={1024}
                   max={32768}
                   step={1024}
-                  value={localConfig.parameters?.maxTokens || 8192}
+                  value={localConfig.maxTokens || 8192}
                   onChange={(e) => setLocalConfig({
                     ...localConfig,
-                    parameters: { ...localConfig.parameters, maxTokens: parseInt(e.target.value) }
+                    maxTokens: parseInt(e.target.value)
                   })}
                   className="w-full h-1.5 bg-surface-active rounded-full appearance-none cursor-pointer accent-accent hover:accent-accent-hover"
                 />
@@ -480,7 +526,7 @@ export function ProviderSettings({
                     {language === 'zh' ? '随机性 (Temperature)' : 'Temperature'}
                   </label>
                   <span className="text-xs font-mono bg-background/50 px-1.5 py-0.5 rounded text-accent">
-                    {(localConfig.parameters?.temperature || 0.7).toFixed(1)}
+                    {(localConfig.temperature || 0.7).toFixed(1)}
                   </span>
                 </div>
                 <input
@@ -488,10 +534,10 @@ export function ProviderSettings({
                   min={0}
                   max={2}
                   step={0.1}
-                  value={localConfig.parameters?.temperature || 0.7}
+                  value={localConfig.temperature || 0.7}
                   onChange={(e) => setLocalConfig({
                     ...localConfig,
-                    parameters: { ...localConfig.parameters, temperature: parseFloat(e.target.value) }
+                    temperature: parseFloat(e.target.value)
                   })}
                   className="w-full h-1.5 bg-surface-active rounded-full appearance-none cursor-pointer accent-accent hover:accent-accent-hover"
                 />
@@ -506,7 +552,7 @@ export function ProviderSettings({
                 <div className="flex items-center justify-between">
                   <label className="text-xs text-text-secondary">Top P</label>
                   <span className="text-xs font-mono bg-background/50 px-1.5 py-0.5 rounded text-accent">
-                    {(localConfig.parameters?.topP || 1).toFixed(2)}
+                    {(localConfig.topP || 1).toFixed(2)}
                   </span>
                 </div>
                 <input
@@ -514,18 +560,180 @@ export function ProviderSettings({
                   min={0}
                   max={1}
                   step={0.05}
-                  value={localConfig.parameters?.topP || 1}
+                  value={localConfig.topP || 1}
                   onChange={(e) => setLocalConfig({
                     ...localConfig,
-                    parameters: { ...localConfig.parameters, topP: parseFloat(e.target.value) }
+                    topP: parseFloat(e.target.value)
                   })}
                   className="w-full h-1.5 bg-surface-active rounded-full appearance-none cursor-pointer accent-accent hover:accent-accent-hover"
+                />
+              </div>
+
+              {/* Top K */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-text-secondary">Top K</label>
+                  <span className="text-xs font-mono bg-background/50 px-1.5 py-0.5 rounded text-accent">
+                    {localConfig.topK ?? 'Default'}
+                  </span>
+                </div>
+                <input
+                  type="number"
+                  min={0}
+                  value={localConfig.topK ?? ''}
+                  onChange={(e) => setLocalConfig({
+                    ...localConfig,
+                    topK: e.target.value ? parseInt(e.target.value) : undefined
+                  })}
+                  placeholder="Default"
+                  className="w-full bg-surface-active rounded-lg px-3 py-1.5 text-xs border border-border focus:border-accent focus:ring-1 focus:ring-accent/50 outline-none transition-all"
+                />
+              </div>
+
+              {/* 深度思考模式 */}
+              <div className="flex items-center justify-between pt-3 border-t border-border/50">
+                <div className="space-y-0.5">
+                  <label className="text-xs font-medium text-text-secondary">
+                    {language === 'zh' ? '深度思考模式' : 'Extended Thinking'}
+                  </label>
+                  <p className="text-[10px] text-text-muted">
+                    {language === 'zh'
+                      ? '启用后，模型会进行更深入的推理（如 Claude extended thinking）'
+                      : 'Enable deeper reasoning (e.g., Claude extended thinking)'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setLocalConfig({ ...localConfig, enableThinking: !localConfig.enableThinking })}
+                  className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${localConfig.enableThinking ? 'bg-accent' : 'bg-surface-active'
+                    }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${localConfig.enableThinking ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                  />
+                </button>
+              </div>
+
+              {/* Frequency Penalty */}
+              <div className="space-y-3 pt-3 border-t border-border/50">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-text-secondary">Frequency Penalty</label>
+                  <span className="text-xs font-mono bg-background/50 px-1.5 py-0.5 rounded text-accent">
+                    {(localConfig.frequencyPenalty || 0).toFixed(1)}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={-2}
+                  max={2}
+                  step={0.1}
+                  value={localConfig.frequencyPenalty || 0}
+                  onChange={(e) => setLocalConfig({
+                    ...localConfig,
+                    frequencyPenalty: parseFloat(e.target.value)
+                  })}
+                  className="w-full h-1.5 bg-surface-active rounded-full appearance-none cursor-pointer accent-accent hover:accent-accent-hover"
+                />
+              </div>
+
+              {/* Presence Penalty */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-text-secondary">Presence Penalty</label>
+                  <span className="text-xs font-mono bg-background/50 px-1.5 py-0.5 rounded text-accent">
+                    {(localConfig.presencePenalty || 0).toFixed(1)}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={-2}
+                  max={2}
+                  step={0.1}
+                  value={localConfig.presencePenalty || 0}
+                  onChange={(e) => setLocalConfig({
+                    ...localConfig,
+                    presencePenalty: parseFloat(e.target.value)
+                  })}
+                  className="w-full h-1.5 bg-surface-active rounded-full appearance-none cursor-pointer accent-accent hover:accent-accent-hover"
+                />
+              </div>
+
+              {/* Seed */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-text-secondary">Seed</label>
+                  <span className="text-xs font-mono bg-background/50 px-1.5 py-0.5 rounded text-accent">
+                    {localConfig.seed ?? 'Random'}
+                  </span>
+                </div>
+                <input
+                  type="number"
+                  value={localConfig.seed ?? ''}
+                  onChange={(e) => setLocalConfig({
+                    ...localConfig,
+                    seed: e.target.value ? parseInt(e.target.value) : undefined
+                  })}
+                  placeholder="Random"
+                  className="w-full bg-surface-active rounded-lg px-3 py-1.5 text-xs border border-border focus:border-accent focus:ring-1 focus:ring-accent/50 outline-none transition-all"
+                />
+              </div>
+
+              {/* Stop Sequences */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-text-secondary">Stop Sequences</label>
+                  <span className="text-[10px] text-text-muted bg-background/50 px-1.5 py-0.5 rounded">
+                    Comma separated
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  value={localConfig.stopSequences?.join(', ') || ''}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setLocalConfig({
+                      ...localConfig,
+                      stopSequences: val ? val.split(',').map(s => s.trim()).filter(Boolean) : undefined
+                    })
+                  }}
+                  placeholder="e.g. \n, User:"
+                  className="w-full bg-surface-active rounded-lg px-3 py-1.5 text-xs border border-border focus:border-accent focus:ring-1 focus:ring-accent/50 outline-none transition-all"
+                />
+              </div>
+
+              {/* Logit Bias */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-text-secondary">Logit Bias (JSON)</label>
+                  <span className="text-[10px] text-text-muted bg-background/50 px-1.5 py-0.5 rounded">
+                    Token ID: Bias
+                  </span>
+                </div>
+                <textarea
+                  value={logitBiasString}
+                  onChange={(e) => setLogitBiasString(e.target.value)}
+                  onBlur={() => {
+                    try {
+                      if (!logitBiasString.trim()) {
+                        setLocalConfig({ ...localConfig, logitBias: undefined })
+                        return
+                      }
+                      const parsed = JSON.parse(logitBiasString)
+                      if (typeof parsed === 'object' && parsed !== null) {
+                        setLocalConfig({ ...localConfig, logitBias: parsed })
+                      }
+                    } catch {
+                      // Invalid JSON
+                    }
+                  }}
+                  placeholder='{"50256": -100}'
+                  className="w-full h-20 bg-surface-active rounded-lg px-3 py-1.5 text-xs border border-border focus:border-accent focus:ring-1 focus:ring-accent/50 outline-none transition-all font-mono"
                 />
               </div>
             </section>
           </div>
 
-          {/* 下方全宽：认证 & 网络适配器 */}
+          {/* 下方全宽：认证 & 网络配置 */}
           <section className="p-6 bg-surface/30 rounded-xl border border-border">
             <div className="flex items-center gap-2 mb-5">
               <Server className="w-4 h-4 text-accent" />
@@ -534,7 +742,7 @@ export function ProviderSettings({
               </h5>
             </div>
 
-            {/* 基础配置：三列布局 - 输入框对齐 */}
+            {/* 基础配置：三列布局 */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
               {/* API Key */}
               <div className="space-y-2">
@@ -585,14 +793,14 @@ export function ProviderSettings({
             </div>
 
             {/* 操作按钮行 */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <TestConnectionButton localConfig={localConfig} language={language} />
                 {!isCustomSelected && PROVIDERS[localConfig.provider]?.auth.helpUrl && (
-                  <a 
-                    href={PROVIDERS[localConfig.provider]?.auth.helpUrl} 
-                    target="_blank" 
-                    rel="noreferrer" 
+                  <a
+                    href={PROVIDERS[localConfig.provider]?.auth.helpUrl}
+                    target="_blank"
+                    rel="noreferrer"
                     className="text-xs text-text-muted hover:text-accent hover:underline flex items-center gap-1"
                   >
                     {language === 'zh' ? '获取 Key' : 'Get Key'} <span className="opacity-50">↗</span>
@@ -602,30 +810,6 @@ export function ProviderSettings({
               <p className="text-[10px] text-text-muted">
                 {language === 'zh' ? '留空端点使用默认值，超时建议 60-300 秒' : 'Leave endpoint empty for default, timeout recommended 60-300s'}
               </p>
-            </div>
-
-            {/* 高级适配器配置 */}
-            <div className="pt-4 border-t border-border">
-              <details className="group">
-                <summary className="flex items-center gap-2 text-xs font-medium text-text-muted cursor-pointer hover:text-accent transition-colors select-none py-2">
-                  <span className="group-open:rotate-90 transition-transform">▶</span>
-                  {language === 'zh' ? '高级适配器配置' : 'Advanced Adapter Settings'}
-                  <span className="text-[10px] text-text-muted/60 ml-2">
-                    {language === 'zh' ? '(请求体、响应解析、视觉配置等)' : '(body template, response parsing, vision, etc.)'}
-                  </span>
-                </summary>
-                <div className="mt-4">
-                  <AdapterOverridesEditor
-                    overrides={localProviderConfigs[localConfig.provider]?.advanced || adapterConfigToAdvanced(currentAdapterConfig, isCustomSelected)}
-                    onChange={handleAdvancedConfigChange}
-                    language={language}
-                    defaultEndpoint={getAdapterConfig(localConfig.provider)?.request?.endpoint || '/chat/completions'}
-                    defaultConfig={isCustomSelected ? currentAdapterConfig : getAdapterConfig(localConfig.provider)}
-                    defaultSupportsVision={isCustomSelected ? false : (getBuiltinProvider(localConfig.provider)?.features?.vision ?? true)}
-                    fullWidth
-                  />
-                </div>
-              </details>
             </div>
           </section>
         </div>

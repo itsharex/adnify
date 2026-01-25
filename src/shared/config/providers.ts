@@ -94,17 +94,7 @@ export interface ToolFormatConfig {
   includeType: boolean // 是否包含 type 字段
 }
 
-/** LLM 适配器配置（完整的自定义协议配置） */
-export interface LLMAdapterConfig {
-  id: string
-  name: string
-  description?: string
-  protocol: ApiProtocol
-  request: RequestConfig
-  response: ResponseConfig
-  messageFormat?: MessageFormatConfig
-  toolFormat?: ToolFormatConfig
-}
+
 
 /** 功能支持声明 */
 export interface ProviderFeatures {
@@ -136,7 +126,6 @@ export interface BaseProviderConfig {
   models: string[]
   defaultModel: string
   protocol: ApiProtocol
-  adapter: LLMAdapterConfig
   features: ProviderFeatures
   defaults: LLMDefaults
   auth: AuthConfig
@@ -177,8 +166,6 @@ export interface UserProviderConfig {
   timeout?: number
   model?: string
   customModels?: string[]
-  adapterConfig?: LLMAdapterConfig
-  advanced?: AdvancedConfig
   // 自定义厂商专用字段
   displayName?: string
   protocol?: ApiProtocol
@@ -200,338 +187,7 @@ export const ANTHROPIC_IMAGE_FORMAT: ImageFormatConfig = {
   template: { type: 'image', source: { type: 'base64', media_type: '{{mediaType}}', data: '{{base64}}' } },
 }
 
-export const OPENAI_ADAPTER: LLMAdapterConfig = {
-  id: 'openai',
-  name: 'OpenAI',
-  description: 'OpenAI API 标准格式',
-  protocol: 'openai',
-  request: {
-    endpoint: '/chat/completions',
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    bodyTemplate: { stream: true },
-  },
-  response: {
-    dataPrefix: 'data:',
-    doneMarker: '[DONE]',
-    contentField: 'delta.content',
-    toolCallField: 'delta.tool_calls',
-    toolNamePath: 'function.name',
-    toolArgsPath: 'function.arguments',
-    toolIdPath: 'id',
-    argsIsObject: false,
-    finishReasonField: 'finish_reason',
-  },
-  messageFormat: {
-    systemMessageMode: 'message',
-    toolResultRole: 'tool',
-    toolResultIdField: 'tool_call_id',
-    assistantToolCallField: 'tool_calls',
-    assistantToolCallFormat: 'openai',
-  },
-  toolFormat: {
-    wrapMode: 'function',
-    wrapField: 'function',
-    parameterField: 'parameters',
-    includeType: true,
-  },
-}
 
-export const ANTHROPIC_ADAPTER: LLMAdapterConfig = {
-  id: 'anthropic',
-  name: 'Anthropic',
-  description: 'Claude API 格式',
-  protocol: 'anthropic',
-  request: {
-    endpoint: '/messages',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'anthropic-version': '2023-06-01',
-    },
-    bodyTemplate: { stream: true },
-  },
-  response: {
-    dataPrefix: 'data:',
-    doneMarker: 'message_stop',
-    contentField: 'delta.text',
-    reasoningField: 'thinking',
-    toolCallField: 'content_block',
-    toolNamePath: 'name',
-    toolArgsPath: 'input',
-    toolIdPath: 'id',
-    argsIsObject: true,
-    finishReasonField: 'stop_reason',
-  },
-  messageFormat: {
-    systemMessageMode: 'parameter',
-    systemParameterName: 'system',
-    toolResultRole: 'user',
-    toolResultIdField: 'tool_use_id',
-    toolResultWrapper: 'tool_result',
-    assistantToolCallField: 'content',
-    assistantToolCallFormat: 'anthropic',
-  },
-  toolFormat: {
-    wrapMode: 'none',
-    parameterField: 'input_schema',
-    includeType: false,
-  },
-}
-
-export const GEMINI_ADAPTER: LLMAdapterConfig = {
-  id: 'gemini',
-  name: 'Google Gemini',
-  description: 'Gemini 原生 API (使用 Google AI SDK)',
-  protocol: 'gemini', // 使用原生 Gemini SDK
-  request: {
-    endpoint: '/models/{model}:streamGenerateContent',
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    bodyTemplate: { stream: true },
-  },
-  response: {
-    dataPrefix: 'data:',
-    doneMarker: '',
-    contentField: 'candidates.0.content.parts.0.text',
-    toolCallField: 'candidates.0.content.parts',
-    toolNamePath: 'functionCall.name',
-    toolArgsPath: 'functionCall.args',
-    toolIdPath: '',
-    argsIsObject: true,
-    finishReasonField: 'candidates.0.finishReason',
-  },
-  messageFormat: {
-    systemMessageMode: 'parameter',
-    systemParameterName: 'systemInstruction',
-    toolResultRole: 'user',
-    toolResultIdField: '',
-    toolResultWrapper: 'functionResponse',
-    assistantToolCallField: 'parts',
-    assistantToolCallFormat: 'openai',
-  },
-  toolFormat: {
-    wrapMode: 'none',
-    parameterField: 'parameters',
-    includeType: false,
-  },
-}
-
-/** 智谱 GLM 适配器 - 原生 API */
-export const ZHIPU_ADAPTER: LLMAdapterConfig = {
-  id: 'zhipu',
-  name: '智谱 GLM',
-  description: '智谱 AI GLM 系列模型 (原生 API)',
-  protocol: 'custom',
-  request: {
-    endpoint: '/chat/completions',
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    bodyTemplate: { stream: true },
-  },
-  response: {
-    dataPrefix: 'data:',
-    doneMarker: '[DONE]',
-    contentField: 'delta.content',
-    reasoningField: 'delta.reasoning_content',
-    toolCallField: 'delta.tool_calls',
-    toolNamePath: 'function.name',
-    toolArgsPath: 'function.arguments',
-    toolIdPath: 'id',
-    argsIsObject: false,
-    finishReasonField: 'finish_reason',
-  },
-  messageFormat: {
-    systemMessageMode: 'message',
-    toolResultRole: 'tool',
-    toolResultIdField: 'tool_call_id',
-    assistantToolCallField: 'tool_calls',
-    assistantToolCallFormat: 'openai',
-  },
-  toolFormat: {
-    wrapMode: 'function',
-    wrapField: 'function',
-    parameterField: 'parameters',
-    includeType: true,
-  },
-}
-
-/** 阿里通义千问适配器 - DashScope 原生 API */
-export const QWEN_ADAPTER: LLMAdapterConfig = {
-  id: 'qwen',
-  name: '阿里通义千问',
-  description: '阿里云 DashScope 原生 API',
-  protocol: 'custom',
-  request: {
-    endpoint: '/services/aigc/text-generation/generation',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-DashScope-SSE': 'enable',
-    },
-    bodyTemplate: {
-      input: {},
-      parameters: {
-        result_format: 'message',
-        incremental_output: true,
-      },
-    },
-  },
-  response: {
-    dataPrefix: 'data:',
-    doneMarker: '',
-    contentField: 'output.choices.0.message.content',
-    reasoningField: 'output.choices.0.message.reasoning_content',
-    toolCallField: 'output.choices.0.message.tool_calls',
-    toolNamePath: 'function.name',
-    toolArgsPath: 'function.arguments',
-    toolIdPath: 'id',
-    argsIsObject: false,
-    finishReasonField: 'output.choices.0.finish_reason',
-  },
-  messageFormat: {
-    systemMessageMode: 'message',
-    toolResultRole: 'tool',
-    toolResultIdField: 'tool_call_id',
-    assistantToolCallField: 'tool_calls',
-    assistantToolCallFormat: 'openai',
-  },
-  toolFormat: {
-    wrapMode: 'function',
-    wrapField: 'function',
-    parameterField: 'parameters',
-    includeType: true,
-  },
-}
-
-/** 百度文心一言适配器 - ERNIE API */
-export const ERNIE_ADAPTER: LLMAdapterConfig = {
-  id: 'ernie',
-  name: '百度文心一言',
-  description: '百度 ERNIE API',
-  protocol: 'custom',
-  request: {
-    endpoint: '/chat/completions',
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    bodyTemplate: { stream: true },
-  },
-  response: {
-    dataPrefix: 'data:',
-    doneMarker: '[DONE]',
-    contentField: 'result',
-    reasoningField: '',
-    toolCallField: 'function_call',
-    toolNamePath: 'name',
-    toolArgsPath: 'arguments',
-    toolIdPath: 'id',
-    argsIsObject: false,
-    finishReasonField: 'is_end',
-  },
-  messageFormat: {
-    systemMessageMode: 'parameter',
-    systemParameterName: 'system',
-    toolResultRole: 'function',
-    toolResultIdField: 'name',
-    assistantToolCallField: 'function_call',
-    assistantToolCallFormat: 'openai',
-  },
-  toolFormat: {
-    wrapMode: 'none',
-    parameterField: 'parameters',
-    includeType: false,
-  },
-}
-
-/** 字节豆包适配器 - 火山引擎 API */
-export const DOUBAO_ADAPTER: LLMAdapterConfig = {
-  id: 'doubao',
-  name: '字节豆包',
-  description: '火山引擎豆包大模型 API',
-  protocol: 'custom',
-  request: {
-    endpoint: '/chat/completions',
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    bodyTemplate: { stream: true },
-  },
-  response: {
-    dataPrefix: 'data:',
-    doneMarker: '[DONE]',
-    contentField: 'delta.content',
-    reasoningField: 'delta.reasoning_content',
-    toolCallField: 'delta.tool_calls',
-    toolNamePath: 'function.name',
-    toolArgsPath: 'function.arguments',
-    toolIdPath: 'id',
-    argsIsObject: false,
-    finishReasonField: 'finish_reason',
-  },
-  messageFormat: {
-    systemMessageMode: 'message',
-    toolResultRole: 'tool',
-    toolResultIdField: 'tool_call_id',
-    assistantToolCallField: 'tool_calls',
-    assistantToolCallFormat: 'openai',
-  },
-  toolFormat: {
-    wrapMode: 'function',
-    wrapField: 'function',
-    parameterField: 'parameters',
-    includeType: true,
-  },
-}
-
-/** DeepSeek 适配器 */
-export const DEEPSEEK_ADAPTER: LLMAdapterConfig = {
-  id: 'deepseek',
-  name: 'DeepSeek',
-  description: 'DeepSeek API',
-  protocol: 'custom',
-  request: {
-    endpoint: '/chat/completions',
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    bodyTemplate: { stream: true },
-  },
-  response: {
-    dataPrefix: 'data:',
-    doneMarker: '[DONE]',
-    contentField: 'delta.content',
-    reasoningField: 'delta.reasoning_content',
-    toolCallField: 'delta.tool_calls',
-    toolNamePath: 'function.name',
-    toolArgsPath: 'function.arguments',
-    toolIdPath: 'id',
-    argsIsObject: false,
-    finishReasonField: 'finish_reason',
-  },
-  messageFormat: {
-    systemMessageMode: 'message',
-    toolResultRole: 'tool',
-    toolResultIdField: 'tool_call_id',
-    assistantToolCallField: 'tool_calls',
-    assistantToolCallFormat: 'openai',
-  },
-  toolFormat: {
-    wrapMode: 'function',
-    wrapField: 'function',
-    parameterField: 'parameters',
-    includeType: true,
-  },
-}
-
-/** 所有内置适配器 */
-export const BUILTIN_ADAPTERS: Record<string, LLMAdapterConfig> = {
-  openai: OPENAI_ADAPTER,
-  anthropic: ANTHROPIC_ADAPTER,
-  gemini: GEMINI_ADAPTER,
-  zhipu: ZHIPU_ADAPTER,
-  qwen: QWEN_ADAPTER,
-  ernie: ERNIE_ADAPTER,
-  doubao: DOUBAO_ADAPTER,
-  deepseek: DEEPSEEK_ADAPTER,
-}
 
 // ============================================
 // 内置 Provider 定义
@@ -547,7 +203,6 @@ export const BUILTIN_PROVIDERS: Record<string, BuiltinProviderDef> = {
     models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1', 'o1-mini', 'o3-mini'],
     defaultModel: 'gpt-4o',
     protocol: 'openai',
-    adapter: OPENAI_ADAPTER,
     features: { streaming: true, tools: true, vision: true, reasoning: true },
     defaults: { maxTokens: 8192, temperature: 0.7, topP: 1, timeout: 120000 },
     auth: { type: 'bearer', placeholder: 'sk-proj-...', helpUrl: 'https://platform.openai.com/api-keys' },
@@ -563,7 +218,6 @@ export const BUILTIN_PROVIDERS: Record<string, BuiltinProviderDef> = {
     models: ['claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'],
     defaultModel: 'claude-sonnet-4-20250514',
     protocol: 'anthropic',
-    adapter: ANTHROPIC_ADAPTER,
     features: { streaming: true, tools: true, vision: true, reasoning: true },
     defaults: { maxTokens: 8192, temperature: 0.7, topP: 1, timeout: 120000 },
     auth: { type: 'api-key', headerName: 'x-api-key', placeholder: 'sk-ant-...', helpUrl: 'https://console.anthropic.com/settings/keys' },
@@ -579,7 +233,6 @@ export const BUILTIN_PROVIDERS: Record<string, BuiltinProviderDef> = {
     models: ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.5-pro-preview-05-06'],
     defaultModel: 'gemini-2.0-flash-exp',
     protocol: 'gemini', // 使用原生 Gemini SDK
-    adapter: GEMINI_ADAPTER,
     features: { streaming: true, tools: true, vision: true },
     defaults: { maxTokens: 8192, temperature: 0.7, topP: 1, timeout: 120000 },
     auth: { type: 'query', queryParam: 'key', placeholder: 'AIzaSy...', helpUrl: 'https://aistudio.google.com/apikey' },
@@ -606,16 +259,7 @@ export function getBuiltinProvider(providerId: string): BuiltinProviderDef | und
   return BUILTIN_PROVIDERS[providerId]
 }
 
-/** 获取 Provider 的适配器配置 */
-export function getAdapterConfig(providerId: string): LLMAdapterConfig {
-  const provider = BUILTIN_PROVIDERS[providerId]
-  return provider?.adapter || OPENAI_ADAPTER
-}
 
-/** 获取所有内置适配器 */
-export function getBuiltinAdapters(): LLMAdapterConfig[] {
-  return Object.values(BUILTIN_ADAPTERS)
-}
 
 /** 获取 Provider 的默认模型 */
 export function getProviderDefaultModel(providerId: string): string {

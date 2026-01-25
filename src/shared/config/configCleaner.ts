@@ -230,6 +230,13 @@ export interface AppSettingsSchema {
   llmConfig?: {
     provider?: string
     model?: string
+    enableThinking?: boolean
+    temperature?: number
+    maxTokens?: number
+    topP?: number
+    frequencyPenalty?: number
+    presencePenalty?: number
+    stopSequences?: string[]
   }
   language?: string
   autoApprove?: {
@@ -260,6 +267,15 @@ export function cleanAppSettings(config: Record<string, unknown>): AppSettingsSc
     cleaned.llmConfig = {}
     if (typeof llm.provider === 'string') cleaned.llmConfig.provider = llm.provider
     if (typeof llm.model === 'string') cleaned.llmConfig.model = llm.model
+    if (typeof llm.enableThinking === 'boolean') cleaned.llmConfig.enableThinking = llm.enableThinking
+    if (typeof llm.temperature === 'number') cleaned.llmConfig.temperature = llm.temperature
+    if (typeof llm.maxTokens === 'number') cleaned.llmConfig.maxTokens = llm.maxTokens
+    if (typeof llm.topP === 'number') cleaned.llmConfig.topP = llm.topP
+    if (typeof llm.frequencyPenalty === 'number') cleaned.llmConfig.frequencyPenalty = llm.frequencyPenalty
+    if (typeof llm.presencePenalty === 'number') cleaned.llmConfig.presencePenalty = llm.presencePenalty
+    if (Array.isArray(llm.stopSequences)) {
+      cleaned.llmConfig.stopSequences = llm.stopSequences.filter(s => typeof s === 'string')
+    }
   }
 
   if (typeof config.language === 'string') cleaned.language = config.language
