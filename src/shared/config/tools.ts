@@ -690,8 +690,8 @@ TIPS:
         requiresWorkspace: true,
         enabled: true,
         parameters: {
-            items: { 
-                type: 'array', 
+            items: {
+                type: 'array',
                 description: 'Items to update. Each item: {id: "1", status: "completed"|"in_progress"|"failed"}',
                 required: true,
                 items: {
@@ -929,6 +929,72 @@ export function generateToolDefinition(config: ToolConfig): ToolDefinition {
     }
 }
 
+// ============================================
+// Zod 预处理辅助函数 (增强容错性)
+// ============================================
+
+const preprocessNumber = (val: unknown) => {
+    if (typeof val === 'string' && val.trim() !== '') {
+        const parsed = Number(val)
+        return isNaN(parsed) ? val : parsed
+    }
+    return val
+}
+
+const preprocessBoolean = (val: unknown) => {
+    if (typeof val === 'string') {
+        const lower = val.toLowerCase()
+        if (lower === 'true') return true
+        if (lower === 'false') return false
+    }
+    return val
+}
+
+const preprocessArray = (val: unknown) => {
+    if (typeof val === 'string') {
+        try {
+            return JSON.parse(val)
+        } catch {
+            return val
+        }
+    }
+    return val
+}
+
+/** 递归生成 Zod Schema (支持嵌套和自动类型转换) */
+function createZodType(prop: ToolPropertyDef): z.ZodTypeAny {
+    switch (prop.type) {
+        case 'string':
+            if (prop.enum) {
+                return z.enum(prop.enum as [string, ...string[]])
+            }
+            return z.string()
+        case 'number':
+            return z.preprocess(preprocessNumber, z.number().int())
+        case 'boolean':
+            return z.preprocess(preprocessBoolean, z.boolean())
+        case 'array':
+            let itemSchema: z.ZodTypeAny = z.any()
+            if (prop.items) {
+                itemSchema = createZodType(prop.items)
+            }
+            return z.preprocess(preprocessArray, z.array(itemSchema))
+        case 'object':
+            if (prop.properties) {
+                const shape: Record<string, z.ZodTypeAny> = {}
+                for (const [k, v] of Object.entries(prop.properties)) {
+                    let s = createZodType(v)
+                    if (!v.required) s = s.optional()
+                    shape[k] = s
+                }
+                return z.object(shape).passthrough()
+            }
+            return z.object({}).passthrough()
+        default:
+            return z.any()
+    }
+}
+
 /** 生成 Zod Schema */
 export function generateZodSchema(config: ToolConfig): z.ZodSchema {
     if (config.customSchema) {
@@ -938,34 +1004,11 @@ export function generateZodSchema(config: ToolConfig): z.ZodSchema {
     const shape: Record<string, z.ZodTypeAny> = {}
 
     for (const [key, prop] of Object.entries(config.parameters)) {
-        let schema: z.ZodTypeAny
+        let schema = createZodType(prop)
 
-        switch (prop.type) {
-            case 'string':
-                if (prop.enum) {
-                    schema = z.enum(prop.enum as [string, ...string[]])
-                } else {
-                    // 对于必需的字符串参数，使用 min(1) 验证
-                    // 但如果模型没有传递参数，我们在执行前会提供空对象
-                    schema = prop.required 
-                        ? z.string().min(1, `${key} is required`)
-                        : z.string()
-                }
-                break
-            case 'number':
-                schema = z.number().int()
-                break
-            case 'boolean':
-                schema = z.boolean()
-                break
-            case 'array':
-                schema = z.array(z.any())
-                break
-            case 'object':
-                schema = z.object({}).passthrough()
-                break
-            default:
-                schema = z.any()
+        // 重新应用顶层的 required 验证消息
+        if (prop.type === 'string' && prop.required && !prop.enum) {
+            schema = z.string().min(1, `${key} is required`)
         }
 
         if (!prop.required) {
@@ -1003,14 +1046,14 @@ export function generateZodSchema(config: ToolConfig): z.ZodSchema {
  */
 export function generateToolPromptDescription(config: ToolConfig): string {
     const lines: string[] = []
-    
+
     // 工具名
     lines.push(`### ${config.displayName} (\`${config.name}\`)`)
-    
+
     // 使用 description（包含反碎片化规则）作为主要描述
     lines.push(config.description)
     lines.push('')
-    
+
     // 参数
     const params = Object.entries(config.parameters)
     if (params.length > 0) {
@@ -1022,7 +1065,7 @@ export function generateToolPromptDescription(config: ToolConfig): string {
         }
         lines.push('')
     }
-    
+
     // 常见错误（保留，因为对用户有帮助）
     if (config.commonErrors && config.commonErrors.length > 0) {
         lines.push('**Common Errors:**')
@@ -1031,7 +1074,7 @@ export function generateToolPromptDescription(config: ToolConfig): string {
         }
         lines.push('')
     }
-    
+
     return lines.join('\n')
 }
 
@@ -1054,28 +1097,28 @@ export function generateToolsPromptDescriptionFiltered(
         network: [],
         plan: [],
     }
-    
+
     // 按类别分组
     for (const config of Object.values(TOOL_CONFIGS)) {
         // 检查是否启用、类别是否被排除、是否在允许列表中
         const isEnabled = config.enabled
         const categoryAllowed = !excludeCategories.includes(config.category)
         const toolAllowed = !allowedTools || allowedTools.includes(config.name)
-        
+
         if (isEnabled && categoryAllowed && toolAllowed) {
             categories[config.category].push(config)
         }
     }
-    
+
     const sections: string[] = []
-    
+
     if (categories.read.length > 0) {
         sections.push('## File Reading Tools')
         for (const config of categories.read) {
             sections.push(generateToolPromptDescription(config))
         }
     }
-    
+
     if (categories.search.length > 0) {
         sections.push('## Search Tools')
         sections.push(SEARCH_DECISION_GUIDE)
@@ -1083,7 +1126,7 @@ export function generateToolsPromptDescriptionFiltered(
             sections.push(generateToolPromptDescription(config))
         }
     }
-    
+
     if (categories.write.length > 0) {
         sections.push('## File Editing Tools')
         sections.push(FILE_EDIT_DECISION_GUIDE)
@@ -1091,35 +1134,35 @@ export function generateToolsPromptDescriptionFiltered(
             sections.push(generateToolPromptDescription(config))
         }
     }
-    
+
     if (categories.terminal.length > 0) {
         sections.push('## Terminal Tools')
         for (const config of categories.terminal) {
             sections.push(generateToolPromptDescription(config))
         }
     }
-    
+
     if (categories.lsp.length > 0) {
         sections.push('## Code Intelligence Tools')
         for (const config of categories.lsp) {
             sections.push(generateToolPromptDescription(config))
         }
     }
-    
+
     if (categories.network.length > 0) {
         sections.push('## Network Tools')
         for (const config of categories.network) {
             sections.push(generateToolPromptDescription(config))
         }
     }
-    
+
     if (categories.plan.length > 0) {
         sections.push('## Planning Tools')
         for (const config of categories.plan) {
             sections.push(generateToolPromptDescription(config))
         }
     }
-    
+
     return sections.join('\n\n')
 }
 

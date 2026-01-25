@@ -28,7 +28,7 @@ import { useStore } from '@/renderer/store'
 async function notifyLspAfterWrite(filePath: string): Promise<void> {
     const languageId = getLanguageId(filePath)
     if (!isLanguageSupported(languageId)) return
-    
+
     try {
         // 等待 LSP 返回诊断信息（最多等待 3 秒）
         await waitForDiagnostics(filePath)
@@ -130,7 +130,7 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
         if (numberedContent.length > config.maxSingleFileChars) {
             const totalLines = lines.length
             const readLines = endLine - startLine + 1
-            numberedContent = numberedContent.slice(0, config.maxSingleFileChars) + 
+            numberedContent = numberedContent.slice(0, config.maxSingleFileChars) +
                 `\n\n⚠️ FILE TRUNCATED (showing ${readLines} of ${totalLines} lines, ~${config.maxSingleFileChars} chars)\n` +
                 `To read more: use search_files to find target location, then read_file with start_line/end_line`
         }
@@ -161,33 +161,42 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
         const pattern = args.pattern as string
         // 自动启用 regex 模式（如果包含 | 符号）
         const isRegex = !!args.is_regex || pattern.includes('|')
-        
+
         // 判断是文件还是目录：尝试读取目录内容，如果失败则认为是文件
         const dirItems = await api.file.readDir(resolvedPath)
         const isDirectory = dirItems !== null
-        
+
         if (!isDirectory) {
             // 单文件搜索模式（替代原 search_in_file）
             const content = await api.file.read(resolvedPath)
             if (content === null) return { success: false, result: '', error: `File not found: ${resolvedPath}` }
 
+            // 验证正则表达式
+            if (isRegex) {
+                try {
+                    new RegExp(pattern)
+                } catch (e) {
+                    return { success: false, result: '', error: `Invalid regular expression: ${(e as Error).message}` }
+                }
+            }
+
             const matches: string[] = []
-            
+
             content.split('\n').forEach((line, index) => {
                 const matched = isRegex
-                    ? (() => { try { return new RegExp(pattern, 'gi').test(line) } catch { return false } })()
+                    ? new RegExp(pattern, 'gi').test(line)
                     : line.toLowerCase().includes(pattern.toLowerCase())
                 if (matched) matches.push(`${pathArg}:${index + 1}: ${line.trim()}`)
             })
 
-            return { 
-                success: true, 
-                result: matches.length 
-                    ? `Found ${matches.length} matches:\n${matches.slice(0, 100).join('\n')}` 
-                    : `No matches found for "${pattern}"` 
+            return {
+                success: true,
+                result: matches.length
+                    ? `Found ${matches.length} matches:\n${matches.slice(0, 100).join('\n')}`
+                    : `No matches found for "${pattern}"`
             }
         }
-        
+
         // 目录搜索模式（原有逻辑）
         const results = await api.file.search(pattern, resolvedPath, {
             isRegex,
@@ -241,13 +250,13 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
         if (!result.success) {
             // 使用增强的错误分析
             const { findSimilarContent, analyzeEditError, generateFixSuggestion } = await import('../utils/EditRetryStrategy')
-            
+
             const errorType = analyzeEditError(result.error || '')
             const hasCache = Agent.hasValidFileCache(path)
-            
+
             // 查找相似内容
             const similar = findSimilarContent(normalizedContent, normalizedOld)
-            
+
             // 生成详细的修复建议
             const suggestion = generateFixSuggestion(errorType, {
                 path,
@@ -255,20 +264,20 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
                 similarContent: similar.similarText,
                 lineNumber: similar.lineNumber,
             })
-            
+
             let errorMsg = result.error || 'Replace failed'
-            
+
             // 添加上下文信息
             if (similar.found) {
                 errorMsg += `\n\n📍 Similar content found at line ${similar.lineNumber} (${Math.round((similar.similarity || 0) * 100)}% match)`
             }
-            
+
             if (!hasCache) {
                 errorMsg += '\n\n⚠️ File was not read before editing. Always use read_file first.'
             }
-            
+
             errorMsg += `\n\n💡 Suggestion: ${suggestion}`
-            
+
             return { success: false, result: '', error: errorMsg }
         }
 
@@ -278,26 +287,26 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
 
         // 更新文件缓存
         Agent.markFileAsRead(path, newContent)
-        
+
         // 通知 LSP 并等待诊断
         await notifyLspAfterWrite(path)
 
         const lineChanges = calculateLineChanges(originalContent, newContent)
-        
+
         // 记录使用的匹配策略（用于调试）
         const strategyInfo = result.strategy !== 'exact' ? ` (matched via ${result.strategy} strategy)` : ''
-        
-        return { 
-            success: true, 
-            result: `File updated successfully${strategyInfo}`, 
-            meta: { 
-                filePath: path, 
-                oldContent: originalContent, 
-                newContent, 
-                linesAdded: lineChanges.added, 
+
+        return {
+            success: true,
+            result: `File updated successfully${strategyInfo}`,
+            meta: {
+                filePath: path,
+                oldContent: originalContent,
+                newContent,
+                linesAdded: lineChanges.added,
                 linesRemoved: lineChanges.removed,
                 matchStrategy: result.strategy
-            } 
+            }
         }
     },
 
@@ -337,7 +346,7 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
         const lines = originalContent.split('\n')
         const startLine = args.start_line as number
         const endLine = args.end_line as number
-        
+
         // 验证行号范围
         if (startLine < 1 || endLine > lines.length || startLine > endLine) {
             return {
@@ -346,16 +355,16 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
                 error: `Invalid line range: ${startLine}-${endLine}. File has ${lines.length} lines. Use read_file to verify line numbers.`
             }
         }
-        
+
         lines.splice(startLine - 1, endLine - startLine + 1, ...content.split('\n'))
         const newContent = lines.join('\n')
 
         const success = await api.file.write(path, newContent)
         if (!success) return { success: false, result: '', error: 'Failed to write file' }
-        
+
         // 更新文件缓存
         Agent.markFileAsRead(path, newContent)
-        
+
         // 通知 LSP 并等待诊断
         await notifyLspAfterWrite(path)
 
@@ -374,12 +383,12 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
 
         const content = (args.content as string) || ''
         const success = await api.file.write(path, content)
-        
+
         if (success) {
             // 通知 LSP 并等待诊断
             await notifyLspAfterWrite(path)
         }
-        
+
         return { success, result: success ? 'File created' : 'Failed to create file', meta: { filePath: path, isNewFile: true, newContent: content, linesAdded: content.split('\n').length } }
     },
 
@@ -394,8 +403,8 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
         const cwd = args.cwd ? resolvePath(args.cwd, ctx.workspacePath, true) : ctx.workspacePath
         // 从配置获取超时时间，args.timeout 可以覆盖
         const config = getAgentConfig()
-        const timeout = args.timeout 
-            ? (args.timeout as number) * 1000 
+        const timeout = args.timeout
+            ? (args.timeout as number) * 1000
             : config.toolTimeoutMs
 
         // 使用后台执行（不依赖 PTY，更可靠）
@@ -408,10 +417,10 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
         // 构建结果信息
         const output = result.output || ''
         const hasOutput = output.trim().length > 0
-        
+
         let resultText = output
         if (result.error) {
-            resultText = hasOutput 
+            resultText = hasOutput
                 ? `${output}\n\n[Note: ${result.error}]`
                 : result.error
         } else if (!hasOutput) {
@@ -427,9 +436,9 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
         return {
             success: isSuccess,
             result: resultText,
-            meta: { 
-                command, 
-                cwd, 
+            meta: {
+                command,
+                cwd,
                 exitCode: result.exitCode ?? (result.success ? 0 : 1),
                 timedOut: result.error?.includes('timed out')
             },
@@ -460,13 +469,13 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
             uri: pathToLspUri(path), line: (args.line as number) - 1, character: (args.column as number) - 1, workspacePath: ctx.workspacePath
         })
         if (!locations?.length) return { success: true, result: 'No references found' }
-        
+
         // 转换 URI 为相对路径
         const formatLocation = (loc: { uri: string; range: { start: { line: number; character: number } } }) => {
             let filePath = loc.uri
             if (filePath.startsWith('file:///')) filePath = filePath.slice(8)
             else if (filePath.startsWith('file://')) filePath = filePath.slice(7)
-            try { filePath = decodeURIComponent(filePath) } catch {}
+            try { filePath = decodeURIComponent(filePath) } catch { }
             // 转为相对路径
             if (ctx.workspacePath && filePath.toLowerCase().startsWith(ctx.workspacePath.toLowerCase().replace(/\\/g, '/'))) {
                 filePath = filePath.slice(ctx.workspacePath.length).replace(/^[/\\]+/, '')
@@ -482,13 +491,13 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
             uri: pathToLspUri(path), line: (args.line as number) - 1, character: (args.column as number) - 1, workspacePath: ctx.workspacePath
         })
         if (!locations?.length) return { success: true, result: 'Definition not found' }
-        
+
         // 转换 URI 为相对路径
         const formatLocation = (loc: { uri: string; range: { start: { line: number; character: number } } }) => {
             let filePath = loc.uri
             if (filePath.startsWith('file:///')) filePath = filePath.slice(8)
             else if (filePath.startsWith('file://')) filePath = filePath.slice(7)
-            try { filePath = decodeURIComponent(filePath) } catch {}
+            try { filePath = decodeURIComponent(filePath) } catch { }
             // 转为相对路径
             if (ctx.workspacePath && filePath.toLowerCase().startsWith(ctx.workspacePath.toLowerCase().replace(/\\/g, '/'))) {
                 filePath = filePath.slice(ctx.workspacePath.length).replace(/^[/\\]+/, '')
@@ -571,10 +580,10 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
         }
 
         if (!args.items && !args.status) {
-            return { 
-                success: false, 
-                result: '', 
-                error: 'Missing required parameter "items". Usage: update_plan items=[{id:"1", status:"completed"}]' 
+            return {
+                success: false,
+                result: '',
+                error: 'Missing required parameter "items". Usage: update_plan items=[{id:"1", status:"completed"}]'
             }
         }
 
@@ -593,10 +602,10 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
                     return { success: false, result: '', error: 'Each item must have at least "id" or "status" field.' }
                 }
                 if (status && !['pending', 'in_progress', 'completed', 'failed', 'skipped'].includes(status as string)) {
-                    return { 
-                        success: false, 
-                        result: '', 
-                        error: `Invalid status "${status}". Must be one of: pending, in_progress, completed, failed, skipped` 
+                    return {
+                        success: false,
+                        result: '',
+                        error: `Invalid status "${status}". Must be one of: pending, in_progress, completed, failed, skipped`
                     }
                 }
             }
@@ -665,13 +674,13 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
             } catch (err) {
                 logger.agent.error('[update_plan] Failed to sync editor:', err)
             }
-            
+
             // 触发任务列表刷新
             window.dispatchEvent(new CustomEvent('plan-list-refresh'))
         }
 
-        const resultMsg = updatedItems.length > 0 
-            ? `Plan updated: ${updatedItems.join(', ')}` 
+        const resultMsg = updatedItems.length > 0
+            ? `Plan updated: ${updatedItems.join(', ')}`
             : 'Plan updated successfully'
         return { success: true, result: resultMsg }
     },
@@ -694,7 +703,7 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
 
     async uiux_search(args) {
         const { uiuxDatabase } = await import('./uiux')
-        
+
         const query = args.query as string
         const domain = args.domain as string | undefined
         const stack = args.stack as string | undefined
@@ -708,12 +717,12 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
                 // 验证 stack 类型
                 const validStacks = ['html-tailwind', 'react', 'nextjs', 'vue', 'svelte', 'swiftui', 'react-native', 'flutter'] as const
                 const techStack = validStacks.includes(stack as any) ? stack as import('./uiux').TechStack : 'react'
-                
+
                 const result = await uiuxDatabase.searchStack(query, techStack, maxResults)
                 if (result.count === 0) {
-                    return { 
-                        success: true, 
-                        result: `No ${stack} guidelines found for "${query}". Try different keywords.` 
+                    return {
+                        success: true,
+                        result: `No ${stack} guidelines found for "${query}". Try different keywords.`
                     }
                 }
                 return {
@@ -731,12 +740,12 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
             // 验证 domain 类型
             const validDomains = ['style', 'color', 'typography', 'chart', 'landing', 'product', 'ux', 'prompt'] as const
             const uiuxDomain = domain && validDomains.includes(domain as any) ? domain as import('./uiux').UiuxDomain : undefined
-            
+
             const result = await uiuxDatabase.search(query, uiuxDomain, maxResults)
             if (result.count === 0) {
-                return { 
-                    success: true, 
-                    result: `No ${result.domain} results found for "${query}". Try different keywords or specify a different domain.` 
+                return {
+                    success: true,
+                    result: `No ${result.domain} results found for "${query}". Try different keywords or specify a different domain.`
                 }
             }
 
@@ -760,7 +769,7 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
 
     async uiux_recommend(args) {
         const { uiuxDatabase } = await import('./uiux')
-        
+
         const productType = args.product_type as string
 
         try {
@@ -775,7 +784,7 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
             }
 
             const result = formatRecommendation(productType, recommendation)
-            
+
             return {
                 success: true,
                 result,
@@ -800,7 +809,7 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
  */
 function formatUiuxResults(result: { domain: string; query: string; count: number; results: Record<string, unknown>[]; stack?: string }): string {
     const lines: string[] = []
-    
+
     if (result.stack) {
         lines.push(`## ${result.stack} Guidelines for "${result.query}"`)
     } else {
@@ -811,7 +820,7 @@ function formatUiuxResults(result: { domain: string; query: string; count: numbe
     for (let i = 0; i < result.results.length; i++) {
         const item = result.results[i]
         lines.push(`### Result ${i + 1}`)
-        
+
         for (const [key, value] of Object.entries(item)) {
             if (value && String(value).trim()) {
                 lines.push(`- **${key}**: ${value}`)
@@ -838,7 +847,7 @@ function formatRecommendation(
     }
 ): string {
     const lines: string[] = []
-    
+
     lines.push(`# Design Recommendation for "${productType}"`)
     lines.push('')
 

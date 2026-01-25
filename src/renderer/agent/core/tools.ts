@@ -151,6 +151,8 @@ async function executeSingle(
   const { currentAssistantId, workspacePath } = context
   const startTime = Date.now()
 
+  logger.agent.debug(`[Tools] Starting execution: ${toolCall.name} (${toolCall.id})`)
+
   // 更新状态为运行中
   if (currentAssistantId) {
     store.updateToolCall(currentAssistantId, toolCall.id, { status: 'running' })
@@ -172,6 +174,8 @@ async function executeSingle(
     )
 
     const duration = Date.now() - startTime
+    logger.agent.debug(`[Tools] Completed: ${toolCall.name} (${toolCall.id}) in ${duration}ms`)
+
     const rawContent = result.success
       ? (result.result !== undefined && result.result !== null ? result.result : 'Success')
       : `Error: ${result.error || 'Unknown error'}`
@@ -230,6 +234,7 @@ async function executeSingle(
   } catch (error) {
     const duration = Date.now() - startTime
     const errorMsg = error instanceof Error ? error.message : String(error)
+    logger.agent.error(`[Tools] Error in ${toolCall.name} (${toolCall.id}):`, errorMsg)
 
     // 记录错误日志
     mainStore.addToolCallLog({
@@ -255,7 +260,7 @@ async function executeSingle(
  * 执行工具列表（智能并行 + 逐个审批）
  * 
  * 审批策略：
- * - 不需要审批的工具：并行执行
+ * - 不需要审批的工具：并行执行（带并发限制）
  * - 需要审批的工具：逐个审批，用户可以选择批准或拒绝每个工具
  * - 如果用户拒绝某个工具，该工具被跳过，继续执行其他工具
  */
@@ -272,6 +277,8 @@ export async function executeTools(
     return { results, userRejected }
   }
 
+  logger.agent.info(`[Tools] Executing ${toolCalls.length} tools: ${toolCalls.map(tc => tc.name).join(', ')}`)
+
   // 分析依赖
   const deps = analyzeToolDependencies(toolCalls)
   const completed = new Set<string>()
@@ -282,22 +289,50 @@ export async function executeTools(
   const approvalRequired = toolCalls.filter(tc => needsApproval(tc.name))
   const noApprovalRequired = toolCalls.filter(tc => !needsApproval(tc.name))
 
+  logger.agent.info(`[Tools] No approval: ${noApprovalRequired.length}, Approval required: ${approvalRequired.length}`)
+
   // 在执行前保存文件快照
   await saveFileSnapshots(toolCalls, context)
 
-  // 1. 先并行执行不需要审批的工具
+  // 1. 先并行执行不需要审批的工具（使用并发限制避免系统卡顿）
   if (noApprovalRequired.length > 0) {
     store.setStreamPhase('tool_running')
     
-    const noApprovalResults = await Promise.all(
-      noApprovalRequired.map(tc => executeSingle(tc, context))
+    // 动态导入 p-limit
+    const pLimit = (await import('p-limit')).default
+    // 并发限制：最多同时执行 8 个工具（避免系统卡顿）
+    const limit = pLimit(8)
+    
+    // 使用 Promise.allSettled 而不是 Promise.all，这样即使某个工具失败也不会影响其他工具
+    // 同时，每个工具完成后立即更新结果，而不是等待所有工具完成
+    const noApprovalPromises = noApprovalRequired.map((tc) => 
+      limit(async () => {
+        try {
+          const result = await executeSingle(tc, context)
+          // 立即更新结果，不等待其他工具
+          results.push(result)
+          completed.add(result.toolCall.id)
+          pending.delete(result.toolCall.id)
+          return result
+        } catch (error) {
+          logger.agent.error(`[Tools] Unexpected error in ${tc.name}:`, error)
+          // 即使出错也要更新状态
+          const errorMsg = error instanceof Error ? error.message : String(error)
+          if (context.currentAssistantId) {
+            store.updateToolCall(context.currentAssistantId, tc.id, { 
+              status: 'error', 
+              result: errorMsg 
+            })
+          }
+          pending.delete(tc.id)
+          return { toolCall: tc, result: { content: `Error: ${errorMsg}` } }
+        }
+      })
     )
     
-    for (const result of noApprovalResults) {
-      results.push(result)
-      completed.add(result.toolCall.id)
-      pending.delete(result.toolCall.id)
-    }
+    // 等待所有工具完成（但每个工具完成时已经更新了 UI）
+    await Promise.allSettled(noApprovalPromises)
+    logger.agent.info(`[Tools] Completed ${noApprovalRequired.length} no-approval tools`)
   }
 
   // 2. 逐个处理需要审批的工具
