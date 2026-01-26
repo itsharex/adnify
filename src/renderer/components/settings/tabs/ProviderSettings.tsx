@@ -7,7 +7,6 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { Plus, Trash, Eye, EyeOff, Check, AlertTriangle, X, Server, Sliders, Box } from 'lucide-react'
-import { useStore } from '@store'
 import { PROVIDERS } from '@/shared/config/providers'
 import { toast } from '@components/common/ToastProvider'
 import { Button, Input, Select } from '@components/ui'
@@ -195,7 +194,6 @@ export function ProviderSettings({
   providers,
   language,
 }: ProviderSettingsProps) {
-  const { addModel, removeModel, providerConfigs, removeProvider, setProvider } = useStore()
   const [newModelName, setNewModelName] = useState('')
   const [isAddingCustom, setIsAddingCustom] = useState(false)
   const [logitBiasString, setLogitBiasString] = useState('')
@@ -205,22 +203,46 @@ export function ProviderSettings({
     setLogitBiasString(localConfig.logitBias ? JSON.stringify(localConfig.logitBias, null, 2) : '')
   }, [localConfig.logitBias])
 
-  // 从 providerConfigs 获取自定义厂商列表
+  // 从 localProviderConfigs 获取自定义厂商列表
   const customProviders = useMemo(() => {
-    return Object.entries(providerConfigs)
+    return Object.entries(localProviderConfigs)
       .filter(([id]) => isCustomProvider(id))
       .map(([id, config]) => ({ id, config }))
-  }, [providerConfigs])
+  }, [localProviderConfigs])
 
   // 当前选中的是自定义 Provider 吗？
   const isCustomSelected = isCustomProvider(localConfig.provider)
-  const selectedCustomConfig = isCustomSelected ? providerConfigs[localConfig.provider] : null
+  const selectedCustomConfig = isCustomSelected ? localProviderConfigs[localConfig.provider] : null
 
+  // 添加模型到本地配置
   const handleAddModel = () => {
-    if (newModelName.trim()) {
-      addModel(localConfig.provider, newModelName.trim())
-      setNewModelName('')
-    }
+    if (!newModelName.trim()) return
+    
+    const currentConfig = localProviderConfigs[localConfig.provider] || {}
+    const currentModels = currentConfig.customModels || []
+    
+    setLocalProviderConfigs({
+      ...localProviderConfigs,
+      [localConfig.provider]: {
+        ...currentConfig,
+        customModels: [...currentModels, newModelName.trim()]
+      }
+    })
+    setNewModelName('')
+  }
+
+  // 删除模型从本地配置
+  const handleRemoveModel = (model: string) => {
+    const currentConfig = localProviderConfigs[localConfig.provider]
+    if (!currentConfig) return
+    
+    setLocalProviderConfigs({
+      ...localProviderConfigs,
+      [localConfig.provider]: {
+        ...currentConfig,
+        customModels: (currentConfig.customModels || []).filter(m => m !== model)
+      }
+    })
   }
 
   // 选择内置 Provider
@@ -267,8 +289,8 @@ export function ProviderSettings({
     }
     setLocalProviderConfigs(updatedConfigs)
 
-    // 获取自定义厂商配置
-    const customConfig = providerConfigs[id] || {}
+    // 获取自定义厂商配置（从更新后的配置中获取）
+    const customConfig = updatedConfigs[id] || {}
     const models = customConfig.customModels || []
 
     setLocalConfig({
@@ -282,7 +304,7 @@ export function ProviderSettings({
     setIsAddingCustom(false)
   }
 
-  // 添加自定义 Provider
+  // 添加自定义 Provider（只更新本地状态）
   const handleAddCustomProvider = (config: { displayName: string; baseUrl: string; apiKey: string; protocol: string; model: string }) => {
     const id = `custom-${Date.now()}`
     const newConfig = {
@@ -295,14 +317,28 @@ export function ProviderSettings({
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }
-    setProvider(id, newConfig)
+    
+    // 只更新本地状态，保存时由 SettingsModal 统一处理
+    setLocalProviderConfigs({
+      ...localProviderConfigs,
+      [id]: newConfig
+    })
+    
     toast.success(language === 'zh' ? `已添加 ${config.displayName}` : `Added ${config.displayName}`)
     setIsAddingCustom(false)
+    
     // 自动选择新添加的 Provider
-    handleSelectCustomProvider(id)
+    setLocalConfig({
+      ...localConfig,
+      provider: id as any,
+      apiKey: config.apiKey,
+      baseUrl: config.baseUrl,
+      timeout: 120000,
+      model: config.model,
+    })
   }
 
-  // 删除自定义 Provider
+  // 删除自定义 Provider（只更新本地状态）
   const handleDeleteCustomProvider = async (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation()
     const { globalConfirm } = await import('@components/common/ConfirmDialog')
@@ -312,7 +348,11 @@ export function ProviderSettings({
       variant: 'danger',
     })
     if (confirmed) {
-      removeProvider(id)
+      // 从本地配置中删除
+      const { [id]: _, ...rest } = localProviderConfigs
+      setLocalProviderConfigs(rest)
+      
+      // 如果当前选中的是被删除的provider，切换到默认provider
       if (localConfig.provider === id) {
         handleSelectBuiltinProvider('openai')
       }
@@ -443,7 +483,7 @@ export function ProviderSettings({
                       } else if (selectedProvider) {
                         selectedProvider.models.forEach((m) => modelsSet.add(m))
                       }
-                      const customModels = providerConfigs[localConfig.provider]?.customModels || []
+                      const customModels = localProviderConfigs[localConfig.provider]?.customModels || []
                       customModels.forEach((m) => modelsSet.add(m))
                       return Array.from(modelsSet).map((m) => ({ value: m, label: m }))
                     })()}
@@ -466,16 +506,16 @@ export function ProviderSettings({
                     </Button>
                   </div>
 
-                  {(providerConfigs[localConfig.provider]?.customModels?.length ?? 0) > 0 && (
+                  {(localProviderConfigs[localConfig.provider]?.customModels?.length ?? 0) > 0 && (
                     <div className="flex flex-wrap gap-2 mt-3">
-                      {providerConfigs[localConfig.provider]?.customModels?.map((model: string) => (
+                      {localProviderConfigs[localConfig.provider]?.customModels?.map((model: string) => (
                         <div
                           key={model}
                           className="group flex items-center gap-1.5 px-2 py-1 bg-surface/50 rounded-md border border-border text-xs text-text-secondary hover:border-border"
                         >
                           <span>{model}</span>
                           <button
-                            onClick={() => removeModel(localConfig.provider, model)}
+                            onClick={() => handleRemoveModel(model)}
                             className="text-text-muted hover:text-red-400 opacity-50 group-hover:opacity-100 transition-opacity"
                           >
                             <Trash className="w-3 h-3" />
