@@ -802,6 +802,267 @@ export const toolExecutors: Record<string, (args: Record<string, unknown>, ctx: 
             }
         }
     },
+
+    // ===== AI 辅助工具 =====
+    async analyze_code(args, ctx) {
+        const path = resolvePath(args.path, ctx.workspacePath, true)
+        const { llmConfig } = useStore.getState()
+        
+        try {
+            // 读取文件内容
+            const code = await api.file.read(path)
+            if (code === null) {
+                return { success: false, result: '', error: `File not found: ${path}` }
+            }
+            
+            const language = getLanguageId(path)
+            
+            // 调用 AI 分析
+            const result = await api.llm.analyzeCode({
+                config: llmConfig,
+                code,
+                language,
+                filePath: path,
+            })
+            
+            // 格式化结果
+            const issues = result.issues.map(issue => 
+                `[${issue.severity}] Line ${issue.line}: ${issue.message}`
+            ).join('\n')
+            
+            const suggestions = result.suggestions.map((sug, i) => 
+                `${i + 1}. [${sug.priority}] ${sug.title}\n   ${sug.description}`
+            ).join('\n\n')
+            
+            const output = [
+                '=== AI Code Analysis ===',
+                '',
+                '## Issues:',
+                issues || 'No issues found',
+                '',
+                '## Suggestions:',
+                suggestions || 'No suggestions',
+                '',
+                '## Summary:',
+                result.summary,
+            ].join('\n')
+            
+            return {
+                success: true,
+                result: output,
+                richContent: [{
+                    type: 'json' as const,
+                    text: JSON.stringify(result, null, 2),
+                    title: 'Code Analysis Result',
+                }],
+            }
+        } catch (error: any) {
+            return {
+                success: false,
+                result: '',
+                error: `Code analysis failed: ${error.message}`,
+            }
+        }
+    },
+
+    async suggest_refactoring(args, ctx) {
+        const path = resolvePath(args.path, ctx.workspacePath, true)
+        const { llmConfig } = useStore.getState()
+        
+        try {
+            // 读取文件内容
+            const code = await api.file.read(path)
+            if (code === null) {
+                return { success: false, result: '', error: `File not found: ${path}` }
+            }
+            
+            const language = getLanguageId(path)
+            
+            // 调用 AI 重构建议
+            const result = await api.llm.suggestRefactoring({
+                config: llmConfig,
+                code,
+                language,
+                intent: args.intent as string,
+            })
+            
+            // 格式化结果
+            const changes = result.changes.map((change, i) => 
+                `${i + 1}. [${change.type}] Lines ${change.startLine}-${change.endLine}\n` +
+                `   ${change.explanation}\n` +
+                `   Old: ${change.oldCode.substring(0, 50)}...\n` +
+                `   New: ${change.newCode.substring(0, 50)}...`
+            ).join('\n\n')
+            
+            const output = [
+                '=== Refactoring Suggestion ===',
+                '',
+                `## ${result.title}`,
+                result.description,
+                '',
+                '## Changes:',
+                changes,
+                '',
+                '## Benefits:',
+                result.benefits.map(b => `- ${b}`).join('\n'),
+                '',
+                '## Risks:',
+                result.risks.map(r => `- ${r}`).join('\n'),
+            ].join('\n')
+            
+            return {
+                success: true,
+                result: output,
+                richContent: [{
+                    type: 'json' as const,
+                    text: JSON.stringify(result, null, 2),
+                    title: 'Refactoring Suggestion',
+                }],
+            }
+        } catch (error: any) {
+            return {
+                success: false,
+                result: '',
+                error: `Refactoring suggestion failed: ${error.message}`,
+            }
+        }
+    },
+
+    async suggest_fixes(args, ctx) {
+        const path = resolvePath(args.path, ctx.workspacePath, true)
+        const { llmConfig } = useStore.getState()
+        
+        try {
+            // 读取文件内容
+            const code = await api.file.read(path)
+            if (code === null) {
+                return { success: false, result: '', error: `File not found: ${path}` }
+            }
+            
+            const language = getLanguageId(path)
+            
+            // 获取诊断信息
+            const lintErrors = await lintService.getLintErrors(path, true)
+            const diagnostics = lintErrors.map(err => ({
+                message: err.message,
+                line: err.startLine ?? err.line ?? 1,
+                column: err.column ?? 1,
+                severity: err.severity === 'error' ? 1 : err.severity === 'warning' ? 2 : 3,
+            }))
+            
+            if (diagnostics.length === 0) {
+                return {
+                    success: true,
+                    result: 'No errors found. File is clean!',
+                }
+            }
+            
+            // 调用 AI 修复建议
+            const result = await api.llm.suggestFixes({
+                config: llmConfig,
+                code,
+                language,
+                diagnostics,
+            })
+            
+            // 格式化结果
+            const fixes = result.fixes.map((fix, i) => {
+                const solutions = fix.solutions.map((sol, j) => 
+                    `   ${j + 1}. [${sol.confidence}] ${sol.title}\n` +
+                    `      ${sol.description}\n` +
+                    `      Changes: ${sol.changes.length} modification(s)`
+                ).join('\n')
+                
+                return `${i + 1}. Line ${fix.diagnostic.line}: ${fix.diagnostic.message}\n${solutions}`
+            }).join('\n\n')
+            
+            const output = [
+                '=== AI Fix Suggestions ===',
+                '',
+                fixes,
+                '',
+                '## Summary:',
+                result.summary,
+            ].join('\n')
+            
+            return {
+                success: true,
+                result: output,
+                richContent: [{
+                    type: 'json' as const,
+                    text: JSON.stringify(result, null, 2),
+                    title: 'Fix Suggestions',
+                }],
+            }
+        } catch (error: any) {
+            return {
+                success: false,
+                result: '',
+                error: `Fix suggestion failed: ${error.message}`,
+            }
+        }
+    },
+
+    async generate_tests(args, ctx) {
+        const path = resolvePath(args.path, ctx.workspacePath, true)
+        const { llmConfig } = useStore.getState()
+        
+        try {
+            // 读取文件内容
+            const code = await api.file.read(path)
+            if (code === null) {
+                return { success: false, result: '', error: `File not found: ${path}` }
+            }
+            
+            const language = getLanguageId(path)
+            
+            // 调用 AI 测试生成
+            const result = await api.llm.generateTests({
+                config: llmConfig,
+                code,
+                language,
+                framework: args.framework as string | undefined,
+            })
+            
+            // 格式化结果
+            const testCases = result.testCases.map((tc, i) => 
+                `${i + 1}. [${tc.type}] ${tc.name}\n` +
+                `   ${tc.description}\n` +
+                `   \`\`\`${language}\n${tc.code}\n\`\`\``
+            ).join('\n\n')
+            
+            const output = [
+                '=== Generated Tests ===',
+                '',
+                `Framework: ${result.framework}`,
+                '',
+                '## Imports:',
+                result.imports.join('\n'),
+                '',
+                result.setup ? `## Setup:\n\`\`\`${language}\n${result.setup}\n\`\`\`\n` : '',
+                '## Test Cases:',
+                testCases,
+                '',
+                result.teardown ? `## Teardown:\n\`\`\`${language}\n${result.teardown}\n\`\`\`` : '',
+            ].filter(Boolean).join('\n')
+            
+            return {
+                success: true,
+                result: output,
+                richContent: [{
+                    type: 'json' as const,
+                    text: JSON.stringify(result, null, 2),
+                    title: 'Generated Tests',
+                }],
+            }
+        } catch (error: any) {
+            return {
+                success: false,
+                result: '',
+                error: `Test generation failed: ${error.message}`,
+            }
+        }
+    },
 }
 
 /**

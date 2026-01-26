@@ -1,25 +1,15 @@
 /**
- * LLM 服务导出
+ * LLM 服务模块导出
  */
 
-export { LLMService } from './llmService'
-export { createModel, type ModelOptions } from './modelFactory'
+export { LLMService } from './LLMService'
+export { createModel } from './modelFactory'
+export type { ModelOptions } from './modelFactory'
 
-// 重新导出共享类型
+// 导出结构化输出类型
 export type {
-    ProviderType,
-    LLMConfig,
-    LLMMessage,
-    LLMToolCall,
-    LLMToolCallMessage,
-    LLMStreamChunk,
-    LLMResult,
-    ToolDefinition,
-    ToolPropertySchema,
-    TextContent,
-    ImageContent,
-    MessageContent,
-    MessageContentPart,
-} from '@/shared/types'
-
-export { LLMErrorCode } from '@/shared/types'
+  CodeAnalysis,
+  Refactoring,
+  CodeFix,
+  TestCase,
+} from './StructuredService'

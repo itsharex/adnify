@@ -80,6 +80,12 @@ function createGroupedAPI() {
       onToolCall: (callback: Parameters<typeof raw.onLLMToolCall>[0]) => raw.onLLMToolCall(callback),
       onError: (callback: Parameters<typeof raw.onLLMError>[0]) => raw.onLLMError(callback),
       onDone: (callback: Parameters<typeof raw.onLLMDone>[0]) => raw.onLLMDone(callback),
+      // Structured Output
+      analyzeCode: (params: Parameters<typeof raw.analyzeCode>[0]) => raw.analyzeCode(params),
+      analyzeCodeStream: (params: Parameters<typeof raw.analyzeCodeStream>[0]) => raw.analyzeCodeStream(params),
+      suggestRefactoring: (params: Parameters<typeof raw.suggestRefactoring>[0]) => raw.suggestRefactoring(params),
+      suggestFixes: (params: Parameters<typeof raw.suggestFixes>[0]) => raw.suggestFixes(params),
+      generateTests: (params: Parameters<typeof raw.generateTests>[0]) => raw.generateTests(params),
     },
 
     // 终端

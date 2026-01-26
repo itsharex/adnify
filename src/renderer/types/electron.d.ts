@@ -254,6 +254,132 @@ export interface ElectronAPI {
   onLLMToolCall: (callback: (toolCall: LLMToolCall) => void) => () => void
   onLLMError: (callback: (error: LLMError) => void) => () => void
   onLLMDone: (callback: (result: LLMResult) => void) => () => void
+  // LLM - Structured Output
+  analyzeCode: (params: {
+    config: LLMConfig
+    code: string
+    language: string
+    filePath: string
+  }) => Promise<{
+    issues: Array<{
+      severity: 'error' | 'warning' | 'info' | 'hint'
+      message: string
+      line: number
+      column: number
+      endLine?: number
+      endColumn?: number
+      code?: string
+      source?: string
+    }>
+    suggestions: Array<{
+      title: string
+      description: string
+      priority: 'high' | 'medium' | 'low'
+      changes?: Array<{
+        line: number
+        oldText: string
+        newText: string
+      }>
+    }>
+    summary: string
+  }>
+  analyzeCodeStream: (params: {
+    config: LLMConfig
+    code: string
+    language: string
+    filePath: string
+  }) => Promise<{
+    issues: Array<{
+      severity: 'error' | 'warning' | 'info' | 'hint'
+      message: string
+      line: number
+      column: number
+      endLine?: number
+      endColumn?: number
+      code?: string
+      source?: string
+    }>
+    suggestions: Array<{
+      title: string
+      description: string
+      priority: 'high' | 'medium' | 'low'
+      changes?: Array<{
+        line: number
+        oldText: string
+        newText: string
+      }>
+    }>
+    summary: string
+  }>
+  suggestRefactoring: (params: {
+    config: LLMConfig
+    code: string
+    language: string
+    intent: string
+  }) => Promise<{
+    title: string
+    description: string
+    changes: Array<{
+      type: 'replace' | 'insert' | 'delete'
+      startLine: number
+      endLine: number
+      oldCode: string
+      newCode: string
+      explanation: string
+    }>
+    benefits: string[]
+    risks: string[]
+  }>
+  suggestFixes: (params: {
+    config: LLMConfig
+    code: string
+    language: string
+    diagnostics: Array<{
+      message: string
+      line: number
+      column: number
+      severity: number
+    }>
+  }) => Promise<{
+    fixes: Array<{
+      diagnostic: {
+        message: string
+        line: number
+        column: number
+        severity: number
+      }
+      solutions: Array<{
+        title: string
+        description: string
+        changes: Array<{
+          type: 'replace' | 'insert' | 'delete'
+          startLine: number
+          endLine: number
+          oldCode: string
+          newCode: string
+        }>
+        confidence: 'high' | 'medium' | 'low'
+      }>
+    }>
+    summary: string
+  }>
+  generateTests: (params: {
+    config: LLMConfig
+    code: string
+    language: string
+    framework?: string
+  }) => Promise<{
+    framework: string
+    testCases: Array<{
+      name: string
+      description: string
+      code: string
+      type: 'unit' | 'integration' | 'e2e'
+    }>
+    setup?: string
+    teardown?: string
+    imports: string[]
+  }>
 
   // Terminal
   createTerminal: (options: { id: string; cwd?: string; shell?: string }) => Promise<{ success: boolean; error?: string }>

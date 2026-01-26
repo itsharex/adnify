@@ -180,7 +180,14 @@ export interface ElectronAPI {
 
   // LLM
   sendMessage: (params: LLMSendMessageParams) => Promise<void>
+  compactContext: (params: LLMSendMessageParams) => Promise<{ content: string; error?: string }>
   abortMessage: () => void
+  // Structured Output
+  analyzeCode: (params: any) => Promise<any>
+  analyzeCodeStream: (params: any) => Promise<any>
+  suggestRefactoring: (params: any) => Promise<any>
+  suggestFixes: (params: any) => Promise<any>
+  generateTests: (params: any) => Promise<any>
   onLLMStream: (callback: (data: LLMStreamChunk) => void) => () => void
   onLLMToolCall: (callback: (toolCall: LLMToolCall) => void) => () => void
   onLLMError: (callback: (error: LLMError) => void) => () => void
@@ -412,6 +419,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sendMessage: (params: LLMSendMessageParams) => ipcRenderer.invoke('llm:sendMessage', params),
   compactContext: (params: LLMSendMessageParams) => ipcRenderer.invoke('llm:compactContext', params),
   abortMessage: () => ipcRenderer.send('llm:abort'),
+  // Structured Output
+  analyzeCode: (params: any) => ipcRenderer.invoke('llm:analyzeCode', params),
+  analyzeCodeStream: (params: any) => ipcRenderer.invoke('llm:analyzeCodeStream', params),
+  suggestRefactoring: (params: any) => ipcRenderer.invoke('llm:suggestRefactoring', params),
+  suggestFixes: (params: any) => ipcRenderer.invoke('llm:suggestFixes', params),
+  generateTests: (params: any) => ipcRenderer.invoke('llm:generateTests', params),
   onLLMStream: (callback: (data: LLMStreamChunk) => void) => {
     const handler = (_: IpcRendererEvent, data: LLMStreamChunk) => callback(data)
     ipcRenderer.on('llm:stream', handler)
