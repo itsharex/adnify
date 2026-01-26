@@ -146,13 +146,15 @@ Return a JSON object with:
       const result = await generateText({
         model,
         messages,
-        output: Output.object({
-          schema: CodeAnalysisSchema,
+        experimental_output: Output.object({
+          schema: CodeAnalysisSchema as any,
         }),
       })
 
+      const data = result.experimental_output as unknown as CodeAnalysis
+
       return {
-        data: result.output as CodeAnalysis,
+        data,
         usage: result.usage ? convertUsage(result.usage) : undefined,
         metadata: {
           id: result.response.id,
@@ -204,13 +206,15 @@ Return refactoring suggestions with precise line/column positions.`,
       const result = await generateText({
         model,
         messages,
-        output: Output.object({
-          schema: RefactoringSchema,
+        experimental_output: Output.object({
+          schema: RefactoringSchema as any,
         }),
       })
 
+      const data = result.experimental_output as unknown as Refactoring
+
       return {
-        data: result.output as Refactoring,
+        data,
         usage: result.usage ? convertUsage(result.usage) : undefined,
         metadata: {
           id: result.response.id,
@@ -273,13 +277,15 @@ Return fix suggestions with precise line/column positions.`,
       const result = await generateText({
         model,
         messages,
-        output: Output.object({
-          schema: CodeFixSchema,
+        experimental_output: Output.object({
+          schema: CodeFixSchema as any,
         }),
       })
 
+      const data = result.experimental_output as unknown as CodeFix
+
       return {
-        data: result.output as CodeFix,
+        data,
         usage: result.usage ? convertUsage(result.usage) : undefined,
         metadata: {
           id: result.response.id,
@@ -329,13 +335,15 @@ Return comprehensive test cases including unit tests, integration tests, and edg
       const result = await generateText({
         model,
         messages,
-        output: Output.object({
-          schema: TestCaseSchema,
+        experimental_output: Output.object({
+          schema: TestCaseSchema as any,
         }),
       })
 
+      const data = result.experimental_output as unknown as TestCase
+
       return {
-        data: result.output as TestCase,
+        data,
         usage: result.usage ? convertUsage(result.usage) : undefined,
         metadata: {
           id: result.response.id,
@@ -387,15 +395,16 @@ Return structured analysis with issues, suggestions, and summary.`,
       const result = await generateText({
         model,
         messages,
-        output: Output.object({
-          schema: CodeAnalysisSchema,
+        experimental_output: Output.object({
+          schema: CodeAnalysisSchema as any,
         }),
       })
 
-      onPartial(result.output as CodeAnalysis)
+      const data = result.experimental_output as unknown as CodeAnalysis
+      onPartial(data)
 
       return {
-        data: result.output as CodeAnalysis,
+        data,
         usage: result.usage ? convertUsage(result.usage) : undefined,
         metadata: {
           id: result.response.id,

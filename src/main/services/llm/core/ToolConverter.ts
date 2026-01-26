@@ -19,7 +19,7 @@ export class ToolConverter {
       const schema = this.convertSchema(t.parameters)
       result[t.name] = tool({
         description: t.description,
-        inputSchema: schema,
+        inputSchema: schema as any,
         // 不提供 execute - 工具执行由外部处理
       })
     }
@@ -30,11 +30,11 @@ export class ToolConverter {
   /**
    * 转换 JSON Schema 到 Zod Schema
    */
-  private convertSchema(jsonSchema: Record<string, unknown>): z.ZodObject<z.ZodRawShape> {
+  private convertSchema(jsonSchema: Record<string, unknown>): z.ZodType {
     const properties = (jsonSchema.properties as Record<string, unknown>) || {}
     const required = (jsonSchema.required as string[]) || []
 
-    const shape: z.ZodRawShape = {}
+    const shape: Record<string, z.ZodTypeAny> = {}
 
     for (const [key, value] of Object.entries(properties)) {
       const prop = value as { type?: string; description?: string }
