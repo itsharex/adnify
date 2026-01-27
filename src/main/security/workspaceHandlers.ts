@@ -21,7 +21,7 @@ export interface WindowManagerContext {
 export function registerWorkspaceHandlers(
   getMainWindowFn: () => BrowserWindow | null,
   store: any,
-  getWorkspaceSessionFn: () => { roots: string[] } | null,
+  getWorkspaceSessionFn: (event?: Electron.IpcMainInvokeEvent) => { roots: string[] } | null,
   windowManager?: WindowManagerContext
 ): void {
   // 辅助函数：添加到最近工作区列表

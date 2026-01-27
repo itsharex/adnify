@@ -168,7 +168,7 @@ class SecureCommandParser {
  */
 export function registerSecureTerminalHandlers(
   getMainWindow: () => BrowserWindow | null,
-  getWorkspace: () => { roots: string[] } | null,
+  getWorkspace: (event?: Electron.IpcMainInvokeEvent) => { roots: string[] } | null,
   getWindowWorkspace?: (windowId: number) => string[] | null
 ) {
   /**
@@ -176,7 +176,7 @@ export function registerSecureTerminalHandlers(
    * 替代原来的 shell:execute
    */
   ipcMain.handle('shell:executeSecure', async (
-    _,
+    event,
     request: SecureShellRequest
   ): Promise<{
     success: boolean
@@ -187,7 +187,7 @@ export function registerSecureTerminalHandlers(
   }> => {
     const { command, args = [], cwd, timeout = 30000, requireConfirm = true } = request
     const mainWindow = getMainWindow()
-    const workspace = getWorkspace()
+    const workspace = getWorkspace(event)
 
     if (!mainWindow) {
       return { success: false, error: '主窗口未就绪' }
@@ -446,11 +446,11 @@ export function registerSecureTerminalHandlers(
    * 交互式终端创建（使用 node-pty，加强路径限制）
    */
   ipcMain.handle('terminal:interactive', async (
-    _,
+    event,
     options: { id: string; cwd?: string; shell?: string }
   ) => {
     const mainWindow = getMainWindow()
-    const workspace = getWorkspace()
+    const workspace = getWorkspace(event)
     const { id, cwd, shell } = options
 
     if (!pty) {
@@ -721,7 +721,7 @@ export function registerSecureTerminalHandlers(
    * 实时推送输出到前端，精确捕获 exit code
    */
   ipcMain.handle('shell:executeBackground', async (
-    _,
+    event,
     { command, cwd, timeout = 30000, shell: customShell }: { 
       command: string
       cwd?: string
@@ -730,7 +730,7 @@ export function registerSecureTerminalHandlers(
     }
   ): Promise<{ success: boolean; output: string; exitCode: number; error?: string }> => {
     const mainWindow = getMainWindow()
-    const workspace = getWorkspace()
+    const workspace = getWorkspace(event)
     const workingDir = cwd || workspace?.roots[0] || process.cwd()
     
     // 验证工作目录

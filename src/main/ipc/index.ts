@@ -51,7 +51,16 @@ export function registerAllHandlers(context: IPCContext) {
   registerWindowHandlers(createWindow)
 
   // 文件操作（安全版）
-  registerSecureFileHandlers(getMainWindow, mainStore, () => {
+  registerSecureFileHandlers(getMainWindow, mainStore, (event) => {
+    // 优先使用请求来源窗口的工作区（支持多窗口隔离）
+    if (event && context.getWindowWorkspace) {
+      const windowId = event.sender.id
+      const windowRoots = context.getWindowWorkspace(windowId)
+      if (windowRoots && windowRoots.length > 0) {
+        return { roots: windowRoots }
+      }
+    }
+    // 回退到全局存储
     return mainStore.get('lastWorkspaceSession') as { roots: string[] } | null
   }, {
     findWindowByWorkspace: context.findWindowByWorkspace,
@@ -66,7 +75,16 @@ export function registerAllHandlers(context: IPCContext) {
   })
 
   // 终端（安全版）- 传入窗口工作区获取函数实现多窗口隔离
-  registerSecureTerminalHandlers(getMainWindow, () => {
+  registerSecureTerminalHandlers(getMainWindow, (event) => {
+    // 优先使用请求来源窗口的工作区（支持多窗口隔离）
+    if (event && context.getWindowWorkspace) {
+      const windowId = event.sender.id
+      const windowRoots = context.getWindowWorkspace(windowId)
+      if (windowRoots && windowRoots.length > 0) {
+        return { roots: windowRoots }
+      }
+    }
+    // 回退到全局存储
     return mainStore.get('lastWorkspaceSession') as { roots: string[] } | null
   }, context.getWindowWorkspace)
 

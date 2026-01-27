@@ -41,7 +41,7 @@ function showSecurityError(mainWindow: any, title: string, message: string): voi
 export function registerSecureFileHandlers(
   getMainWindowFn: () => any,
   store: any,
-  getWorkspaceSessionFn: () => { roots: string[] } | null,
+  getWorkspaceSessionFn: (event?: Electron.IpcMainInvokeEvent) => { roots: string[] } | null,
   windowManager?: WindowManagerContext
 ) {
   ;(global as any).mainWindow = getMainWindowFn()
@@ -124,9 +124,9 @@ export function registerSecureFileHandlers(
   })
 
   // 读取文件（无弹窗，使用拆分的 fileUtils）
-  ipcMain.handle('file:read', async (_, filePath: string) => {
+  ipcMain.handle('file:read', async (event, filePath: string) => {
     if (!filePath) return null
-    const workspace = getWorkspaceSessionFn()
+    const workspace = getWorkspaceSessionFn(event)
 
     // 强制工作区边界
     if (workspace && !securityManager.validateWorkspacePath(filePath, workspace.roots)) {
@@ -168,9 +168,9 @@ export function registerSecureFileHandlers(
   })
 
   // 读取二进制文件为 base64
-  ipcMain.handle('file:readBinary', async (_, filePath: string) => {
+  ipcMain.handle('file:readBinary', async (event, filePath: string) => {
     if (!filePath) return null
-    const workspace = getWorkspaceSessionFn()
+    const workspace = getWorkspaceSessionFn(event)
 
     if (workspace && !securityManager.validateWorkspacePath(filePath, workspace.roots)) {
       securityManager.logOperation(OperationType.FILE_READ, filePath, false, {
@@ -207,11 +207,11 @@ export function registerSecureFileHandlers(
   })
 
   // 写入文件（无弹窗）
-  ipcMain.handle('file:write', async (_, filePath: string, content: string) => {
+  ipcMain.handle('file:write', async (event, filePath: string, content: string) => {
     if (!filePath || typeof filePath !== 'string') return false
     if (content === undefined || content === null) return false
 
-    const workspace = getWorkspaceSessionFn()
+    const workspace = getWorkspaceSessionFn(event)
 
     if (workspace && !securityManager.validateWorkspacePath(filePath, workspace.roots)) {
       securityManager.logOperation(OperationType.FILE_WRITE, filePath, false, {
@@ -266,7 +266,7 @@ export function registerSecureFileHandlers(
   })
 
   // 保存文件（带对话框支持）
-  ipcMain.handle('file:save', async (_, content: string, currentPath?: string) => {
+  ipcMain.handle('file:save', async (event, content: string, currentPath?: string) => {
     if (currentPath) {
       if (securityManager.isSensitivePath(currentPath)) return null
       try {
@@ -286,7 +286,7 @@ export function registerSecureFileHandlers(
     const mainWindow = getMainWindowFn()
     if (!mainWindow) return null
 
-    const workspace = getWorkspaceSessionFn()
+    const workspace = getWorkspaceSessionFn(event)
     const defaultPath =
       workspace && workspace.roots.length > 0 ? workspace.roots[0] : require('os').homedir()
 
