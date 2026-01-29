@@ -228,7 +228,7 @@ async function checkAndHandleCompression(
   const thread = store.getCurrentThread()
   const messageCount = thread?.messages.length || 0
 
-  // 使用 CompressionManager 更新统计
+  // 使用 CompressionManager 更新统计（使用真实 usage）
   const previousStats = store.compressionStats
   const newStats = updateStats(
     { promptTokens: usage.input, completionTokens: usage.output },
@@ -237,29 +237,13 @@ async function checkAndHandleCompression(
     messageCount
   )
 
-  // 使用真实 usage 计算的等级
-  // 注意：这里不再强制"只升不降"，让 MessageBuilder 在发送前动态调整
-  // 但如果之前应用了更高等级的压缩，保留那个等级用于 L3/L4 的特殊处理
-  const previousLevel = (previousStats?.level ?? 0) as 0 | 1 | 2 | 3 | 4
+  // 使用真实 usage 计算的等级（不再强制"只升不降"）
   const calculatedLevel = newStats.level
 
-  // 只有 L3/L4 需要特殊处理（生成摘要/handoff），其他情况用计算出的等级
-  const finalLevel = calculatedLevel >= 3 || previousLevel >= 3
-    ? Math.max(previousLevel, calculatedLevel) as 0 | 1 | 2 | 3 | 4
-    : calculatedLevel
-
-  // 更新为最终等级
-  newStats.level = finalLevel
-  newStats.levelName = LEVEL_NAMES[finalLevel]
-  newStats.needsHandoff = finalLevel >= 4
-
-  const { ratio, inputTokens, outputTokens } = newStats
-
   logger.agent.info(
-    `[Compression] L${finalLevel} (${LEVEL_NAMES[finalLevel]}), ` +
-    `ratio: ${(ratio * 100).toFixed(1)}%, ` +
-    `tokens: ${inputTokens + outputTokens}/${contextLimit}` +
-    (calculatedLevel !== finalLevel ? ` (kept from L${previousLevel})` : '')
+    `[Compression] L${calculatedLevel} (${LEVEL_NAMES[calculatedLevel]}), ` +
+    `ratio: ${(newStats.ratio * 100).toFixed(1)}%, ` +
+    `tokens: ${newStats.inputTokens + newStats.outputTokens}/${contextLimit}`
   )
 
   // 更新 store
@@ -267,7 +251,7 @@ async function checkAndHandleCompression(
   store.setCompressionPhase('idle')
 
   // L3: 生成 LLM 摘要
-  if (finalLevel >= 3 && enableLLMSummary && thread) {
+  if (calculatedLevel >= 3 && enableLLMSummary && thread) {
     store.setCompressionPhase('summarizing')
     try {
       const userTurns = thread.messages.filter(m => m.role === 'user').length
@@ -291,7 +275,7 @@ async function checkAndHandleCompression(
   }
 
   // L4: 生成 Handoff 文档
-  if (finalLevel >= 4) {
+  if (calculatedLevel >= 4) {
     if (autoHandoff && thread && context.workspacePath) {
       store.setCompressionPhase('summarizing')
       try {
@@ -312,9 +296,9 @@ async function checkAndHandleCompression(
     store.setHandoffRequired(true)
   }
 
-  EventBus.emit({ type: 'context:level', level: finalLevel, tokens: inputTokens + outputTokens, ratio })
+  EventBus.emit({ type: 'context:level', level: calculatedLevel, tokens: newStats.inputTokens + newStats.outputTokens, ratio: newStats.ratio })
 
-  return { level: finalLevel, needsHandoff: finalLevel >= 4 }
+  return { level: calculatedLevel, needsHandoff: calculatedLevel >= 4 }
 }
 
 // ===== 主循环 =====

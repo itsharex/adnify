@@ -387,6 +387,12 @@ export interface ElectronAPI {
     language: string
     framework?: string
   }) => Promise<LLMResponse<TestCase>>
+  generateObject: (params: {
+    config: LLMConfig
+    schema: any
+    system: string
+    prompt: string
+  }) => Promise<{ object: any; usage?: any; metadata?: any; error?: string }>
   // LLM - Embeddings
   embedText: (params: {
     text: string

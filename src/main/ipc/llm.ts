@@ -244,6 +244,33 @@ export function registerLLMHandlers(_getMainWindow: () => BrowserWindow | null) 
   })
 
   // ============================================
+  // 结构化输出 - 通用对象生成
+  // ============================================
+
+  ipcMain.handle('llm:generateObject', async (event, params: {
+    config: any
+    schema: any
+    system: string
+    prompt: string
+  }) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!window) throw new Error('Window not found')
+
+    const service = getOrCreateService(event.sender.id, window)
+    
+    try {
+      const response = await service.generateStructuredObject(params)
+      return {
+        object: response.data,
+        usage: convertTokenUsage(response.usage),
+        metadata: response.metadata,
+      }
+    } catch (error) {
+      logAndThrowError(error, 'Object generation')
+    }
+  })
+
+  // ============================================
   // Embeddings
   // ============================================
 

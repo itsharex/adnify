@@ -119,6 +119,15 @@ export class LLMService {
     return await this.structuredService.analyzeCodeStream(params, onPartial)
   }
 
+  async generateStructuredObject<T>(params: {
+    config: LLMConfig
+    schema: any
+    system: string
+    prompt: string
+  }): Promise<LLMResponse<T>> {
+    return await this.structuredService.generateStructuredObject(params)
+  }
+
   // Embeddings
   async embedText(text: string, config: LLMConfig): Promise<LLMResponse<number[]>> {
     return await this.embeddingService.embedText(text, config)

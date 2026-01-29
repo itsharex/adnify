@@ -16,20 +16,17 @@ import { getMessageText } from '../types'
 
 // ===== Prompts =====
 
-const HANDOFF_PROMPT = `Analyze this conversation and extract structured information for session handoff.
+const HANDOFF_SYSTEM_PROMPT = `You are analyzing a conversation to extract structured information for session handoff.
 
-You must respond with a JSON object (no markdown, just raw JSON) with this exact structure:
-{
-  "objective": "string - what the user is trying to achieve",
-  "completedSteps": ["array of strings - what has been done"],
-  "pendingSteps": ["array of strings - what still needs to be done, INCLUDE the last user request if not completed"],
-  "keyDecisions": ["array of strings - important technical decisions"],
-  "userConstraints": ["array of strings - special requirements or preferences"],
-  "lastRequestStatus": "completed | partial | not_started - status of the last user request"
-}
+Your task is to identify:
+1. The main objective the user is trying to achieve
+2. What has been completed so far
+3. What still needs to be done (CRITICAL: include the last user request if it wasn't fully completed)
+4. Key technical decisions that were made
+5. Any special requirements or constraints the user mentioned
+6. Whether the last user request was completed, partially done, or not started
 
-CRITICAL: If the last user message contains a request that wasn't fully completed, it MUST appear in "pendingSteps".
-Example: If user asked "add error handling" but conversation ended before completion, pendingSteps should include "Add error handling as requested".`
+Be thorough and accurate. If the last user message contains a request that wasn't fully addressed, it MUST appear in pendingSteps.`
 
 const SUMMARY_PROMPT = `Summarize what was done in this conversation. Write like a pull request description.
 
@@ -235,7 +232,7 @@ export async function generateSummary(
 }
 
 /**
- * 生成 Handoff 专用的结构化摘要
+ * 生成 Handoff 专用的结构化摘要（使用 AI SDK generateObject）
  */
 async function generateHandoffSummary(
   messages: ChatMessage[],
@@ -246,10 +243,12 @@ async function generateHandoffSummary(
 ): Promise<SummaryResult> {
   const lastUserRequest = userRequests[userRequests.length - 1] || ''
 
-  const userPrompt = `Analyze the following conversation and extract structured information:\n\n${conversationText}\n\nLast user request: "${lastUserRequest}"`
+  const userPrompt = `Analyze the following conversation:\n\n${conversationText}\n\nLast user request: "${lastUserRequest}"`
 
   try {
-    const result = await api.llm.compactContext({
+    // 使用 generateObject 确保结构化输出
+    // 注意：schema 需要转换为可序列化的格式传递给主进程
+    const result = await api.llm.generateObject({
       config: {
         provider: llmConfig.provider,
         model: llmConfig.model,
@@ -257,36 +256,36 @@ async function generateHandoffSummary(
         baseUrl: llmConfig.baseUrl,
         timeout: llmConfig.timeout,
         maxTokens: 1000,
-        temperature: 0.2, // 更低的温度以获得更结构化的输出
+        temperature: 0.2,
       },
-      messages: [
-        { role: 'system', content: HANDOFF_PROMPT },
-        { role: 'user', content: userPrompt },
-      ],
+      // 将 Zod schema 转换为 JSON Schema（主进程会重新构建 Zod schema）
+      schema: {
+        type: 'object',
+        properties: {
+          objective: { type: 'string', description: 'What the user is trying to achieve' },
+          completedSteps: { type: 'array', items: { type: 'string' }, description: 'What has been done' },
+          pendingSteps: { type: 'array', items: { type: 'string' }, description: 'What still needs to be done' },
+          keyDecisions: { type: 'array', items: { type: 'string' }, description: 'Important technical decisions' },
+          userConstraints: { type: 'array', items: { type: 'string' }, description: 'Special requirements' },
+          lastRequestStatus: { type: 'string', enum: ['completed', 'partial', 'not_started'], description: 'Status of last request' }
+        },
+        required: ['objective', 'completedSteps', 'pendingSteps', 'keyDecisions', 'userConstraints', 'lastRequestStatus']
+      },
+      system: HANDOFF_SYSTEM_PROMPT,
+      prompt: userPrompt,
     })
 
-    if (result.error) {
-      logger.agent.warn('[SummaryService] Handoff LLM error, falling back to rule-based:', result.error)
+    if (result.error || !result.object) {
+      logger.agent.warn('[SummaryService] Handoff generation failed, falling back to rule-based:', result.error)
       return generateRuleBasedSummary(messages, lastUserRequest)
     }
 
-    // 尝试解析 JSON 响应
-    const content = result.content || ''
-    let parsed: any
-
-    try {
-      // 移除可能的 markdown 代码块标记
-      const cleaned = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-      parsed = JSON.parse(cleaned)
-    } catch {
-      logger.agent.warn('[SummaryService] Failed to parse JSON, falling back to rule-based')
-      return generateRuleBasedSummary(messages, lastUserRequest)
-    }
+    const parsed = result.object
 
     // 验证并提取字段
     const objective = parsed.objective || userRequests[0] || 'Unknown objective'
-    const completedSteps = Array.isArray(parsed.completedSteps) ? parsed.completedSteps : extractCompletedSteps(messages)
-    let pendingSteps = Array.isArray(parsed.pendingSteps) ? parsed.pendingSteps : []
+    const completedSteps = parsed.completedSteps || extractCompletedSteps(messages)
+    let pendingSteps = parsed.pendingSteps || []
 
     // 确保最后一个未完成的请求在 pendingSteps 中
     if (parsed.lastRequestStatus !== 'completed' && lastUserRequest) {

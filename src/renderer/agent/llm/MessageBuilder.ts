@@ -9,7 +9,7 @@ import { logger } from '@utils/Logger'
 import { useAgentStore } from '../store/AgentStore'
 import { buildLLMApiMessages, validateLLMMessages } from './MessageConverter'
 import type { LLMMessage } from '@/shared/types'
-import { prepareMessages, estimateMessagesTokens, CompressionLevel, LEVEL_NAMES, calculateLevel } from '../context/CompressionManager'
+import { prepareMessages, estimateMessagesTokens, CompressionLevel, LEVEL_NAMES } from '../context/CompressionManager'
 import { MessageContent, ChatMessage } from '../types'
 
 // 从 ContextBuilder 导入已有的函数
@@ -125,23 +125,13 @@ export async function buildLLMMessages(
     logger.agent.warn('[MessageBuilder] Validation warning:', validation.error)
   }
 
-  // 更新压缩统计
-  // 注意：level 表示当前使用率对应的等级（用于 UI 显示）
-  // appliedLevel 表示实际应用的压缩等级（用于消息处理）
-  const displayLevel = calculateLevel(finalRatio)
-  store.setCompressionStats({
-    level: displayLevel,
-    levelName: LEVEL_NAMES[displayLevel],
-    ratio: finalRatio,
-    inputTokens: estimatedTokens,
-    outputTokens: 0,
-    contextLimit,
-    savedTokens: 0,
-    savedPercent: 0,
-    messageCount: llmMessages.length,
-    needsHandoff: displayLevel >= 4,
-    lastUpdatedAt: Date.now(),
-  })
+  // 不在这里更新统计，等 LLM 返回真实 usage 后再更新
+  // 这样避免估算值和真实值导致的百分比跳动
+  // 只记录应用的压缩等级，供后续使用
+  logger.agent.debug(
+    `[MessageBuilder] Applied compression L${appliedLevel}, ` +
+    `estimated ratio: ${(finalRatio * 100).toFixed(1)}%`
+  )
 
   logger.agent.info(
     `[MessageBuilder] Built ${llmMessages.length} messages, ` +

@@ -179,6 +179,7 @@ export interface ElectronAPI {
   suggestRefactoring: (params: any) => Promise<any>
   suggestFixes: (params: any) => Promise<any>
   generateTests: (params: any) => Promise<any>
+  generateObject: (params: { config: any; schema: any; system: string; prompt: string }) => Promise<{ object: any; usage?: any; metadata?: any; error?: string }>
   // Embeddings
   embedText: (params: { text: string; config: any }) => Promise<any>
   embedMany: (params: { texts: string[]; config: any }) => Promise<any>
@@ -419,6 +420,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   suggestRefactoring: (params: any) => ipcRenderer.invoke('llm:suggestRefactoring', params),
   suggestFixes: (params: any) => ipcRenderer.invoke('llm:suggestFixes', params),
   generateTests: (params: any) => ipcRenderer.invoke('llm:generateTests', params),
+  generateObject: (params: { config: any; schema: any; system: string; prompt: string }) => ipcRenderer.invoke('llm:generateObject', params),
   // Embeddings
   embedText: (params: { text: string; config: any }) => ipcRenderer.invoke('llm:embedText', params),
   embedMany: (params: { texts: string[]; config: any }) => ipcRenderer.invoke('llm:embedMany', params),

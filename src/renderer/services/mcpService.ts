@@ -53,7 +53,7 @@ class McpService {
     } catch (err) {
       const error = toAppError(err)
       logger.agent.error(`[McpService] Initialize failed: ${error.code}`, error)
-      const language = store.getState().language
+      const language = useStore.getState().language
       const userMessage = getErrorMessage(error.code, language)
       store.setMcpError(userMessage)
       throw error
@@ -76,7 +76,7 @@ class McpService {
     } catch (err) {
       const error = toAppError(err)
       logger.agent.error(`[McpService] Reinitialize failed: ${error.code}`, error)
-      const language = store.getState().language
+      const language = useStore.getState().language
       const userMessage = getErrorMessage(error.code, language)
       store.setMcpError(userMessage)
     } finally {

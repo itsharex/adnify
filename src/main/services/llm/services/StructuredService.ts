@@ -2,7 +2,7 @@
  * 结构化输出服务 - 使用 AI SDK 6.0 generateText + Output
  */
 
-import { generateText, Output } from 'ai'
+import { generateText, Output, generateObject } from 'ai'
 import { z } from 'zod'
 import { logger } from '@shared/utils/Logger'
 import { createModel } from '../modelFactory'
@@ -419,4 +419,96 @@ Return structured analysis with issues, suggestions, and summary.`,
       throw llmError
     }
   }
+
+  /**
+   * 通用结构化对象生成（使用 generateObject）
+   */
+  async generateStructuredObject<T extends z.ZodType>(params: {
+    config: LLMConfig
+    schema: T | any // 支持 Zod schema 或 JSON Schema
+    system: string
+    prompt: string
+  }): Promise<LLMResponse<z.infer<T>>> {
+    logger.system.info('[StructuredService] Generating structured object')
+
+    try {
+      const model = createModel(params.config)
+
+      // 如果传入的是 JSON Schema，转换为 Zod schema
+      let zodSchema: z.ZodType
+      if (params.schema._def) {
+        // 已经是 Zod schema
+        zodSchema = params.schema
+      } else {
+        // 是 JSON Schema，需要转换（简化版，只支持常见类型）
+        zodSchema = jsonSchemaToZod(params.schema)
+      }
+
+      const result = await generateObject({
+        model,
+        schema: zodSchema,
+        system: params.system,
+        prompt: params.prompt,
+        temperature: params.config.temperature,
+      })
+
+      return {
+        data: result.object as z.infer<T>,
+        usage: result.usage ? convertUsage(result.usage) : undefined,
+        metadata: {
+          id: result.response.id,
+          modelId: result.response.modelId,
+          timestamp: result.response.timestamp,
+          finishReason: result.finishReason,
+        },
+      }
+    } catch (error) {
+      const llmError = LLMError.fromError(error)
+      logger.system.error('[StructuredService] Structured object generation failed:', llmError)
+      throw llmError
+    }
+  }
+}
+
+/**
+ * 简化的 JSON Schema 到 Zod 转换器
+ * 只支持常见的类型，用于 IPC 传递
+ */
+function jsonSchemaToZod(schema: any): z.ZodType {
+  if (schema.type === 'object') {
+    const shape: Record<string, z.ZodType> = {}
+    for (const [key, value] of Object.entries(schema.properties || {})) {
+      const propSchema = value as any
+      shape[key] = jsonSchemaToZod(propSchema)
+      if (propSchema.description) {
+        shape[key] = shape[key].describe(propSchema.description)
+      }
+    }
+    let obj = z.object(shape)
+    if (schema.required && Array.isArray(schema.required)) {
+      // Zod 默认所有字段都是必需的，这里不需要额外处理
+    }
+    return obj
+  }
+  
+  if (schema.type === 'array') {
+    return z.array(jsonSchemaToZod(schema.items))
+  }
+  
+  if (schema.type === 'string') {
+    if (schema.enum) {
+      return z.enum(schema.enum as [string, ...string[]])
+    }
+    return z.string()
+  }
+  
+  if (schema.type === 'number') {
+    return z.number()
+  }
+  
+  if (schema.type === 'boolean') {
+    return z.boolean()
+  }
+  
+  return z.any()
 }

@@ -218,7 +218,10 @@ export function prepareMessages(
     // 只处理用户消息
     if (msg.role === 'user') {
       const userMsg = msg as UserMessage
-      const newContent = replaceImagesWithPlaceholder(userMsg.content)
+      
+      // 尝试提取图片描述
+      const imageDescription = extractImageDescription(result, idx)
+      const newContent = replaceImagesWithPlaceholder(userMsg.content, imageDescription)
       
       // 只在内容真正改变时才创建新对象
       if (newContent !== userMsg.content) {
@@ -455,12 +458,20 @@ function estimateContentTokens(content: string | Array<{ type: string; text?: st
  * 原因：AI 已经分析过图片，历史消息中保留完整 base64 浪费 token
  * 主流工具（Cursor、Windsurf）都是这样处理的
  * 
+ * 优化：
+ * 1. 尝试从后续的 assistant 消息中提取图片描述
+ * 2. 如果有描述，使用描述替代占位符
+ * 3. 如果没有描述，使用通用占位符
+ * 
  * 性能优化：
  * 1. 只在需要时创建新对象（避免不必要的拷贝）
  * 2. 使用浅拷贝而非深拷贝
  * 3. 提前返回，避免不必要的遍历
  */
-function replaceImagesWithPlaceholder(content: string | Array<{ type: string; text?: string; source?: unknown }>): typeof content {
+function replaceImagesWithPlaceholder(
+  content: string | Array<{ type: string; text?: string; source?: unknown }>,
+  imageDescription?: string
+): typeof content {
   if (typeof content === 'string') {
     return content
   }
@@ -474,14 +485,49 @@ function replaceImagesWithPlaceholder(content: string | Array<{ type: string; te
   // 只在有图片时才创建新数组
   return content.map(part => {
     if (part.type === 'image') {
-      // 替换为占位符文本
+      // 如果有描述，使用描述；否则使用通用占位符
+      const placeholderText = imageDescription 
+        ? `[Image: ${imageDescription}]`
+        : '[Image: Previously analyzed]'
+      
       return {
         type: 'text' as const,
-        text: '[Image: Previously analyzed]'
+        text: placeholderText
       }
     }
     return part // 保持原对象引用（浅拷贝）
   })
+}
+
+/**
+ * 从消息历史中提取图片的描述
+ * 
+ * 策略：查找图片后的第一条 assistant 消息，提取其中对图片的描述
+ */
+function extractImageDescription(messages: ChatMessage[], imageIndex: number): string | undefined {
+  // 查找图片后的第一条 assistant 消息
+  for (let i = imageIndex + 1; i < messages.length; i++) {
+    const msg = messages[i]
+    if (msg.role === 'assistant') {
+      const assistantMsg = msg as AssistantMessage
+      const content = assistantMsg.content || ''
+      
+      // 简单启发式：提取第一句话作为描述（通常 AI 会先描述图片）
+      const firstSentence = content.split(/[.!?。！？]/)[0]?.trim()
+      if (firstSentence && firstSentence.length > 10 && firstSentence.length < 100) {
+        return firstSentence
+      }
+      
+      // 如果第一句太短或太长，返回前 80 个字符
+      if (content.length > 10) {
+        return content.slice(0, 80).trim() + (content.length > 80 ? '...' : '')
+      }
+      
+      break // 只检查第一条 assistant 消息
+    }
+  }
+  
+  return undefined
 }
 
 /**

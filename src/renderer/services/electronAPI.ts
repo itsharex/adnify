@@ -85,6 +85,7 @@ function createGroupedAPI() {
       suggestRefactoring: (params: Parameters<typeof raw.suggestRefactoring>[0]) => raw.suggestRefactoring(params),
       suggestFixes: (params: Parameters<typeof raw.suggestFixes>[0]) => raw.suggestFixes(params),
       generateTests: (params: Parameters<typeof raw.generateTests>[0]) => raw.generateTests(params),
+      generateObject: (params: Parameters<typeof raw.generateObject>[0]) => raw.generateObject(params),
       // Embeddings
       embedText: (params: Parameters<typeof raw.embedText>[0]) => raw.embedText(params),
       embedMany: (params: Parameters<typeof raw.embedMany>[0]) => raw.embedMany(params),
