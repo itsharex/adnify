@@ -144,7 +144,7 @@ function createWindow(isEmpty = false): BrowserWindow {
           "default-src 'self'",
           "script-src 'self' 'unsafe-inline' 'unsafe-eval'",  // Monaco 编辑器需要
           "style-src 'self' 'unsafe-inline'",
-          "img-src 'self' data: https:",
+          "img-src 'self' data: https: blob:",  // blob: 支持粘贴图片
           "connect-src 'self' https:",  // 允许所有 HTTPS 连接，支持自定义 baseURL
           "font-src 'self' data:",
           "media-src 'self'",
